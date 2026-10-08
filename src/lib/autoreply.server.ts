@@ -1,4 +1,5 @@
 import Fuse from "fuse.js";
+import { composePrompt } from "./wa-learn";
 
 const norm = (s: string) =>
   s.toLowerCase().replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim();
@@ -44,7 +45,7 @@ const OR_MODELS: Record<string, string> = {
 
 /** Same as aiReply, but honours custom personality/model when set; falls back to aiReply. */
 export async function aiReplyWith(customer: string, context: string, o: AiOpts = {}): Promise<string> {
-  const prompt = (o.system_prompt ?? "").trim();
+  const prompt = composePrompt(o.system_prompt).trim();
   if (!prompt && !o.ai_model) return aiReply(customer, context);
   const { quickGreeting } = await import("./ai-keys.server");
   const greet = quickGreeting(customer);
