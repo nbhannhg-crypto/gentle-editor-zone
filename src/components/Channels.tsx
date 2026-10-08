@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,12 +8,20 @@ import {
   PLATFORMS, fetchChannels, upsertChannel, toggleChannel, fetchChannelMessages,
   type Channel, type ChannelMessage,
 } from "@/lib/channels";
+import { waList } from "@/lib/studio.functions";
+import { WhatsApp, type Wa } from "@/components/WaAccounts";
 import { supabase } from "@/integrations/supabase/client";
 
 export function Channels({ storeId }: { storeId?: string | undefined }) {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [messages, setMessages] = useState<ChannelMessage[]>([]);
   const [labels, setLabels] = useState<Record<string, string>>({});
+  const [was, setWas] = useState<Wa[]>([]);
+
+  const listWa = useServerFn(waList);
+  const loadWa = async () => { try { setWas(await listWa()); } catch (e) { toast.error((e as Error).message); } };
+  useEffect(() => { void loadWa(); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const reload = async (): Promise<void> => {
     setChannels(await fetchChannels(storeId));
