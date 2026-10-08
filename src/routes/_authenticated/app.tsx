@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
-import { addRule, cacheRules, cachedRules, fetchRules, findMatches, guessCategory, recordUse, type Rule } from "@/lib/rules";
+import { addRule, backupRules, cacheRules, cachedRules, fetchRules, findMatches, guessCategory, normalize, recordUse, type Rule } from "@/lib/rules";
 import { smartReply, suggestReplies, weeklyReport } from "@/lib/ai.functions";
 import { getOrCreateMyStore, isAdmin, type Store } from "@/lib/stores";
 import { VoiceStudio, useSpeaker, EMOTIONS, loadVoice } from "@/components/VoiceStudio";
@@ -177,7 +177,7 @@ function parseBulk(text: string): { trigger_text: string; response_text: string 
     if (pending) { out.push({ trigger_text: pending.slice(0, 500), response_text: l.slice(0, 2000) }); pending = null; }
     else pending = l;
   }
-  return out.slice(0, 1000);
+  return out;
 }
 
 function Training({ rules, reload, setRules, mode, product, setProduct, storeId }: {
@@ -203,6 +203,7 @@ function Training({ rules, reload, setRules, mode, product, setProduct, storeId 
   const save = async () => {
     if (!trigger.trim() || !response.trim()) { toast.error("اكتب كلام الزبون وردك"); return; }
     setSaving(true);
+    backupRules(rules);
     const res = editing
       ? await supabase.from("training_rules").update({ trigger_text: trigger.trim(), response_text: response.trim(), category: guessCategory(trigger) }).eq("id", editing)
       : await addRule(trigger, response, storeId);
@@ -227,9 +228,37 @@ function Training({ rules, reload, setRules, mode, product, setProduct, storeId 
       .filter((r) => r[0] && r[1] && !/سؤال|question/i.test(String(r[0])))
       .map((r) => ({ trigger_text: String(r[0]).trim().slice(0, 500), response_text: String(r[1]).trim().slice(0, 2000), category: guessCategory(String(r[0])) }));
     if (!items.length) { toast.error("ما لقينا صفوف. لازم عمودين: سؤال الزبون | ردك"); return; }
+    backupRules(rules);
     const { error } = await supabase.from("training_rules").insert(items.map((i) => ({ ...i, store_id: storeId ?? null })));
     if (error) { toast.error("فشل الاستيراد"); return; }
     toast.success(`تم استيراد ${items.length} قاعدة`);
+    reload();
+  };
+
+  const exportRules = () => {
+    if (!rules.length) { toast.error("ما فيه قواعد للتصدير"); return; }
+    const ws = XLSX.utils.aoa_to_sheet([["سؤال الزبون", "ردك", "التصنيف", "مرات الاستخدام"], ...rules.map((r) => [r.trigger_text, r.response_text, r.category, r.use_count])]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "القواعد");
+    XLSX.writeFile(wb, `rules-${rules.length}.xlsx`);
+    toast.success(`تم تصدير ${rules.length} قاعدة`);
+  };
+
+  const removeDuplicates = async () => {
+    const seen = new Set<string>();
+    const dupIds: string[] = [];
+    for (const r of rules) {
+      const k = normalize(r.trigger_text) + "||" + normalize(r.response_text);
+      if (seen.has(k)) dupIds.push(r.id); else seen.add(k);
+    }
+    if (!dupIds.length) { toast.success("ما فيه قواعد مكررة"); return; }
+    if (!confirm(`تم العثور على ${dupIds.length} قاعدة مكررة. تحذفها؟ (نسخة احتياطية تنحفظ قبل الحذف)`)) return;
+    backupRules(rules);
+    for (let i = 0; i < dupIds.length; i += 100) {
+      const { error } = await supabase.from("training_rules").delete().in("id", dupIds.slice(i, i + 100));
+      if (error) { toast.error("توقف الحذف: " + error.message); reload(); return; }
+    }
+    toast.success(`تم حذف ${dupIds.length} قاعدة مكررة`);
     reload();
   };
 
@@ -239,6 +268,7 @@ function Training({ rules, reload, setRules, mode, product, setProduct, storeId 
   const importBulk = async () => {
     if (!parsed.length) { toast.error("ما لقيت ولا سطر فيه سؤال ورد"); return; }
     setBulkBusy(true);
+    backupRules(rules);
     let done = 0;
     for (let i = 0; i < parsed.length; i += 200) {
       const chunk = parsed.slice(i, i + 200).map((p) => ({ ...p, category: guessCategory(p.trigger_text), store_id: storeId ?? null }));
@@ -254,7 +284,7 @@ function Training({ rules, reload, setRules, mode, product, setProduct, storeId 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <div className="space-y-6">
-        <Card title="📋 لصق جماعي — حتى 1000 سطر">
+        <Card title="📋 لصق جماعي — بدون حد">
           <p className="mb-2 text-xs text-muted-foreground">كل سطر: كلام الزبون | ردك — أو استخدم = أو : أو Tab. أو اكتب السؤال في سطر والرد في السطر اللي بعده.</p>
           <Textarea value={bulk} onChange={(e) => setBulk(e.target.value)} rows={6} dir="rtl"
             placeholder={"بكم؟ | السعر 100 ريال ومعه هدية 🎁\nغالي = عندنا تقسيط بدون فوائد\nفيه توصيل؟ : نعم لكل مدن المملكة"} />
@@ -300,6 +330,10 @@ function Training({ rules, reload, setRules, mode, product, setProduct, storeId 
       </div>
 
       <Card title={`📚 القواعد المحفوظة (${rules.length})`}>
+        <div className="mb-3 flex flex-wrap gap-2">
+          <Button size="sm" variant="secondary" onClick={exportRules}>تصدير Excel</Button>
+          <Button size="sm" variant="outline" onClick={removeDuplicates}>حذف المكرر</Button>
+        </div>
         {!rules.length && <p className="text-sm text-muted-foreground">ما علمتها شي للحين. ابدأ بأول قاعدة!</p>}
         <ul className="max-h-[70vh] space-y-3 overflow-auto pl-1">
           {rules.map((r) => (

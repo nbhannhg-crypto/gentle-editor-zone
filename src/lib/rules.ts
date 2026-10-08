@@ -39,16 +39,33 @@ export function cachedRules(): Rule[] {
   try { return JSON.parse(localStorage.getItem(LS) || "[]"); } catch { return []; }
 }
 
+/** Safety copy in localStorage (timestamped, last 3 kept) before any save/delete. */
+export function backupRules(rules: Rule[]) {
+  if (typeof window === "undefined" || !rules.length) return;
+  try {
+    localStorage.setItem("kingdom_rules_backup", JSON.stringify({ at: new Date().toISOString(), rules }));
+  } catch { /* storage full: ignore */ }
+}
+
+/** Fetches ALL rules (no 1000 cap) by paging through the table. */
 export async function fetchRules(storeId?: string): Promise<Rule[]> {
-  let q = supabase.from("training_rules").select("*").order("created_at", { ascending: false });
-  if (storeId) q = q.eq("store_id", storeId);
-  const { data, error } = await q;
-  if (error) return cachedRules();
-  cacheRules(data as Rule[]);
-  return data as Rule[];
+  const PAGE = 1000;
+  const all: Rule[] = [];
+  for (let from = 0; ; from += PAGE) {
+    let q = supabase.from("training_rules").select("*").order("created_at", { ascending: false }).order("id").range(from, from + PAGE - 1);
+    if (storeId) q = q.eq("store_id", storeId);
+    const { data, error } = await q;
+    if (error) return cachedRules();
+    all.push(...(data as Rule[]));
+    if (!data || data.length < PAGE) break;
+  }
+  backupRules(all);
+  cacheRules(all);
+  return all;
 }
 
 export async function addRule(trigger: string, response: string, storeId?: string) {
+  backupRules(cachedRules());
   return supabase.from("training_rules").insert({ trigger_text: trigger.trim(), response_text: response.trim(), category: guessCategory(trigger), store_id: storeId ?? null });
 }
 
