@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,12 +8,20 @@ import {
   PLATFORMS, fetchChannels, upsertChannel, toggleChannel, fetchChannelMessages,
   type Channel, type ChannelMessage,
 } from "@/lib/channels";
+import { waList } from "@/lib/studio.functions";
+import { WhatsApp, type Wa } from "@/components/WaAccounts";
 import { supabase } from "@/integrations/supabase/client";
 
 export function Channels({ storeId }: { storeId?: string | undefined }) {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [messages, setMessages] = useState<ChannelMessage[]>([]);
   const [labels, setLabels] = useState<Record<string, string>>({});
+  const [was, setWas] = useState<Wa[]>([]);
+
+  const listWa = useServerFn(waList);
+  const loadWa = async () => { try { setWas(await listWa()); } catch (e) { toast.error((e as Error).message); } };
+  useEffect(() => { void loadWa(); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const reload = async (): Promise<void> => {
     setChannels(await fetchChannels(storeId));
@@ -35,10 +44,9 @@ export function Channels({ storeId }: { storeId?: string | undefined }) {
     reload();
   };
 
-  const webhookUrl = typeof window !== "undefined" ? `${window.location.origin}/api/public/whatsapp` : "";
-
   return (
     <div className="space-y-6">
+      <WhatsApp was={was} reload={loadWa} />
       <section className="rounded-2xl border bg-card p-5 shadow-soft">
         <h2 className="font-display mb-1 text-lg text-primary">📡 قنوات الرد التلقائي</h2>
         <p className="mb-4 text-sm text-muted-foreground">
@@ -91,14 +99,14 @@ export function Channels({ storeId }: { storeId?: string | undefined }) {
       </section>
 
       <section className="rounded-2xl border bg-card p-5 shadow-soft">
-        <h2 className="font-display mb-2 text-lg text-primary">🔗 ربط واتساب للأعمال (رسمي من ميتا)</h2>
+        <h2 className="font-display mb-2 text-lg text-primary">🔗 طريقة الربط السريع</h2>
         <ol className="list-decimal space-y-1 pr-5 text-sm text-muted-foreground">
-          <li>افتح حساب مجاني في <b>Meta for Developers</b> وأنشئ تطبيق واتساب للأعمال.</li>
-          <li>انسخ <b>الرمز الدائم (Access Token)</b> و<b>معرّف رقم الجوال (Phone Number ID)</b>.</li>
-          <li>أرسلهم لي هنا وأنا أحفظهم بشكل آمن ويشتغل الرد التلقائي فوراً.</li>
-          <li>في لوحة ميتا، حط رابط الـ Webhook هذا:</li>
+          <li>اكتب اسم الحساب (مثال: واتساب الأعمال) ودوس + أضف</li>
+          <li>بيطلع لك QR Code داخل الموقع</li>
+          <li>افتح واتساب بجوالك {'>'} الإعدادات {'>'} الأجهزة المرتبطة {'>'} ربط جهاز</li>
+          <li>صوّر الكود</li>
+          <li>انتظر ثانيتين وبيظهر «متصل ✅» مع صورتك</li>
         </ol>
-        <code dir="ltr" className="mt-2 block rounded-lg bg-muted px-3 py-2 text-xs break-all">{webhookUrl}</code>
       </section>
 
       <section className="rounded-2xl border bg-card p-5 shadow-soft">
