@@ -16,7 +16,7 @@ export function WaExtras({ name, myNumber }: { name: string; myNumber: string })
   const test = useServerFn(waAiTest);
   const [x, setX] = useState<WaExtra | null>(null);
   const [state, setState] = useState("");
-  const timer = useRef<ReturnType<typeof setTimeout>>();
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [chatOpen, setChatOpen] = useState(false);
   const [msg, setMsg] = useState("");
   const [chat, setChat] = useState<{ me: boolean; t: string }[]>([]);
@@ -59,7 +59,7 @@ export function WaExtras({ name, myNumber }: { name: string; myNumber: string })
         <p className="mt-1 text-xs text-muted-foreground">اتركه فاضي للرد على الجميع - لو كتبت أرقام بيرد عليهم فقط</p>
         <div className="mt-2 flex flex-wrap gap-2">
           <Button size="sm" variant="outline" disabled={!myNumber} onClick={() => {
-            if (x.allowed_numbers.replace(/\D/g, "").includes(myNumber)) return toast("رقمك موجود أصلاً");
+            if (x.allowed_numbers.replace(/\D/g, "").includes(myNumber)) { toast("رقمك موجود أصلاً"); return; }
             update({ allowed_numbers: x.allowed_numbers.trim() ? `${x.allowed_numbers.trim()}\n${myNumber}` : myNumber });
           }}>➕ إضافة رقمي الحالي تلقائياً</Button>
           <Button size="sm" variant="ghost" onClick={() => update({ allowed_numbers: "" })}>🗑️ مسح الكل والرد على الجميع</Button>
