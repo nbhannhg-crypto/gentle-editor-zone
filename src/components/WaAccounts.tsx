@@ -58,7 +58,7 @@ export function WhatsApp({ was, reload }: { was: Wa[]; reload: () => Promise<voi
         <div key={w.name} className="space-y-2 rounded-xl border bg-card p-3">
           <div className="flex items-center justify-between">
             <div>
-              <b>{w.label}</b> <span className="text-xs">{w.status === "open" ? "��� مربوط" : "⚪ غير مربوط"}</span>
+              <b>{w.label}</b> <span className="text-xs">{w.status === "open" ? "🟢 مربوط" : "⚪ غير مربوط"}</span>
               {w.number && <div dir="ltr" className="text-xs text-muted-foreground">+{w.number}</div>}
             </div>
             <div className="flex gap-2">
