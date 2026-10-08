@@ -33,6 +33,54 @@ export async function aiReply(customer: string, context: string): Promise<string
   return aiText("أنتِ موظفة مبيعات سعودية ذكية ترد على واتساب. ردي باللهجة السعودية البيضاء، بجملة أو جملتين فقط، بلطف وإقناع، وبدون إيموجي كثير. استخدمي معلومات المتجر إذا تفيد، ولا تخترعي أسعار غير موجودة.\n\n" + context, customer, 1000);
 }
 
+/** Optional per-number settings (all may be missing → old behaviour). */
+export type AiOpts = { system_prompt?: string | null; ai_model?: string | null; ai_temperature?: number | null };
+
+const OR_MODELS: Record<string, string> = {
+  "gpt-4o-mini": "openai/gpt-4o-mini",
+  "gpt-4o": "openai/gpt-4o",
+  "claude-3.5-sonnet": "anthropic/claude-3.5-sonnet",
+};
+
+/** Same as aiReply, but honours custom personality/model when set; falls back to aiReply. */
+export async function aiReplyWith(customer: string, context: string, o: AiOpts = {}): Promise<string> {
+  const prompt = (o.system_prompt ?? "").trim();
+  if (!prompt && !o.ai_model) return aiReply(customer, context);
+  const { quickGreeting } = await import("./ai-keys.server");
+  const greet = quickGreeting(customer);
+  if (greet) return greet;
+  const system = (prompt || "أنتِ موظفة مبيعات سعودية ذكية ترد على واتساب. ردي باللهجة السعودية البيضاء، بجملة أو جملتين فقط.") +
+    "\nاستخدمي معلومات المتجر إذا تفيد، ولا تخترعي أسعار غير موجودة.\n\n" + context;
+  const key = process.env["OPENROUTER_KEY"];
+  const model = OR_MODELS[o.ai_model ?? ""] ?? OR_MODELS["gpt-4o-mini"];
+  if (key) {
+    try {
+      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model, temperature: o.ai_temperature ?? 0.7, max_tokens: 600, messages: [{ role: "system", content: system }, { role: "user", content: customer }] }),
+      });
+      if (res.ok) {
+        const j = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+        const t = j.choices?.[0]?.message?.content?.trim();
+        if (t) return t.slice(0, 1000);
+      }
+    } catch (e) { console.error("custom model failed", e); }
+  }
+  return aiText(system, customer, 1000);
+}
+
+/** Keep digits only. */
+export const cleanNum = (s: string) => s.replace(/\D/g, "");
+
+/** Empty list → everyone allowed. Otherwise exact or suffix match (country code). */
+export function numberAllowed(list: string | null | undefined, sender: string): boolean {
+  const nums = (list ?? "").split(/[,\n،;]+/).map(cleanNum).filter((n) => n.length >= 5);
+  if (!nums.length) return true;
+  const s = cleanNum(sender);
+  return nums.some((n) => s === n || s.endsWith(n) || n.endsWith(s));
+}
+
 export async function aiText(instructions: string, userText: string, maxLen = 4000): Promise<string> {
   const { getAIResponse } = await import("./ai-keys.server");
   const ext = await getAIResponse(instructions, userText);

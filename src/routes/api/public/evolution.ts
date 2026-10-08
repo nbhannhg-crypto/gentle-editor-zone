@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { timingSafeEqual } from "crypto";
-import { aiReply, bestRule, evoSend, fishTts, kingdomAutoReply, kingdomWelcome } from "@/lib/autoreply.server";
+import { aiReplyWith, bestRule, evoSend, fishTts, kingdomAutoReply, kingdomWelcome, numberAllowed, type AiOpts } from "@/lib/autoreply.server";
 
 const ok = (s = 200, t = "ok") => new Response(t, { status: s });
 
@@ -26,8 +26,14 @@ export const Route = createFileRoute("/api/public/evolution")({
         const number = jid.split("@")[0]!;
 
         const { supabaseAdmin: db } = await import("@/integrations/supabase/client.server");
-        const { data: cfg } = await db.from("wa_autoreply").select("store_id, enabled, voice, source").eq("instance", instance).maybeSingle();
+        // select("*") so optional new columns are read when present, and nothing breaks when absent
+        const { data: cfgRow } = await db.from("wa_autoreply").select("*").eq("instance", instance).maybeSingle();
+        const cfg = cfgRow as ({ store_id: string; enabled: boolean; voice: boolean; source: string | null } & AiOpts & { allowed_numbers?: string | null }) | null;
         if (!cfg?.enabled) return ok();
+        if (!numberAllowed(cfg.allowed_numbers, number)) {
+          console.log(`تم تجاهل رسالة من رقم غير مسموح: ${number}`);
+          return ok();
+        }
         const { data: st } = await db.from("stores").select("active, owner_id, name").eq("id", cfg.store_id).maybeSingle();
         if (!st?.active) return ok();
 
@@ -90,7 +96,7 @@ export const Route = createFileRoute("/api/public/evolution")({
           } else {
             const ctx = "منتجات المتجر:\n" + (products ?? []).map((p) => `- ${p.name}: ${p.price} ريال ${p.description}`).join("\n") +
               "\nردود المتجر المعتمدة:\n" + (rules ?? []).slice(0, 40).map((r) => `- إذا قال "${r.trigger_text}" → "${r.response_text}"`).join("\n");
-            reply = await aiReply(text, ctx);
+            reply = await aiReplyWith(text, ctx, cfg);
           }
           if (!reply) throw new Error("empty reply");
           const path = `/message/${useVoice ? "sendWhatsAppAudio" : "sendText"}/${encodeURIComponent(instance)}`;
