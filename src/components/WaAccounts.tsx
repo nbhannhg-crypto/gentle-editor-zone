@@ -116,7 +116,7 @@ export function WhatsApp({ was, reload }: { was: Wa[]; reload: () => Promise<voi
         </div>
         );
       })}
-      <Button variant="outline" onClick={async () => { await reload(); await loadAuto(); }}>🔄 تحديث الحالة</Button>
+      <Button variant="outline" onClick={checkStatus}>🔄 تحديث الحالة</Button>
       {auto.inbox.length > 0 && (
         <div className="rounded-2xl border bg-card p-4">
           <h3 className="mb-2 font-semibold">📥 آخر ردود الموظفة</h3>
