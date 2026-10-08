@@ -103,7 +103,7 @@ export function Channels({ storeId }: { storeId?: string | undefined }) {
         <ol className="list-decimal space-y-1 pr-5 text-sm text-muted-foreground">
           <li>اكتب اسم الحساب (مثال: واتساب الأعمال) ودوس + أضف</li>
           <li>بيطلع لك QR Code داخل الموقع</li>
-          <li>افتح واتساب بجوالك > الإعدادات > الأجهزة المرتبطة > ربط جهاز</li>
+          <li>افتح واتساب بجوالك {'>'} الإعدادات {'>'} الأجهزة المرتبطة {'>'} ربط جهاز</li>
           <li>صوّر الكود</li>
           <li>انتظر ثانيتين وبيظهر «متصل ✅» مع صورتك</li>
         </ol>
