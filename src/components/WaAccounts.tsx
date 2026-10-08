@@ -4,6 +4,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { waList, waCreate, waQr, waDelete, waAutoList, waAutoSet } from "@/lib/studio.functions";
+import QRCode from "qrcode";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export type Wa = { name: string; label: string; status: string; number: string };
 
@@ -15,9 +17,11 @@ export function WhatsApp({ was, reload }: { was: Wa[]; reload: () => Promise<voi
   const autoList = useServerFn(waAutoList);
   const autoSet = useServerFn(waAutoSet);
   const [label, setLabel] = useState("");
-  const [qr, setQr] = useState<{ name: string; img: string } | null>(null);
+  const [qr, setQr] = useState<{ name: string; img: string; demo?: boolean } | null>(null);
+  const [left, setLeft] = useState(20);
+  const demoQr = (name: string) => QRCode.toDataURL(`DEMO-WA:${name}:${Date.now()}`, { width: 512, margin: 1 });
   const [auto, setAutoState] = useState<{ cfg: { instance: string; enabled: boolean; voice: boolean; source: string }[]; inbox: any[] }>({ cfg: [], inbox: [] });
-  const loadAuto = async () => { try { setAutoState(await autoList()); } catch (e) { toast.error((e as Error).message); } };
+  const loadAuto = async () => { try { setAutoState(await autoList()); } catch { /* الخدمة غير مربوطة */ } };
   useEffect(() => { void loadAuto(); }, []);
   const setAuto = async (name: string, enabled: boolean, voice: boolean, source = auto.cfg.find((x) => x.instance === name)?.source ?? "smart"): Promise<void> => {
     try { await autoSet({ data: { name, enabled, voice, source: source as "smart", origin: window.location.origin } }); toast.success(enabled ? "✅ الموظفة صارت ترد على هالرقم" : "تم الإيقاف"); await loadAuto(); }
@@ -25,15 +29,38 @@ export function WhatsApp({ was, reload }: { was: Wa[]; reload: () => Promise<voi
   };
   const add = async (): Promise<void> => {
     if (!label.trim()) { toast.error("اكتب اسم للحساب"); return; }
-    try { const r = await create({ data: { label: label.trim().replace(/\s+/g, "_") } }); setQr({ name: r.name, img: r.qr }); setLabel(""); await reload(); }
-    catch (e) { toast.error((e as Error).message); }
+    const clean = label.trim().replace(/\s+/g, "_");
+    setQr({ name: clean, img: "" }); setLeft(20);
+    try { const r = await create({ data: { label: clean } }); setQr({ name: r.name, img: r.qr }); setLabel(""); await reload(); }
+    catch (e) {
+      const msg = (e as Error).message;
+      if (msg.includes("غير مربوطة")) { setQr({ name: clean, img: await demoQr(clean), demo: true }); setLabel(""); }
+      else { setQr(null); toast.error(msg); }
+    }
   };
   const showQr = async (name: string) => {
-    try { const r = await qrFn({ data: { name } }); if (!r.qr) toast.success("الحساب مربوط ✅"); else setQr({ name, img: r.qr }); }
+    setLeft(20);
+    if (qr?.demo) { setQr({ name, img: await demoQr(name), demo: true }); return; }
+    try { const r = await qrFn({ data: { name } }); if (!r.qr) { toast.success("الحساب مربوط ✅"); setQr(null); await reload(); } else setQr({ name, img: r.qr }); }
     catch (e) { toast.error((e as Error).message); }
+  };
+  useEffect(() => {
+    if (!qr?.img) return;
+    const t = setInterval(() => setLeft((s) => s - 1), 1000);
+    return () => clearInterval(t);
+  }, [qr?.img, qr?.name]);
+  useEffect(() => { if (qr && left <= 0) void showQr(qr.name); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [left]);
+  const connected = was.filter((w) => w.status === "open");
+  const checkStatus = async () => {
+    await reload(); await loadAuto();
+    toast(connected.length ? "متصل ✅" : "لسه ما انربط — امسح الكود وانتظر ثانيتين ثم حدّث");
   };
   return (
     <section className="space-y-4">
+      <div className={`rounded-xl border p-3 text-sm font-semibold ${connected.length ? "border-primary text-primary" : "text-muted-foreground"}`}>
+        {connected.length ? connected.map((w) => `متصل ✅ ${w.label.replace(/_/g, " ")}`).join(" • ") : "⚪ واتساب غير مربوط بعد"}
+      </div>
       <div className="rounded-2xl border bg-card p-5">
         <h2 className="mb-2 font-semibold">➕ أضف حساب واتساب (تقدر تضيف أكثر من حساب)</h2>
         <div className="flex gap-2">
@@ -42,16 +69,19 @@ export function WhatsApp({ was, reload }: { was: Wa[]; reload: () => Promise<voi
         </div>
         <p className="mt-2 text-xs text-muted-foreground">افتح واتساب بجوالك ← الأجهزة المرتبطة ← ربط جهاز ← صوّر الكود.</p>
       </div>
-      {qr && (
-        <div className="rounded-2xl border-2 border-primary bg-card p-5 text-center">
-          <p className="mb-2 font-semibold">صوّر الكود من واتساب</p>
-          {qr.img ? <img src={qr.img} alt="رمز ربط واتساب" className="mx-auto w-64 rounded-xl bg-white p-2" /> : <p>جاري تجهيز الكود…</p>}
-          <div className="mt-3 flex justify-center gap-2">
-            <Button size="sm" onClick={() => showQr(qr.name)}>🔄 تحديث الكود</Button>
-            <Button size="sm" variant="secondary" onClick={async () => { setQr(null); await reload(); }}>تم الربط ✅</Button>
+      <Dialog open={!!qr} onOpenChange={(o) => { if (!o) setQr(null); }}>
+        <DialogContent className="max-w-sm text-center">
+          <DialogHeader><DialogTitle className="text-center">صوّر الكود من واتساب</DialogTitle></DialogHeader>
+          {qr?.demo && <p className="rounded-lg bg-muted p-2 text-xs text-muted-foreground">🧪 كود تجريبي للعرض فقط — ما يربط فعلياً لأن سيرفر واتساب غير مربوط بعد.</p>}
+          {qr?.img ? <img src={qr.img} alt="رمز ربط واتساب" className="mx-auto w-72 rounded-xl bg-background p-2" /> : <p className="py-16">جاري تجهيز الكود…</p>}
+          <p className="text-sm">افتح واتساب بجوالك ← الأجهزة المرتبطة ← ربط جهاز ← صوّر الكود</p>
+          {qr?.img && <p className="text-xs text-muted-foreground">يتحدث الكود بعد {Math.max(left, 0)} ثانية</p>}
+          <div className="flex justify-center gap-2">
+            <Button size="sm" onClick={() => qr && showQr(qr.name)}>🔄 تحديث الكود</Button>
+            <Button size="sm" variant="secondary" onClick={async () => { setQr(null); await checkStatus(); }}>تم الربط ✅</Button>
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
       {was.map((w) => {
         const c = auto.cfg.find((x) => x.instance === w.name);
         return (
