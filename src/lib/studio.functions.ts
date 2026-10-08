@@ -285,3 +285,47 @@ export const waAutoSet = createServerFn({ method: "POST" })
     });
     return { ok: true };
   });
+
+/** Optional extra settings per number (allowed numbers / personality / model). Additive only. */
+export const waExtraList = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await context.supabase.from("wa_autoreply").select("*");
+    if (error) return [] as WaExtra[];
+    return ((data ?? []) as any[]).map((r) => ({
+      instance: r.instance as string,
+      allowed_numbers: (r.allowed_numbers ?? "") as string,
+      system_prompt: (r.system_prompt ?? "") as string,
+      ai_model: (r.ai_model ?? "") as string,
+      supported: "allowed_numbers" in r,
+    }));
+  });
+export type WaExtra = { instance: string; allowed_numbers: string; system_prompt: string; ai_model: string; supported: boolean };
+
+export const waExtraSet = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({
+    name: z.string().max(80),
+    allowed_numbers: z.string().max(5000).optional(),
+    system_prompt: z.string().max(4000).optional(),
+    ai_model: z.enum(["gpt-4o-mini", "gpt-4o", "claude-3.5-sonnet"]).optional(),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const storeId = await myStore(context as Ctx);
+    if (!data.name.startsWith(prefix(storeId))) throw new Error("غير مسموح");
+    const { name, ...patch } = data;
+    const { error } = await context.supabase.from("wa_autoreply").update(patch as any).eq("instance", name);
+    if (error) throw new Error("الحفظ ما زبط — الإعداد الجديد يحتاج تحديث قاعدة البيانات أولاً");
+    return { ok: true };
+  });
+
+export const waAiTest = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ message: z.string().min(1).max(1000), system_prompt: z.string().max(4000), ai_model: z.string().max(40) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const storeId = await myStore(context as Ctx);
+    const { data: products } = await context.supabase.from("products").select("name, price, description").eq("store_id", storeId).limit(50);
+    const ctx = "منتجات المتجر:\n" + ((products ?? []) as any[]).map((p) => `- ${p.name}: ${p.price} ريال ${p.description}`).join("\n");
+    const { aiReplyWith } = await import("./autoreply.server");
+    return { reply: await aiReplyWith(data.message, ctx, { system_prompt: data.system_prompt, ai_model: data.ai_model }) };
+  });
