@@ -9,7 +9,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { getOrCreateMyStore, type Store } from "@/lib/stores";
 import { getBalance } from "@/lib/wallet";
 import { STUDIO_VOICES, STUDIO_PACKS, JEEB_NUMBER } from "@/lib/studio-voices";
-import { studioGenerate, studioWrite, waList, waCreate, waQr, waDelete, waSendVoice, placeCall, waAutoList, waAutoSet } from "@/lib/studio.functions";
+import { studioGenerate, studioWrite, waList, waSendVoice, placeCall } from "@/lib/studio.functions";
+import { WhatsApp, type Wa } from "@/components/WaAccounts";
 
 export const Route = createFileRoute("/_authenticated/studio")({
   head: () => ({
@@ -26,7 +27,6 @@ export const Route = createFileRoute("/_authenticated/studio")({
 });
 
 type Audio = { id: string; text: string; voice_name: string; path: string; created_at: string };
-type Wa = { name: string; label: string; status: string; number: string };
 type Tab = "voice" | "library" | "whatsapp" | "recharge";
 
 function StudioPage() {
