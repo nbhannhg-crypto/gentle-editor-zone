@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { waList, waCreate, waQr, waDelete, waAutoList, waAutoSet } from "@/lib/studio.functions";
 import QRCode from "qrcode";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { WaExtras } from "@/components/WaExtras";
 
 export type Wa = { name: string; label: string; status: string; number: string };
 
@@ -112,6 +113,7 @@ export function WhatsApp({ was, reload }: { was: Wa[]; reload: () => Promise<voi
                 ))}
               </div>
             )}
+            {c?.enabled && <WaExtras name={w.name} myNumber={w.number} />}
           </div>
         </div>
         );
