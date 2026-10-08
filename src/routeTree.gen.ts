@@ -10,33 +10,185 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
+import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
+import { Route as AuthenticatedStudioRouteImport } from './routes/_authenticated/studio'
+import { Route as SStoreIdRouteImport } from './routes/s.$storeId'
+import { Route as AuthenticatedAdminKingdomRouteImport } from './routes/_authenticated/admin_.kingdom'
+import { Route as ApiPublicApproveRouteImport } from './routes/api/public/approve'
+import { Route as ApiPublicEvolutionRouteImport } from './routes/api/public/evolution'
+import { Route as ApiPublicFactoryDailyRouteImport } from './routes/api/public/factory-daily'
+import { Route as ApiPublicWhatsappRouteImport } from './routes/api/public/whatsapp'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
+  id: '/app',
+  path: '/app',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedStudioRoute = AuthenticatedStudioRouteImport.update({
+  id: '/studio',
+  path: '/studio',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const SStoreIdRoute = SStoreIdRouteImport.update({
+  id: '/s/$storeId',
+  path: '/s/$storeId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedAdminKingdomRoute =
+  AuthenticatedAdminKingdomRouteImport.update({
+    id: '/admin_/kingdom',
+    path: '/admin/kingdom',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const ApiPublicApproveRoute = ApiPublicApproveRouteImport.update({
+  id: '/api/public/approve',
+  path: '/api/public/approve',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicEvolutionRoute = ApiPublicEvolutionRouteImport.update({
+  id: '/api/public/evolution',
+  path: '/api/public/evolution',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicFactoryDailyRoute = ApiPublicFactoryDailyRouteImport.update({
+  id: '/api/public/factory-daily',
+  path: '/api/public/factory-daily',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicWhatsappRoute = ApiPublicWhatsappRouteImport.update({
+  id: '/api/public/whatsapp',
+  path: '/api/public/whatsapp',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/admin': typeof AuthenticatedAdminRoute
+  '/app': typeof AuthenticatedAppRoute
+  '/studio': typeof AuthenticatedStudioRoute
+  '/s/$storeId': typeof SStoreIdRoute
+  '/admin/kingdom': typeof AuthenticatedAdminKingdomRoute
+  '/api/public/approve': typeof ApiPublicApproveRoute
+  '/api/public/evolution': typeof ApiPublicEvolutionRoute
+  '/api/public/factory-daily': typeof ApiPublicFactoryDailyRoute
+  '/api/public/whatsapp': typeof ApiPublicWhatsappRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/admin': typeof AuthenticatedAdminRoute
+  '/app': typeof AuthenticatedAppRoute
+  '/studio': typeof AuthenticatedStudioRoute
+  '/s/$storeId': typeof SStoreIdRoute
+  '/admin/kingdom': typeof AuthenticatedAdminKingdomRoute
+  '/api/public/approve': typeof ApiPublicApproveRoute
+  '/api/public/evolution': typeof ApiPublicEvolutionRoute
+  '/api/public/factory-daily': typeof ApiPublicFactoryDailyRoute
+  '/api/public/whatsapp': typeof ApiPublicWhatsappRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/auth': typeof AuthRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/_authenticated/admin': typeof AuthenticatedAdminRoute
+  '/_authenticated/app': typeof AuthenticatedAppRoute
+  '/_authenticated/studio': typeof AuthenticatedStudioRoute
+  '/s/$storeId': typeof SStoreIdRoute
+  '/_authenticated/admin_/kingdom': typeof AuthenticatedAdminKingdomRoute
+  '/api/public/approve': typeof ApiPublicApproveRoute
+  '/api/public/evolution': typeof ApiPublicEvolutionRoute
+  '/api/public/factory-daily': typeof ApiPublicFactoryDailyRoute
+  '/api/public/whatsapp': typeof ApiPublicWhatsappRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/reset-password'
+    | '/admin'
+    | '/app'
+    | '/studio'
+    | '/s/$storeId'
+    | '/admin/kingdom'
+    | '/api/public/approve'
+    | '/api/public/evolution'
+    | '/api/public/factory-daily'
+    | '/api/public/whatsapp'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/auth'
+    | '/reset-password'
+    | '/admin'
+    | '/app'
+    | '/studio'
+    | '/s/$storeId'
+    | '/admin/kingdom'
+    | '/api/public/approve'
+    | '/api/public/evolution'
+    | '/api/public/factory-daily'
+    | '/api/public/whatsapp'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/auth'
+    | '/reset-password'
+    | '/_authenticated/admin'
+    | '/_authenticated/app'
+    | '/_authenticated/studio'
+    | '/s/$storeId'
+    | '/_authenticated/admin_/kingdom'
+    | '/api/public/approve'
+    | '/api/public/evolution'
+    | '/api/public/factory-daily'
+    | '/api/public/whatsapp'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AuthRoute: typeof AuthRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
+  SStoreIdRoute: typeof SStoreIdRoute
+  ApiPublicApproveRoute: typeof ApiPublicApproveRoute
+  ApiPublicEvolutionRoute: typeof ApiPublicEvolutionRoute
+  ApiPublicFactoryDailyRoute: typeof ApiPublicFactoryDailyRoute
+  ApiPublicWhatsappRoute: typeof ApiPublicWhatsappRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +200,120 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/admin': {
+      id: '/_authenticated/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AuthenticatedAdminRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/app': {
+      id: '/_authenticated/app'
+      path: '/app'
+      fullPath: '/app'
+      preLoaderRoute: typeof AuthenticatedAppRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/studio': {
+      id: '/_authenticated/studio'
+      path: '/studio'
+      fullPath: '/studio'
+      preLoaderRoute: typeof AuthenticatedStudioRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/s/$storeId': {
+      id: '/s/$storeId'
+      path: '/s/$storeId'
+      fullPath: '/s/$storeId'
+      preLoaderRoute: typeof SStoreIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/admin_/kingdom': {
+      id: '/_authenticated/admin_/kingdom'
+      path: '/admin/kingdom'
+      fullPath: '/admin/kingdom'
+      preLoaderRoute: typeof AuthenticatedAdminKingdomRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/api/public/approve': {
+      id: '/api/public/approve'
+      path: '/api/public/approve'
+      fullPath: '/api/public/approve'
+      preLoaderRoute: typeof ApiPublicApproveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/evolution': {
+      id: '/api/public/evolution'
+      path: '/api/public/evolution'
+      fullPath: '/api/public/evolution'
+      preLoaderRoute: typeof ApiPublicEvolutionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/factory-daily': {
+      id: '/api/public/factory-daily'
+      path: '/api/public/factory-daily'
+      fullPath: '/api/public/factory-daily'
+      preLoaderRoute: typeof ApiPublicFactoryDailyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/whatsapp': {
+      id: '/api/public/whatsapp'
+      path: '/api/public/whatsapp'
+      fullPath: '/api/public/whatsapp'
+      preLoaderRoute: typeof ApiPublicWhatsappRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
+  AuthenticatedAppRoute: typeof AuthenticatedAppRoute
+  AuthenticatedStudioRoute: typeof AuthenticatedStudioRoute
+  AuthenticatedAdminKingdomRoute: typeof AuthenticatedAdminKingdomRoute
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAdminRoute: AuthenticatedAdminRoute,
+  AuthenticatedAppRoute: AuthenticatedAppRoute,
+  AuthenticatedStudioRoute: AuthenticatedStudioRoute,
+  AuthenticatedAdminKingdomRoute: AuthenticatedAdminKingdomRoute,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AuthRoute: AuthRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
+  SStoreIdRoute: SStoreIdRoute,
+  ApiPublicApproveRoute: ApiPublicApproveRoute,
+  ApiPublicEvolutionRoute: ApiPublicEvolutionRoute,
+  ApiPublicFactoryDailyRoute: ApiPublicFactoryDailyRoute,
+  ApiPublicWhatsappRoute: ApiPublicWhatsappRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
