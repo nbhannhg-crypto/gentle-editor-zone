@@ -8,3 +8,9 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+# Technical decisions
+
+- Direct server-fn calls from components (not via useServerFn) must wrap the payload: `myFn({ data: payload })` — plain `myFn(payload)` reaches inputValidator as undefined and fails with "expected object, received undefined".
+
+- External AI keys (GEMINI_KEYS rotation, then OPENROUTER_KEY) live in src/lib/ai-keys.server.ts and are tried first; callers fall back to the built-in gateway when it returns null — why: save credits without breaking anything.
