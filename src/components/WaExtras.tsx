@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { splitPrompt, joinPrompt, type Learn } from "@/lib/wa-learn";
 import { waExtraList, waExtraSet, waAiTest, type WaExtra } from "@/lib/studio.functions";
 
 const countNums = (s: string) => s.split(/[,\n،;]+/).map((x) => x.replace(/\D/g, "")).filter((n) => n.length >= 5).length;
@@ -46,6 +47,9 @@ export function WaExtras({ name, myNumber }: { name: string; myNumber: string })
   };
 
   if (!x) return null;
+  const sp = splitPrompt(x.system_prompt);
+  const setBase = (b: string) => update({ system_prompt: joinPrompt(b, sp.learn) });
+  const setLearn = (k: keyof Learn, v: string) => update({ system_prompt: joinPrompt(sp.base, { ...sp.learn, [k]: v }) });
   const n = countNums(x.allowed_numbers);
   return (
     <div className="w-full space-y-3 rounded-lg border bg-background p-3">
@@ -67,7 +71,22 @@ export function WaExtras({ name, myNumber }: { name: string; myNumber: string })
       </div>
       <div>
         <span className="text-sm font-semibold">شخصية الموظفة (System Prompt)</span>
-        <Textarea rows={4} value={x.system_prompt} onChange={(e) => update({ system_prompt: e.target.value })} placeholder="اتركه فاضي ويستخدم الأسلوب القديم" />
+        <Textarea rows={4} value={sp.base} onChange={(e) => setBase(e.target.value)} placeholder="اتركه فاضي ويستخدم الأسلوب القديم" />
+      </div>
+      <div className="space-y-2 rounded-lg border p-3">
+        <span className="text-sm font-semibold">🧠 علميها بذكاء</span>
+        <div>
+          <span className="text-xs text-muted-foreground">عمرها ومن وين</span>
+          <Input value={sp.learn.identity} onChange={(e) => setLearn("identity", e.target.value)} placeholder="مثال: 26 سنة من الرياض" />
+        </div>
+        <div>
+          <span className="text-xs text-muted-foreground">كلمات ممنوعة لا تقولها أبداً</span>
+          <Textarea rows={2} value={sp.learn.banned} onChange={(e) => setLearn("banned", e.target.value)} placeholder="مثال: ذكاء اصطناعي، روبوت، يمنية" />
+        </div>
+        <div>
+          <span className="text-xs text-muted-foreground">كلمات لازم تفهمها حتى لو ملخبطة</span>
+          <Textarea rows={2} value={sp.learn.dialect} onChange={(e) => setLearn("dialect", e.target.value)} placeholder="مثال: انا ونا = أنا، يشتي = يبغى، يتشتي = يبغى" />
+        </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs text-muted-foreground">قوة الذكاء:</span>
