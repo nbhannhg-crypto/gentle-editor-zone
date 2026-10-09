@@ -55,8 +55,20 @@ export const Route = createFileRoute("/api/public/evolution")({
               if (w) await evoSend(`/message/sendText/${encodeURIComponent(instance)}`, { number, text: w }).catch((e) => console.error("welcome", e));
             }
           }
-          const [{ data: rules }, { data: products }] = await Promise.all([
-            db.from("training_rules").select("id, trigger_text, response_text, use_count").eq("store_id", cfg.store_id).limit(500),
+          // Load ALL store rules (newest first, paged) — same as the library test, no 500 cap
+          const loadAllRules = async () => {
+            const all: { id: string; trigger_text: string; response_text: string; use_count: number }[] = [];
+            for (let from = 0; ; from += 1000) {
+              const { data, error } = await db.from("training_rules").select("id, trigger_text, response_text, use_count")
+                .eq("store_id", cfg.store_id).order("created_at", { ascending: false }).order("id").range(from, from + 999);
+              if (error || !data) break;
+              all.push(...data);
+              if (data.length < 1000) break;
+            }
+            return all;
+          };
+          const [rules, { data: products }] = await Promise.all([
+            loadAllRules().then((r) => ({ data: r })).then((x) => x.data),
             db.from("products").select("name, price, description").eq("store_id", cfg.store_id).limit(50),
           ]);
           const src = cfg.source ?? "smart";
