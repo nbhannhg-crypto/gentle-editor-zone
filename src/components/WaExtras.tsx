@@ -49,7 +49,9 @@ export function WaExtras({ name, myNumber }: { name: string; myNumber: string })
   if (!x) return null;
   const sp = splitPrompt(x.system_prompt);
   const setBase = (b: string) => update({ system_prompt: joinPrompt(b, sp.learn) });
-  const setLearn = (k: keyof Learn, v: string) => update({ system_prompt: joinPrompt(sp.base, { ...sp.learn, [k]: v }) });
+  const setLearn = (k: "identity" | "banned" | "dialect", v: string) => update({ system_prompt: joinPrompt(sp.base, { ...sp.learn, [k]: v }) });
+  const ex = sp.learn.examples ?? [];
+  const setEx = (e: { u: string; r: string }[]) => update({ system_prompt: joinPrompt(sp.base, { ...sp.learn, examples: e }) });
   const n = countNums(x.allowed_numbers);
   return (
     <div className="w-full space-y-3 rounded-lg border bg-background p-3">
@@ -87,6 +89,19 @@ export function WaExtras({ name, myNumber }: { name: string; myNumber: string })
           <span className="text-xs text-muted-foreground">كلمات لازم تفهمها حتى لو ملخبطة</span>
           <Textarea rows={2} value={sp.learn.dialect} onChange={(e) => setLearn("dialect", e.target.value)} placeholder="مثال: انا ونا = أنا، يشتي = يبغى، يتشتي = يبغى" />
         </div>
+      </div>
+      <div className="space-y-2 rounded-lg border p-3">
+        <span className="text-sm font-semibold">📚 علميها من أخطائها</span>
+        <p className="text-xs text-muted-foreground">آخر 10 أمثلة تتعلم منها قبل كل رد.</p>
+        {ex.map((e, i) => (
+          <div key={i} className="flex flex-wrap items-center gap-1.5">
+            <Input className="min-w-32 flex-1" value={e.u} onChange={(v) => setEx(ex.map((y, j) => j === i ? { ...y, u: v.target.value } : y))} placeholder="انا ونا هوه يشتي" />
+            <span>←</span>
+            <Input className="min-w-32 flex-1" value={e.r} onChange={(v) => setEx(ex.map((y, j) => j === i ? { ...y, r: v.target.value } : y))} placeholder="أبشر يا قلبي فهمتك 🌷" />
+            <Button size="sm" variant="ghost" onClick={() => setEx(ex.filter((_, j) => j !== i))}>🗑️</Button>
+          </div>
+        ))}
+        <Button size="sm" variant="outline" onClick={() => setEx([...ex, { u: "", r: "" }])}>➕ إضافة مثال</Button>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs text-muted-foreground">قوة الذكاء:</span>
