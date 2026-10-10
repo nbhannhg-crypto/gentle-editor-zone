@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { waList, waCreate, waQr, waDelete, waAutoList, waAutoSet } from "@/lib/studio.functions";
+import { waList, waCreate, waQr, waDelete, waAutoList, waAutoSet, waHardReset } from "@/lib/studio.functions";
 import QRCode from "qrcode";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { WaExtras } from "@/components/WaExtras";
@@ -15,6 +15,7 @@ export function WhatsApp({ was, reload }: { was: Wa[]; reload: () => Promise<voi
   const create = useServerFn(waCreate);
   const qrFn = useServerFn(waQr);
   const delFn = useServerFn(waDelete);
+  const resetFn = useServerFn(waHardReset);
   const autoList = useServerFn(waAutoList);
   const autoSet = useServerFn(waAutoSet);
   const [label, setLabel] = useState("");
@@ -42,8 +43,14 @@ export function WhatsApp({ was, reload }: { was: Wa[]; reload: () => Promise<voi
   const showQr = async (name: string) => {
     setLeft(20);
     if (qr?.demo) { setQr({ name, img: await demoQr(name), demo: true }); return; }
-    try { const r = await qrFn({ data: { name } }); if (!r.qr) { toast.success("الحساب مربوط ✅"); setQr(null); await reload(); } else setQr({ name, img: r.qr }); }
+    try { const r = await qrFn({ data: { name } }); if (!r.qr) { toast("ما طلع كود — اضغط «🔌 فك الربط ومسح QR جديد»"); setQr(null); await reload(); } else setQr({ name, img: r.qr }); }
     catch (e) { toast.error((e as Error).message); }
+  };
+  const hardReset = async (name: string) => {
+    if (!confirm("بنفك الربط القديم ونطلع لك كود جديد. متأكد؟")) return;
+    setQr({ name, img: "" }); setLeft(20);
+    try { const r = await resetFn({ data: { name } }); if (r.qr) setQr({ name, img: r.qr }); else await showQr(name); await reload(); }
+    catch (e) { setQr(null); toast.error((e as Error).message); }
   };
   useEffect(() => {
     if (!qr?.img) return;
@@ -87,13 +94,15 @@ export function WhatsApp({ was, reload }: { was: Wa[]; reload: () => Promise<voi
         const c = auto.cfg.find((x) => x.instance === w.name);
         return (
         <div key={w.name} className="space-y-2 rounded-xl border bg-card p-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <b>{w.label}</b> <span className="text-xs">{w.status === "open" ? "🟢 مربوط" : "⚪ غير مربوط"}</span>
-              {w.number && <div dir="ltr" className="text-xs text-muted-foreground">+{w.number}</div>}
+              <b>{w.label}</b>{" "}
+              <span className="text-xs">حالة الجلسة الحقيقية: {w.status === "open" ? "🟢 open" : w.status === "connecting" ? "🟡 connecting" : "🔴 close"}</span>
+              <div dir="rtl" className="text-xs text-muted-foreground">الرقم المربوط فعلياً: <span dir="ltr">{w.number ? `+${w.number}` : "—"}</span></div>
             </div>
-            <div className="flex gap-2">
-              {w.status !== "open" && <Button size="sm" onClick={() => showQr(w.name)}>QR / ربط</Button>}
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" onClick={() => showQr(w.name)}>QR / ربط</Button>
+              <Button size="sm" variant="destructive" onClick={() => hardReset(w.name)}>🔌 فك الربط ومسح QR جديد</Button>
               <Button size="sm" variant="ghost" onClick={async () => { try { await delFn({ data: { name: w.name } }); await reload(); } catch (e) { toast.error((e as Error).message); } }}>🗑️</Button>
             </div>
           </div>
