@@ -44,6 +44,10 @@ export function JeebTopup({ storeId, onDone }: { storeId?: string | undefined; o
       const { data, error } = await supabase.rpc("create_payment", { _store: storeId, _amount: amt, _currency: cur, _txn: txn.trim(), _receipt: receipt });
       if (error) throw new Error(error.message.includes("duplicate") ? "رقم العملية مستخدم من قبل ⛔" : "تعذر حفظ الطلب");
       const row = (data as { id: string; points: number; token: string }[])[0]!;
+      // نسخة في طلبات الشحن ليعتمدها المالك مباشرة بدون مفتاح السيرفر
+      try {
+        await supabase.from("topup_requests").insert({ store_id: storeId, points: row.points, amount_sar: amt, reference: `${txn.trim()}|${row.id}` } as never);
+      } catch (e) { console.error(e); }
       const t = txn.trim();
       sendWhatsappApproval({ data: { paymentId: row.id, origin: window.location.origin } })
         .then((r) => { if (!r.sent) { console.error("إشعار واتساب لم يُرسل:", r.error); toast.warning("طلبك محفوظ ✅ لكن إشعار الواتساب ما وصل — بيظهر للإدارة في اللوحة"); } })
