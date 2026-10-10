@@ -117,7 +117,7 @@ export const Route = createFileRoute("/api/public/evolution")({
           let libAudio: string | null = null;
           if (src === "library") {
             const { data: lib } = await db.from("studio_audio").select("id, text, path").eq("store_id", cfg.store_id).limit(300);
-            const hit = bestRule(text, (lib ?? []).map((a) => ({ id: a.id, trigger_text: a.text, response_text: a.path, use_count: 0 })));
+            const hit = bestRule(text, (lib ?? []).map((a: any) => ({ id: a.id, trigger_text: a.text, response_text: a.path, use_count: 0 })));
             if (hit && hit.score >= 0.45) {
               const dl = await db.storage.from("studio-audio").download(hit.rule.response_text);
               if (!dl.error) { libAudio = Buffer.from(await dl.data.arrayBuffer()).toString("base64"); m = { rule: { ...hit.rule, response_text: hit.rule.trigger_text }, score: hit.score }; }
@@ -150,7 +150,7 @@ export const Route = createFileRoute("/api/public/evolution")({
             reply = m.rule.response_text;
             if (!libAudio && m.rule.id && !kingdom) await db.from("training_rules").update({ use_count: m.rule.use_count + 1 }).eq("id", m.rule.id);
           } else {
-            const ctx = "منتجات المتجر:\n" + (products ?? []).map((p) => `- ${p.name}: ${p.price} ريال ${p.description}`).join("\n") +
+            const ctx = "منتجات المتجر:\n" + (products ?? []).map((p: any) => `- ${p.name}: ${p.price} ريال ${p.description}`).join("\n") +
               "\nردود المتجر المعتمدة:\n" + (rules ?? []).slice(0, 40).map((r) => `- إذا قال "${r.trigger_text}" → "${r.response_text}"`).join("\n");
             reply = await aiReplyWith(text, ctx, cfg);
           }
