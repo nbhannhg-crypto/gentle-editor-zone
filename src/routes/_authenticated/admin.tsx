@@ -32,12 +32,14 @@ function AdminPage() {
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [stores, setStores] = useState<StoreRow[]>([]);
   const [stats, setStats] = useState({ rules: 0, customers: 0, messages: 0 });
+  const [balances, setBalances] = useState<Record<string, number>>({});
 
   useEffect(() => {
     isAdmin().then((ok) => {
       setAllowed(ok);
       if (!ok) return;
       supabase.from("stores").select("*").order("created_at", { ascending: false }).then(({ data }) => setStores((data ?? []) as StoreRow[]));
+      supabase.from("wallets").select("store_id, balance").then(({ data }) => setBalances(Object.fromEntries(((data ?? []) as { store_id: string; balance: number }[]).map((w) => [w.store_id, w.balance]))));
       Promise.all([
         supabase.from("training_rules").select("id", { count: "exact", head: true }),
         supabase.from("customers").select("id", { count: "exact", head: true }),
@@ -64,6 +66,17 @@ function AdminPage() {
     await supabase.from("stores").update({ plan }).eq("id", s.id);
     setStores(stores.map((x) => x.id === s.id ? { ...x, plan } : x));
     toast.success("تم تحديث الباقة");
+  };
+
+  const editBalance = async (s: StoreRow) => {
+    const v = window.prompt(`الرصيد الجديد لـ ${s.name}:`, String(balances[s.id] ?? 0));
+    if (v === null) return;
+    const n = parseInt(v);
+    if (isNaN(n) || n < 0) { toast.error("اكتب رقم صحيح"); return; }
+    const { error } = await (supabase.rpc as any)("admin_set_balance", { _store: s.id, _balance: n });
+    if (error) { toast.error(error.message); return; }
+    setBalances({ ...balances, [s.id]: n });
+    toast.success("تم تعديل الرصيد ✅");
   };
 
   return (
@@ -110,6 +123,10 @@ function AdminPage() {
                     <span className="text-xs">{s.active ? "فعّال ✅" : "موقف ⛔"}</span>
                     <Switch checked={s.active} onCheckedChange={(v) => toggleStore(s, v)} />
                   </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs">💰 {(balances[s.id] ?? 0).toLocaleString("ar-SA")} نقطة</span>
+                    <Button size="sm" variant="outline" onClick={() => editBalance(s)}>تعديل الرصيد</Button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -142,13 +159,41 @@ function AdminWallet() {
   };
   useEffect(() => { load(); }, []);
 
+  const rpc = (fn: string, args: Record<string, unknown>) => (supabase.rpc as any)(fn, args) as Promise<{ data: any; error: { message: string } | null }>;
+
   const reviewPay = async (id: string, approve: boolean) => {
     setBusy(id);
     try {
-      const r = await reviewFn({ data: { paymentId: id, approve } });
-      toast.success(approve ? (r.result === "ok" ? "تم الاعتماد وشحن الرصيد ✅" : "الطلب معالج مسبقاً") : "تم الرفض");
+      // الطريقة المباشرة بصلاحية المالك (بدون مفتاح السيرفر)
+      const { data, error } = approve
+        ? await rpc("admin_approve_payment", { _id: id })
+        : await rpc("admin_update_payment", { _id: id, _points: pays.find((p) => p.id === id)?.points_calculated ?? 0, _status: "rejected" });
+      if (error) {
+        // احتياطي: الطريقة القديمة عبر السيرفر
+        const r = await reviewFn({ data: { paymentId: id, approve } });
+        toast.success(approve ? (r.result === "ok" ? "تم الاعتماد وشحن الرصيد ✅" : "الطلب معالج مسبقاً") : "تم الرفض");
+      } else {
+        toast.success(approve ? (data?.result === "ok" ? "تم الاعتماد وشحن الرصيد ✅" : "الطلب معالج مسبقاً") : "تم الرفض");
+      }
     } catch (e) { toast.error((e as Error).message); }
     setBusy(null);
+    load();
+  };
+
+  const editPay = async (r: Pay) => {
+    const pts = window.prompt("عدد النقاط:", String(r.points_calculated));
+    if (pts === null) return;
+    const st = window.prompt("الحالة (pending / approved / rejected):", r.status);
+    if (st === null) return;
+    const { error } = await rpc("admin_update_payment", { _id: r.id, _points: Math.max(0, parseInt(pts) || 0), _status: st.trim() });
+    if (error) toast.error(error.message); else toast.success("تم تعديل الطلب ✏️");
+    load();
+  };
+
+  const deletePay = async (id: string) => {
+    if (!window.confirm("حذف هذا الطلب نهائياً؟")) return;
+    const { error } = await rpc("admin_delete_payment", { _id: id });
+    if (error) toast.error(error.message); else toast.success("تم حذف الطلب 🗑️");
     load();
   };
 
@@ -190,6 +235,8 @@ function AdminWallet() {
                     <Button size="sm" variant="destructive" disabled={busy === r.id} onClick={() => reviewPay(r.id, false)}>رفض</Button>
                   </>
                 ) : status(r.status)}
+                <Button size="sm" variant="outline" onClick={() => editPay(r)}>✏️</Button>
+                <Button size="sm" variant="outline" onClick={() => deletePay(r.id)}>🗑️</Button>
               </div>
             </div>
           ))}
