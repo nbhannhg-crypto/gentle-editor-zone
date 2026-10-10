@@ -98,8 +98,13 @@ export const Route = createFileRoute("/api/public/evolution")({
           const cost = (m ? 1 : 2) + (useVoice && !libAudio ? 3 : 0);
           const { error: spendErr } = await db.rpc("spend_points_system", { _store: cfg.store_id, _amount: cost, _reason: "رد واتساب تلقائي" });
           if (spendErr) {
-            await db.from("wa_inbox").update({ status: "skipped", error: "رصيد غير كافي" }).eq("msg_id", msgId);
-            return ok();
+            console.error("spend_points_system", spendErr.message);
+            const lowBalance = /insufficient|رصيد|balance/i.test(spendErr.message || "");
+            // ردود القواعد/المكتبة لا تتعطل بسبب فشل الخصم — فقط الرد الذكي يتوقف عند نقص الرصيد الفعلي
+            if (!m && lowBalance) {
+              await db.from("wa_inbox").update({ status: "skipped", error: "رصيد غير كافي" }).eq("msg_id", msgId);
+              return ok();
+            }
           }
           let reply: string;
           if (m) {
