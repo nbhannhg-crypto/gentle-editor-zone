@@ -111,15 +111,22 @@ export const waList = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const p = prefix(await myStore(context as Ctx));
-    const all = (await evo().call("/instance/fetchInstances")) as any[];
-    return (Array.isArray(all) ? all : [])
-      .filter((i) => typeof i.name === "string" && i.name.startsWith(p))
-      .map((i) => ({
+    const e = evo();
+    const all = (await e.call("/instance/fetchInstances")) as any[];
+    const mine = (Array.isArray(all) ? all : []).filter((i) => typeof i.name === "string" && i.name.startsWith(p));
+    return Promise.all(mine.map(async (i) => {
+      let status = (i.connectionStatus as string) || "close";
+      try {
+        const s = await e.call(`/instance/connectionState/${encodeURIComponent(i.name)}`);
+        status = (s?.instance?.state as string) || status;
+      } catch { /* keep */ }
+      return {
         name: i.name as string,
         label: (i.name as string).slice(p.length),
-        status: (i.connectionStatus as string) || "close",
-        number: ((i.ownerJid as string) || "").split("@")[0] ?? "",
-      }));
+        status,
+        number: status === "open" ? (((i.ownerJid as string) || "").split("@")[0] ?? "") : "",
+      };
+    }));
   });
 
 export const waCreate = createServerFn({ method: "POST" })
@@ -147,6 +154,27 @@ export const waDelete = createServerFn({ method: "POST" })
     if (!data.name.startsWith(prefix(await myStore(context as Ctx)))) throw new Error("غير مسموح");
     await evo().call(`/instance/delete/${encodeURIComponent(data.name)}`, "DELETE");
     return { ok: true };
+  });
+
+// Hard reset: logout + delete + recreate fresh session with QR and webhook
+export const waHardReset = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ name: z.string().max(80) }).parse(d))
+  .handler(async ({ data, context }) => {
+    if (!data.name.startsWith(prefix(await myStore(context as Ctx)))) throw new Error("غير مسموح");
+    const e = evo(), n = encodeURIComponent(data.name);
+    try { await e.call(`/instance/logout/${n}`, "DELETE"); } catch { /* ignore */ }
+    try { await e.call(`/instance/delete/${n}`, "DELETE"); } catch { /* ignore */ }
+    await new Promise((r) => setTimeout(r, 1500));
+    const secret = process.env["EVO_WEBHOOK_SECRET"];
+    const url = `https://gentle-editor-zone.lovable.app/api/public/evolution${secret ? `?t=${secret}` : ""}`;
+    const r = await e.call("/instance/create", "POST", {
+      instanceName: data.name, qrcode: true, integration: "WHATSAPP-BAILEYS",
+      webhook: { enabled: true, url, byEvents: false, base64: false, events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"] },
+    });
+    let qr = (r?.qrcode?.base64 as string) || "";
+    if (!qr) { try { const c = await e.call(`/instance/connect/${n}`); qr = (c?.base64 as string) || ""; } catch { /* ignore */ } }
+    return { name: data.name, qr };
   });
 
 async function audioBase64(ctx: Ctx, audioId: string) {
