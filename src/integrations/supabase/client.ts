@@ -3,8 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
 function createSupabaseClient() {
-  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
-  const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+  const SUPABASE_URL = import.meta.env['VITE_SUPABASE_URL'] as string;
+  const SUPABASE_PUBLISHABLE_KEY = import.meta.env['VITE_SUPABASE_PUBLISHABLE_KEY'] as string;
 
   const url = SUPABASE_URL || 'https://placeholder.supabase.co';
   const key = SUPABASE_PUBLISHABLE_KEY || 'placeholder-key';
