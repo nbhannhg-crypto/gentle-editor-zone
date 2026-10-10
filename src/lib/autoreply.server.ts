@@ -32,30 +32,6 @@ export function bestRule(text: string, rules: Rule[]): { rule: Rule; score: numb
   return best;
 }
 
-/** Exact copy of the "اختبر الموظفة" matcher (src/lib/rules.ts findMatches) so WhatsApp answers the same. */
-const normTest = (s: string) =>
-  s.replace(/[\u064B-\u0652\u0640]/g, "").replace(/[أإآ]/g, "ا").replace(/ى/g, "ي").replace(/ة/g, "ه")
-    .replace(/[؟?!.,،]/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
-export function testMatch(text: string, rules: Rule[]): { rule: Rule; score: number } | null {
-  const q = normTest(text);
-  if (!q || !rules.length) return null;
-  const items = rules.map((r) => ({ r, n: normTest(r.trigger_text) }));
-  const fs = new Map<string, number>();
-  new Fuse(items, { keys: ["n"], includeScore: true, threshold: 0.6, ignoreLocation: true })
-    .search(q).forEach((h) => fs.set(h.item.r.id, 1 - (h.score ?? 1)));
-  const qw = q.split(" ");
-  let best: { rule: Rule; score: number } | null = null;
-  for (const { r, n } of items) {
-    const tw = n.split(" ");
-    const contains = q.includes(n) || n.includes(q) ? 1 : 0;
-    const overlap = tw.filter((w) => qw.some((x) => x.includes(w) || w.includes(x))).length / tw.length;
-    const score = Math.max(contains * 0.95, overlap * 0.85, fs.get(r.id) ?? 0);
-    if (score > 0.35 && (!best || score > best.score)) best = { rule: r, score };
-  }
-  return best;
-}
-
-
 /** Streams a short Saudi sales reply from the AI gateway (Responses API). */
 export async function aiReply(customer: string, context: string): Promise<string> {
   const { quickGreeting } = await import("./ai-keys.server");

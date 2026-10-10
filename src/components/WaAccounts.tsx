@@ -124,7 +124,7 @@ export function WhatsApp({ was, reload }: { was: Wa[]; reload: () => Promise<voi
           <h3 className="mb-2 font-semibold">📥 آخر ردود الموظفة</h3>
           {auto.inbox.map((m) => (
             <div key={m.msg_id} className="border-b py-2 text-sm last:border-0">
-              <div dir="ltr" className="text-xs text-muted-foreground">+{m.from_number} • {m.status === "done" ? "✅ انرد" : m.status === "skipped" ? (String(m.error ?? "").includes("رصيد") ? "⚠️ الرصيد ما يكفي" : "🔍 ما فيه رد مطابق — علّمها قاعدة") : m.status === "failed" ? "❌ تعذر الرد" : "⏳"}</div>
+              <div dir="ltr" className="text-xs text-muted-foreground">+{m.from_number} • {m.status === "done" ? "✅ انرد" : m.status === "skipped" ? "⚠️ الرصيد ما يكفي" : m.status === "failed" ? "❌ تعذر الرد" : "⏳"}</div>
               <div>👤 {m.text}</div>
               {m.reply && <div className="text-primary">👩‍💼 {m.reply}</div>}
             </div>
