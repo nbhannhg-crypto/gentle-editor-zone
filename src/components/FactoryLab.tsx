@@ -50,7 +50,7 @@ export default function FactoryLab() {
       setNotes(d.notes);
       setLogs(d.logs);
     } catch (e) {
-      toast.error(String((e as Error).message));
+      { const m = String((e as Error).message); if (!m.includes("Missing Supabase")) toast.error(m); }
     }
   };
   useEffect(() => { load(); }, []);
@@ -62,7 +62,7 @@ export default function FactoryLab() {
       const res = await factoryTry({ data: { text: text.trim(), variants: PRESETS.map((p) => ({ mood: p.mood, speed: p.speed })) } });
       setVariants(res.variants);
     } catch (e) {
-      toast.error(String((e as Error).message));
+      { const m = String((e as Error).message); if (!m.includes("Missing Supabase")) toast.error(m); }
     }
     setBusy(null);
   };
@@ -74,7 +74,7 @@ export default function FactoryLab() {
       toast.success("انحفظت في مكتبة الجاهز ✅");
       await load();
     } catch (e) {
-      toast.error(String((e as Error).message));
+      { const m = String((e as Error).message); if (!m.includes("Missing Supabase")) toast.error(m); }
     }
     setBusy(null);
   };
@@ -87,7 +87,7 @@ export default function FactoryLab() {
       toast.success("انحطت في طابور التدريب 🔁");
       await load();
     } catch (e) {
-      toast.error(String((e as Error).message));
+      { const m = String((e as Error).message); if (!m.includes("Missing Supabase")) toast.error(m); }
     }
     setBusy(null);
   };
@@ -99,7 +99,7 @@ export default function FactoryLab() {
       toast.success(r.summary);
       await load();
     } catch (e) {
-      toast.error(String((e as Error).message));
+      { const m = String((e as Error).message); if (!m.includes("Missing Supabase")) toast.error(m); }
     }
     setBusy(null);
   };
@@ -113,7 +113,7 @@ export default function FactoryLab() {
       await a.play();
     } catch (e) {
       setPlaying(null);
-      toast.error(String((e as Error).message));
+      { const m = String((e as Error).message); if (!m.includes("Missing Supabase")) toast.error(m); }
     }
   };
 
@@ -167,7 +167,7 @@ export default function FactoryLab() {
           <Button size="sm" disabled={busy !== null || !noteF.word.trim() || !noteF.say.trim()} onClick={async () => {
             setBusy("note");
             try { await factoryAddNote({ data: { word: noteF.word.trim(), say: noteF.say.trim() } }); setNoteF({ word: "", say: "" }); await load(); toast.success("انحفظت"); }
-            catch (e) { toast.error(String((e as Error).message)); }
+            catch (e) { { const m = String((e as Error).message); if (!m.includes("Missing Supabase")) toast.error(m); } }
             setBusy(null);
           }}>➕ علّمي</Button>
         </div>
