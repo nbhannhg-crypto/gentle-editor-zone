@@ -164,18 +164,32 @@ function AdminWallet() {
   const reviewPay = async (id: string, approve: boolean) => {
     setBusy(id);
     try {
-      // الطريقة المباشرة بصلاحية المالك (بدون مفتاح السيرفر)
+      const pay = pays.find((p) => p.id === id);
+      // 1) الدالة الجاهزة review_topup بصلاحية المالك (بدون مفتاح السيرفر)
+      let match = reqs.find((r) => r.status === "pending" && (r.reference ?? "").endsWith(`|${id}`));
+      if (!match && pay) match = reqs.find((r) => r.status === "pending" && r.store_id === pay.store_id && r.points === pay.points_calculated);
+      if (match) {
+        const { error } = await rpc("review_topup", { _id: match.id, _approve: approve });
+        if (!error) {
+          await rpc("admin_update_payment", { _id: id, _points: pay?.points_calculated ?? 0, _status: approve ? "approved" : "rejected" });
+          toast.success(approve ? "تم الاعتماد وشحن الرصيد ✅" : "تم الرفض");
+          setBusy(null); load(); return;
+        }
+      }
+      // 2) دوال المالك إن وُجدت
       const { data, error } = approve
         ? await rpc("admin_approve_payment", { _id: id })
-        : await rpc("admin_update_payment", { _id: id, _points: pays.find((p) => p.id === id)?.points_calculated ?? 0, _status: "rejected" });
+        : await rpc("admin_update_payment", { _id: id, _points: pay?.points_calculated ?? 0, _status: "rejected" });
       if (error) {
-        // احتياطي: الطريقة القديمة عبر السيرفر
+        // 3) احتياطي: الطريقة القديمة عبر السيرفر
         const r = await reviewFn({ data: { paymentId: id, approve } });
         toast.success(approve ? (r.result === "ok" ? "تم الاعتماد وشحن الرصيد ✅" : "الطلب معالج مسبقاً") : "تم الرفض");
       } else {
         toast.success(approve ? (data?.result === "ok" ? "تم الاعتماد وشحن الرصيد ✅" : "الطلب معالج مسبقاً") : "تم الرفض");
       }
-    } catch (e) { toast.error((e as Error).message); }
+    } catch {
+      toast.error("هذا الطلب قديم وما له نسخة قابلة للاعتماد — اطلب من التاجر يرسل الطلب مرة ثانية، أو اعتمده من قائمة الطلبات القديمة تحت");
+    }
     setBusy(null);
     load();
   };
