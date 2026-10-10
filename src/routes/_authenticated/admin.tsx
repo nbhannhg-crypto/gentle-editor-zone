@@ -142,13 +142,41 @@ function AdminWallet() {
   };
   useEffect(() => { load(); }, []);
 
+  const rpc = (fn: string, args: Record<string, unknown>) => (supabase.rpc as any)(fn, args) as Promise<{ data: any; error: { message: string } | null }>;
+
   const reviewPay = async (id: string, approve: boolean) => {
     setBusy(id);
     try {
-      const r = await reviewFn({ data: { paymentId: id, approve } });
-      toast.success(approve ? (r.result === "ok" ? "تم الاعتماد وشحن الرصيد ✅" : "الطلب معالج مسبقاً") : "تم الرفض");
+      // الطريقة المباشرة بصلاحية المالك (بدون مفتاح السيرفر)
+      const { data, error } = approve
+        ? await rpc("admin_approve_payment", { _id: id })
+        : await rpc("admin_update_payment", { _id: id, _points: pays.find((p) => p.id === id)?.points_calculated ?? 0, _status: "rejected" });
+      if (error) {
+        // احتياطي: الطريقة القديمة عبر السيرفر
+        const r = await reviewFn({ data: { paymentId: id, approve } });
+        toast.success(approve ? (r.result === "ok" ? "تم الاعتماد وشحن الرصيد ✅" : "الطلب معالج مسبقاً") : "تم الرفض");
+      } else {
+        toast.success(approve ? (data?.result === "ok" ? "تم الاعتماد وشحن الرصيد ✅" : "الطلب معالج مسبقاً") : "تم الرفض");
+      }
     } catch (e) { toast.error((e as Error).message); }
     setBusy(null);
+    load();
+  };
+
+  const editPay = async (r: Pay) => {
+    const pts = window.prompt("عدد النقاط:", String(r.points_calculated));
+    if (pts === null) return;
+    const st = window.prompt("الحالة (pending / approved / rejected):", r.status);
+    if (st === null) return;
+    const { error } = await rpc("admin_update_payment", { _id: r.id, _points: Math.max(0, parseInt(pts) || 0), _status: st.trim() });
+    if (error) toast.error(error.message); else toast.success("تم تعديل الطلب ✏️");
+    load();
+  };
+
+  const deletePay = async (id: string) => {
+    if (!window.confirm("حذف هذا الطلب نهائياً؟")) return;
+    const { error } = await rpc("admin_delete_payment", { _id: id });
+    if (error) toast.error(error.message); else toast.success("تم حذف الطلب 🗑️");
     load();
   };
 
@@ -190,6 +218,8 @@ function AdminWallet() {
                     <Button size="sm" variant="destructive" disabled={busy === r.id} onClick={() => reviewPay(r.id, false)}>رفض</Button>
                   </>
                 ) : status(r.status)}
+                <Button size="sm" variant="outline" onClick={() => editPay(r)}>✏️</Button>
+                <Button size="sm" variant="outline" onClick={() => deletePay(r.id)}>🗑️</Button>
               </div>
             </div>
           ))}
