@@ -143,7 +143,11 @@ export const waQr = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ name: z.string().max(80) }).parse(d))
   .handler(async ({ data, context }) => {
     if (!data.name.startsWith(prefix(await myStore(context as Ctx)))) throw new Error("غير مسموح");
-    const r = await evo().call(`/instance/connect/${encodeURIComponent(data.name)}`);
+    let r = await evo().call(`/instance/connect/${encodeURIComponent(data.name)}`);
+    for (let i = 0; i < 3 && !r?.base64; i++) {
+      await new Promise((x) => setTimeout(x, 2000));
+      try { r = await evo().call(`/instance/connect/${encodeURIComponent(data.name)}`); } catch { /* ignore */ }
+    }
     return { qr: (r?.base64 as string) || "", code: (r?.pairingCode as string) || "" };
   });
 
@@ -173,7 +177,10 @@ export const waHardReset = createServerFn({ method: "POST" })
       webhook: { enabled: true, url, byEvents: false, base64: false, events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"] },
     });
     let qr = (r?.qrcode?.base64 as string) || "";
-    if (!qr) { try { const c = await e.call(`/instance/connect/${n}`); qr = (c?.base64 as string) || ""; } catch { /* ignore */ } }
+    for (let i = 0; i < 6 && !qr; i++) {
+      await new Promise((r) => setTimeout(r, 2000));
+      try { const c = await e.call(`/instance/connect/${n}`); qr = (c?.base64 as string) || ""; } catch { /* ignore */ }
+    }
     return { name: data.name, qr };
   });
 
