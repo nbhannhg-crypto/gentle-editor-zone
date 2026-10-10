@@ -10,7 +10,8 @@ export const Route = createFileRoute("/api/public/evolution")({
       POST: async ({ request }) => {
         const secret = process.env["EVO_WEBHOOK_SECRET"] ?? "";
         const t = new URL(request.url).searchParams.get("t") ?? "";
-        if (!secret || t.length !== secret.length || !timingSafeEqual(Buffer.from(t), Buffer.from(secret))) return ok(401, "bad token");
+        // If a secret is configured, enforce it; otherwise accept (instance must still match a saved store config below).
+        if (secret && (t.length !== secret.length || !timingSafeEqual(Buffer.from(t), Buffer.from(secret)))) return ok(401, "bad token");
 
         let body: any;
         try { body = await request.json(); } catch { return ok(400, "bad json"); }
