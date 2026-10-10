@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { timingSafeEqual } from "crypto";
-import { aiReplyWith, bestRule, evoSend, fishTts, kingdomAutoReply, kingdomWelcome, numberAllowed, type AiOpts } from "@/lib/autoreply.server";
+import { aiReplyWith, bestRule, evoSend, fishTts, kingdomAutoReply, kingdomWelcome, numberAllowed, testMatch, type AiOpts } from "@/lib/autoreply.server";
 
 const ok = (s = 200, t = "ok") => new Response(t, { status: s });
 
@@ -72,8 +72,9 @@ export const Route = createFileRoute("/api/public/evolution")({
             db.from("products").select("name, price, description").eq("store_id", cfg.store_id).limit(50),
           ]);
           const src = cfg.source ?? "smart";
-          let m = src === "ai" ? null : bestRule(text, rules ?? []);
-          if (m && m.score < 0.35) m = null;
+          // نفس محرك "اختبر الموظفة" بالضبط — اللي يرد في الاختبار يرد في الواتساب
+          let m = src === "ai" ? null : testMatch(text, rules ?? []);
+          const ownRule = !!m;
           // Library: send a pre-recorded studio voice whose text best matches
           let libAudio: string | null = null;
           if (src === "library") {
@@ -95,11 +96,14 @@ export const Route = createFileRoute("/api/public/evolution")({
             return ok();
           }
           const useVoice = (cfg.voice && !kingdom?.textOnly) || !!libAudio;
-          const cost = (m ? 1 : 2) + (useVoice && !libAudio ? 3 : 0);
-          const { error: spendErr } = await db.rpc("spend_points_system", { _store: cfg.store_id, _amount: cost, _reason: "رد واتساب تلقائي" });
-          if (spendErr) {
-            await db.from("wa_inbox").update({ status: "skipped", error: "رصيد غير كافي" }).eq("msg_id", msgId);
-            return ok();
+          // ردود قواعدك المكتوبة مجانية (0 نقاط)؛ الرصيد فقط للذكاء والفويس المولّد
+          const cost = (ownRule && !libAudio ? 0 : m ? 1 : 2) + (useVoice && !libAudio ? 3 : 0);
+          if (cost > 0) {
+            const { error: spendErr } = await db.rpc("spend_points_system", { _store: cfg.store_id, _amount: cost, _reason: "رد واتساب تلقائي" });
+            if (spendErr) {
+              await db.from("wa_inbox").update({ status: "skipped", error: "رصيد غير كافي" }).eq("msg_id", msgId);
+              return ok();
+            }
           }
           let reply: string;
           if (m) {
