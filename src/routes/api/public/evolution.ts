@@ -73,7 +73,7 @@ export const Route = createFileRoute("/api/public/evolution")({
           ]);
           const src = cfg.source ?? "smart";
           let m = src === "ai" ? null : bestRule(text, rules ?? []);
-          if (m && m.score < 0.55) m = null;
+          if (m && m.score < 0.35) m = null;
           // Library: send a pre-recorded studio voice whose text best matches
           let libAudio: string | null = null;
           if (src === "library") {

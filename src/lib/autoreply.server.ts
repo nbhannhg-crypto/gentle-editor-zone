@@ -13,6 +13,12 @@ export function bestRule(text: string, rules: Rule[]): { rule: Rule; score: numb
   const fs = new Map<string, number>();
   new Fuse(items, { keys: ["n"], includeScore: true, threshold: 0.6, ignoreLocation: true })
     .search(q).forEach((h) => fs.set(h.item.r.id, 1 - (h.score ?? 1)));
+  // أولوية: تطابق مباشر (كامل ثم جزئي) يُعتمد فوراً قبل الفحص التقريبي
+  const exact = items.find(({ n }) => n && n === q);
+  if (exact) return { rule: exact.r, score: 1 };
+  let sub: { r: Rule; n: string } | null = null;
+  for (const it of items) if (it.n && (q.includes(it.n) || it.n.includes(q)) && (!sub || it.n.length > sub.n.length)) sub = it;
+  if (sub) return { rule: sub.r, score: 0.97 };
   const qw = q.split(" ");
   let best: { rule: Rule; score: number } | null = null;
   for (const { r, n } of items) {

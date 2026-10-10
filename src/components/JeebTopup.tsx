@@ -45,7 +45,9 @@ export function JeebTopup({ storeId, onDone }: { storeId?: string | undefined; o
       if (error) throw new Error(error.message.includes("duplicate") ? "رقم العملية مستخدم من قبل ⛔" : "تعذر حفظ الطلب");
       const row = (data as { id: string; points: number; token: string }[])[0]!;
       const t = txn.trim();
-      sendWhatsappApproval({ data: { paymentId: row.id, origin: window.location.origin } }).catch(() => {});
+      sendWhatsappApproval({ data: { paymentId: row.id, origin: window.location.origin } })
+        .then((r) => { if (!r.sent) { console.error("إشعار واتساب لم يُرسل:", r.error); toast.warning("طلبك محفوظ ✅ لكن إشعار الواتساب ما وصل — بيظهر للإدارة في اللوحة"); } })
+        .catch((e) => { console.error("إشعار واتساب فشل:", e); toast.warning("طلبك محفوظ ✅ لكن إشعار الواتساب ما وصل"); });
       setDoneMsg(`✅ تم استلام طلبك - رقم العملية ${t} - سيتم شحن ${row.points.toLocaleString("ar-SA")} نقطة خلال دقائق 🎉`);
       toast.success("✅ تم استلام طلبك");
       setTxn(""); setAmount(""); setFile(null);
