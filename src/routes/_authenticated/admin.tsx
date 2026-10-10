@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { isAdmin } from "@/lib/stores";
 import FactoryLab from "@/components/FactoryLab";
 import { getBranding, setBranding } from "@/lib/branding.functions";
+import { adminReviewPayment } from "@/lib/payments.functions";
 import { BRAND_DEFAULTS, type BrandNames } from "@/lib/branding";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -124,16 +125,32 @@ function AdminPage() {
 }
 
 type Topup = { id: string; store_id: string; points: number; amount_sar: number; reference: string; status: string; created_at: string };
+type Pay = { id: string; store_id: string; amount_paid: number; currency: string; points_calculated: number; transaction_number: string; receipt_url: string | null; status: string; created_at: string; stores?: { name: string } | null };
 
 function AdminWallet() {
+  const reviewFn = useServerFn(adminReviewPayment);
+  const [pays, setPays] = useState<Pay[]>([]);
   const [reqs, setReqs] = useState<Topup[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
 
   const load = async () => {
+    const { data: p } = await supabase.from("pending_payments").select("*, stores(name)").order("created_at", { ascending: false }).limit(50);
+    setPays((p as Pay[] | null) ?? []);
+    // الطلبات القديمة تبقى ظاهرة
     const { data } = await supabase.from("topup_requests").select("*").order("created_at", { ascending: false }).limit(30);
     setReqs((data as Topup[] | null) ?? []);
   };
   useEffect(() => { load(); }, []);
+
+  const reviewPay = async (id: string, approve: boolean) => {
+    setBusy(id);
+    try {
+      const r = await reviewFn({ data: { paymentId: id, approve } });
+      toast.success(approve ? (r.result === "ok" ? "تم الاعتماد وشحن الرصيد ✅" : "الطلب معالج مسبقاً") : "تم الرفض");
+    } catch (e) { toast.error((e as Error).message); }
+    setBusy(null);
+    load();
+  };
 
   const review = async (id: string, approve: boolean) => {
     setBusy(id);
@@ -144,13 +161,38 @@ function AdminWallet() {
     load();
   };
 
+  const receipt = async (path: string) => {
+    const { data } = await supabase.storage.from("receipts").createSignedUrl(path, 600);
+    if (data?.signedUrl) window.open(data.signedUrl, "_blank"); else toast.error("تعذر فتح الإيصال");
+  };
+
+  const status = (s: string) => <span className={`text-xs ${s === "approved" ? "text-emerald-600" : "text-rose-600"}`}>{s === "approved" ? "معتمد ✅" : s === "rejected" ? "مرفوض ❌" : s}</span>;
+
   return (
     <section className="rounded-2xl border bg-card p-5 shadow-soft">
       <h2 className="font-display mb-4 text-lg text-primary">💰 طلبات شحن الرصيد</h2>
-      {reqs.length === 0 ? (
+      {pays.length === 0 && reqs.length === 0 ? (
         <p className="text-sm text-muted-foreground">لا توجد طلبات شحن بعد.</p>
       ) : (
         <div className="space-y-2">
+          {pays.map((r) => (
+            <div key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3 text-sm">
+              <div className="space-y-0.5">
+                <p className="font-semibold">{r.stores?.name ?? "متجر"} — {r.points_calculated.toLocaleString("ar-SA")} نقطة</p>
+                <p className="text-muted-foreground">مقابل {r.amount_paid} {r.currency} • رقم عملية جيب: {r.transaction_number}</p>
+                <p className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleString("ar-SA")}
+                  {r.receipt_url && <button className="mr-2 text-primary underline" onClick={() => receipt(r.receipt_url!)}>📷 الإيصال</button>}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                {r.status === "pending" ? (
+                  <>
+                    <Button size="sm" disabled={busy === r.id} onClick={() => reviewPay(r.id, true)}>اعتماد وشحن الرصيد ✅</Button>
+                    <Button size="sm" variant="destructive" disabled={busy === r.id} onClick={() => reviewPay(r.id, false)}>رفض</Button>
+                  </>
+                ) : status(r.status)}
+              </div>
+            </div>
+          ))}
           {reqs.map((r) => (
             <div key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3 text-sm">
               <div>
@@ -164,11 +206,7 @@ function AdminWallet() {
                     <Button size="sm" disabled={busy === r.id} onClick={() => review(r.id, true)}>اعتماد ✅</Button>
                     <Button size="sm" variant="destructive" disabled={busy === r.id} onClick={() => review(r.id, false)}>رفض</Button>
                   </>
-                ) : (
-                  <span className={`text-xs ${r.status === "approved" ? "text-emerald-600" : "text-rose-600"}`}>
-                    {r.status === "approved" ? "معتمد ✅" : "مرفوض ❌"}
-                  </span>
-                )}
+                ) : status(r.status)}
               </div>
             </div>
           ))}
