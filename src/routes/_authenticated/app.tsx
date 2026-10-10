@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { addRule, backupRules, cacheRules, cachedRules, fetchRules, findMatches, guessCategory, normalize, recordUse, type Rule } from "@/lib/rules";
@@ -326,7 +327,7 @@ function Training({ rules, reload, setRules, mode, product, setProduct, storeId 
           <Textarea value={product} onChange={(e) => setProduct(e.target.value.slice(0, 2000))} rows={3} placeholder="اسم المنتج، السعر، العروض، التوصيل، الضمان…" />
         </Card>
 
-        <TestBox rules={rules} mode={mode} product={product} />
+        <TestBox rules={rules} mode={mode} product={product} reload={reload} />
       </div>
 
       <Card title={`📚 القواعد المحفوظة (${rules.length})`}>
@@ -363,22 +364,61 @@ function fmt(s: number) {
   return `${h ? h + ":" : ""}${String(m).padStart(2, "0")}:${String(x).padStart(2, "0")}`;
 }
 
-function TestBox({ rules, mode, product }: { rules: Rule[]; mode: Mode; product: string }) {
+function TestBox({ rules, mode, product, reload }: { rules: Rule[]; mode: Mode; product: string; reload?: () => Promise<void> }) {
   const [text, setText] = useState("");
-  const [out, setOut] = useState<{ answer: string; source: string; trigger?: string | undefined } | null>(null);
+  const [out, setOut] = useState<{ answer: string; source: string; trigger?: string | undefined; rule?: Rule | undefined; score?: number | undefined } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [q, setQ] = useState("");
+  const [edit, setEdit] = useState<Rule | null>(null);
+  const [et, setEt] = useState(""); const [er, setEr] = useState("");
   const engine = useReplyEngine(rules, mode, product);
   const run = async () => {
     if (!text.trim()) return;
     setLoading(true);
     try {
       const r = await engine(text);
-      setOut({ answer: r.answer, source: r.source, trigger: r.rule?.trigger_text });
+      setOut({ answer: r.answer, source: r.source, trigger: r.rule?.trigger_text, rule: r.rule, score: r.matches[0]?.score });
     } catch (e) { toast.error((e as Error).message); }
     setLoading(false);
   };
+  const hits = useMemo(() => {
+    const n = normalize(q);
+    if (n.length < 2) return [];
+    return rules.filter((r) => normalize(r.trigger_text).includes(n) || normalize(r.response_text).includes(n)).slice(0, 20);
+  }, [q, rules]);
+  const openEdit = (r: Rule) => { setEdit(r); setEt(r.trigger_text); setEr(r.response_text); };
+  const saveEdit = async () => {
+    if (!edit || !et.trim() || !er.trim()) return;
+    backupRules(rules);
+    const { error } = await supabase.from("training_rules").update({ trigger_text: et.trim(), response_text: er.trim(), category: guessCategory(et) }).eq("id", edit.id);
+    if (error) { toast.error("ما قدرنا نحفظ"); return; }
+    toast.success("تم تعديل القاعدة ✅");
+    if (out?.rule?.id === edit.id) setOut({ ...out, answer: er.trim(), trigger: et.trim(), rule: { ...edit, trigger_text: et.trim(), response_text: er.trim() } });
+    setEdit(null); await reload?.();
+  };
+  const delRule = async (r: Rule) => {
+    if (!confirm(`تحذف القاعدة "${r.trigger_text}"؟ (تنحفظ نسخة احتياطية)`)) return;
+    backupRules(rules);
+    const { error } = await supabase.from("training_rules").delete().eq("id", r.id);
+    if (error) { toast.error("تعذر الحذف"); return; }
+    toast.success("تم حذف القاعدة 🗑️");
+    if (out?.rule?.id === r.id) setOut(null);
+    await reload?.();
+  };
   return (
     <Card title="🧪 اختبر الموظفة">
+      <Input className="mb-2" value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 بحث سريع في القواعد بكلمة…" />
+      {hits.length > 0 && (
+        <ul className="mb-3 max-h-56 space-y-1 overflow-y-auto">
+          {hits.map((r) => (
+            <li key={r.id} className="flex items-center gap-2 rounded-lg border p-2 text-xs">
+              <div className="min-w-0 flex-1"><b className="block truncate">{r.trigger_text}</b><span className="block truncate text-muted-foreground">{r.response_text}</span></div>
+              <button aria-label="تعديل" onClick={() => openEdit(r)}>✏️</button>
+              <button aria-label="حذف" onClick={() => delRule(r)}>🗑️</button>
+            </li>
+          ))}
+        </ul>
+      )}
       <div className="flex gap-2">
         <Input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && run()} placeholder="اكتب كلام زبون وهمي… مثلاً: سعركم غالي مرة" />
         <Button onClick={run} disabled={loading}>{loading ? "…" : "جرّب"}</Button>
@@ -389,8 +429,26 @@ function TestBox({ rules, mode, product }: { rules: Rule[]; mode: Mode; product:
           <p className="mt-2 text-xs text-muted-foreground">
             {out.source === "rule" ? `من تعليمك: "${out.trigger}"` : out.source === "ai" ? "رد ذكي (ما فيه قاعدة مطابقة)" : ""}
           </p>
+          {out.rule && (
+            <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border bg-background px-2 py-1 text-xs">
+              <span>القاعدة: <b>{out.rule.trigger_text}</b></span>
+              {out.score !== undefined && <span className="rounded-full bg-muted px-2">تطابق {Math.round(out.score * 100)}%</span>}
+              <button className="text-primary" onClick={() => openEdit(out.rule!)}>تعديل ✏️</button>
+              <button className="text-destructive" onClick={() => delRule(out.rule!)}>حذف 🗑️</button>
+            </div>
+          )}
         </div>
       )}
+      <Dialog open={!!edit} onOpenChange={(o) => !o && setEdit(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>✏️ تعديل القاعدة</DialogTitle></DialogHeader>
+          <label className="text-sm">إذا قال الزبون:</label>
+          <Input value={et} maxLength={500} onChange={(e) => setEt(e.target.value)} />
+          <label className="text-sm">ردّي عليه:</label>
+          <Textarea rows={4} value={er} maxLength={2000} onChange={(e) => setEr(e.target.value)} />
+          <Button onClick={saveEdit}>💾 احفظ</Button>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
