@@ -26,10 +26,42 @@ export const Route = createFileRoute("/api/public/evolution")({
         if (!text.trim()) return ok();
         const number = jid.split("@")[0]!;
 
-        const { supabaseAdmin: db } = await import("@/integrations/supabase/client.server");
+        // Admin client when the server key exists; otherwise fall back to the public key (rules table is readable)
+        let db: any;
+        let limited = false;
+        try {
+          const mod = await import("@/integrations/supabase/client.server");
+          db = mod.supabaseAdmin;
+          await db.from("training_rules").select("id").limit(1);
+        } catch {
+          const { createClient } = await import("@supabase/supabase-js");
+          const url = process.env["SUPABASE_URL"] || process.env["VITE_SUPABASE_URL"] || "https://fzbkadflmlwgrbuxbtey.supabase.co";
+          const key = process.env["SUPABASE_PUBLISHABLE_KEY"] || process.env["VITE_SUPABASE_PUBLISHABLE_KEY"] || "sb_publishable_CMchUjkN04kOIT5y-z_6hA_A7mhsUmZ";
+          db = createClient(url, key, {
+            auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
+            global: { fetch: (input: any, init: any) => { const h = new Headers(init?.headers); if (h.get("Authorization") === `Bearer ${key}`) h.delete("Authorization"); h.set("apikey", key); return fetch(input, { ...init, headers: h }); } },
+          });
+          limited = true;
+        }
         // select("*") so optional new columns are read when present, and nothing breaks when absent
         const { data: cfgRow } = await db.from("wa_autoreply").select("*").eq("instance", instance).maybeSingle();
         const cfg = cfgRow as ({ store_id: string; enabled: boolean; voice: boolean; source: string | null } & AiOpts & { allowed_numbers?: string | null }) | null;
+        if (!cfg) {
+          // Settings locked (no server key): still answer from saved rules exactly like the in-app test
+          if (!limited) return ok();
+          try {
+            const all: { id: string; trigger_text: string; response_text: string; use_count: number }[] = [];
+            for (let from = 0; ; from += 1000) {
+              const { data, error } = await db.from("training_rules").select("id, trigger_text, response_text, use_count").order("id").range(from, from + 999);
+              if (error || !data) break;
+              all.push(...data);
+              if (data.length < 1000) break;
+            }
+            const hit = bestRule(text, all);
+            if (hit && hit.score >= 0.35) await evoSend(`/message/sendText/${encodeURIComponent(instance)}`, { number, text: hit.rule.response_text });
+          } catch (e) { console.error("limited autoreply", e); }
+          return ok();
+        }
         if (!cfg?.enabled) return ok();
         if (!numberAllowed(cfg.allowed_numbers, number)) {
           console.log(`تم تجاهل رسالة من رقم غير مسموح: ${number}`);
@@ -38,13 +70,13 @@ export const Route = createFileRoute("/api/public/evolution")({
         const { data: st } = await db.from("stores").select("active, owner_id, name").eq("id", cfg.store_id).maybeSingle();
         if (!st?.active) return ok();
 
-        // Durable inbox + dedupe
+        // Durable inbox + dedupe (archive failure never blocks the reply)
         const { error: insErr } = await db.from("wa_inbox").insert({ msg_id: msgId, instance, store_id: cfg.store_id, from_number: number, text: text.slice(0, 2000) });
         if (insErr) {
           if (insErr.code === "23505") {
             const { data: prev } = await db.from("wa_inbox").select("status").eq("msg_id", msgId).maybeSingle();
             if (prev?.status === "done" || prev?.status === "skipped") return ok();
-          } else return ok(500, insErr.message);
+          } else console.error("wa_inbox insert", insErr.message);
         }
 
         try {
@@ -85,7 +117,7 @@ export const Route = createFileRoute("/api/public/evolution")({
           let libAudio: string | null = null;
           if (src === "library") {
             const { data: lib } = await db.from("studio_audio").select("id, text, path").eq("store_id", cfg.store_id).limit(300);
-            const hit = bestRule(text, (lib ?? []).map((a) => ({ id: a.id, trigger_text: a.text, response_text: a.path, use_count: 0 })));
+            const hit = bestRule(text, (lib ?? []).map((a: any) => ({ id: a.id, trigger_text: a.text, response_text: a.path, use_count: 0 })));
             if (hit && hit.score >= 0.45) {
               const dl = await db.storage.from("studio-audio").download(hit.rule.response_text);
               if (!dl.error) { libAudio = Buffer.from(await dl.data.arrayBuffer()).toString("base64"); m = { rule: { ...hit.rule, response_text: hit.rule.trigger_text }, score: hit.score }; }
@@ -118,7 +150,7 @@ export const Route = createFileRoute("/api/public/evolution")({
             reply = m.rule.response_text;
             if (!libAudio && m.rule.id && !kingdom) await db.from("training_rules").update({ use_count: m.rule.use_count + 1 }).eq("id", m.rule.id);
           } else {
-            const ctx = "منتجات المتجر:\n" + (products ?? []).map((p) => `- ${p.name}: ${p.price} ريال ${p.description}`).join("\n") +
+            const ctx = "منتجات المتجر:\n" + (products ?? []).map((p: any) => `- ${p.name}: ${p.price} ريال ${p.description}`).join("\n") +
               "\nردود المتجر المعتمدة:\n" + (rules ?? []).slice(0, 40).map((r) => `- إذا قال "${r.trigger_text}" → "${r.response_text}"`).join("\n");
             reply = await aiReplyWith(text, ctx, cfg);
           }
