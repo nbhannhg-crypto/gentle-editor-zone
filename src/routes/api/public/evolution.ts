@@ -166,8 +166,12 @@ export const Route = createFileRoute("/api/public/evolution")({
             reply = m.rule.response_text;
             if (!libAudio && m.rule.id && !kingdom) await db.from("training_rules").update({ use_count: m.rule.use_count + 1 }).eq("id", m.rule.id);
           } else {
+            // أقرب القواعد لرسالة الزبون (مو أول 40 عشوائية) عشان الذكاء يرد بأسلوبك وكلامك
+            const qw = text.split(/\s+/).filter((w) => w.length > 2);
+            const related = (rules ?? []).filter((r) => qw.some((w) => r.trigger_text.includes(w))).slice(0, 30);
+            const pool = [...related, ...(rules ?? []).filter((r) => !related.includes(r)).slice(0, 40 - related.length)];
             const ctx = "منتجات المتجر:\n" + (products ?? []).map((p: any) => `- ${p.name}: ${p.price} ريال ${p.description}`).join("\n") +
-              "\nردود المتجر المعتمدة:\n" + (rules ?? []).slice(0, 40).map((r) => `- إذا قال "${r.trigger_text}" → "${r.response_text}"`).join("\n");
+              "\nردود المتجر المعتمدة (افهمي قصد الزبون واختاري الرد الأنسب منها بنفس الكلام، ولا تردي برد لا يناسب سؤاله):\n" + pool.map((r) => `- إذا قال "${r.trigger_text}" → "${r.response_text}"`).join("\n");
             reply = await aiReplyWith(text, ctx, cfg);
           }
           if (!reply) throw new Error("empty reply");
