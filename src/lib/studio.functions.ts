@@ -187,7 +187,9 @@ export const waList = createServerFn({ method: "POST" })
     const p = prefix(await myStore(context as Ctx));
     const e = evo();
     const all = (await e.call("/instance/fetchInstances")) as any[];
-    const mine = (Array.isArray(all) ? all : []).filter((i) => typeof i.name === "string" && i.name.startsWith(p));
+    const mine = (Array.isArray(all) ? all : [])
+      .map((i) => (i?.name === WAHA_SESSION ? { ...i, name: p + "واتساب" } : i))
+      .filter((i) => typeof i.name === "string" && i.name.startsWith(p));
     return Promise.all(mine.map(async (i) => {
       let status = (i.connectionStatus as string) || "close";
       try {
