@@ -16,17 +16,32 @@ export function bestRule(text: string, rules: Rule[]): { rule: Rule; score: numb
   // أولوية: تطابق مباشر (كامل ثم جزئي) يُعتمد فوراً قبل الفحص التقريبي
   const exact = items.find(({ n }) => n && n === q);
   if (exact) return { rule: exact.r, score: 1 };
-  let sub: { r: Rule; n: string } | null = null;
-  for (const it of items) if (it.n && (q.includes(it.n) || it.n.includes(q)) && (!sub || it.n.length > sub.n.length)) sub = it;
-  if (sub) return { rule: sub.r, score: 0.97 };
-  const qw = q.split(" ");
-  let best: { rule: Rule; score: number } | null = null;
+  // تدقيق: الجزء المشترك لازم يكون كلمات كاملة ويغطي جزء كبير من الجملة (مو كلمة صغيرة عابرة)
+  const STOP = new Set(["في", "من", "على", "الى", "عن", "ما", "لا", "يا", "و", "او", "هل", "انا", "انت", "هو", "هي", "ابي", "ابغى", "بس", "مع", "كم", "اي", "شي", "ذا", "هذا", "هذي", "الله"]);
+  const words = (s: string) => s.split(" ").filter((w) => w.length > 1 && !STOP.has(w));
+  const qw = words(q);
+  const wholeIn = (a: string, b: string) => (" " + b + " ").includes(" " + a + " ");
+  let sub: { r: Rule; n: string; s: number } | null = null;
+  for (const it of items) {
+    if (!it.n) continue;
+    const [shortS, longS] = it.n.length <= q.length ? [it.n, q] : [q, it.n];
+    if (!wholeIn(shortS, longS) || !words(shortS).length) continue;
+    const ratio = shortS.length / longS.length;
+    const s = ratio >= 0.6 ? 0.95 : ratio >= 0.35 ? 0.75 : 0.4;
+    if (!sub || s > sub.s || (s === sub.s && it.n.length > sub.n.length)) sub = { r: it.r, n: it.n, s };
+  }
+  if (sub && sub.s >= 0.75) return { rule: sub.r, score: sub.s };
+  let best: { rule: Rule; score: number } | null = sub ? { rule: sub.r, score: sub.s } : null;
   for (const { r, n } of items) {
     if (!n) continue;
-    const tw = n.split(" ");
-    const contains = q.includes(n) || n.includes(q) ? 0.95 : 0;
-    const overlap = (tw.filter((w) => qw.some((x) => x.includes(w) || w.includes(x))).length / tw.length) * 0.85;
-    const score = Math.max(contains, overlap, fs.get(r.id) ?? 0);
+    const tw = words(n);
+    if (!tw.length || !qw.length) continue;
+    // تطابق الكلمات الجوهرية بالاتجاهين (كلمة كاملة أو قريبة جداً)
+    const near = (a: string, b: string) => a === b || (a.length >= 4 && b.length >= 4 && (a.includes(b) || b.includes(a)));
+    const hitT = tw.filter((w) => qw.some((x) => near(w, x))).length / tw.length;
+    const hitQ = qw.filter((x) => tw.some((w) => near(w, x))).length / qw.length;
+    const overlap = Math.min(hitT, hitQ) * 0.9;
+    const score = Math.max(overlap, (fs.get(r.id) ?? 0) * 0.85);
     if (!best || score > best.score) best = { rule: r, score };
   }
   return best;
@@ -136,6 +151,20 @@ export async function fishTts(text: string): Promise<string> {
   });
   if (!r.ok) throw new Error(`voice ${r.status}`);
   return Buffer.from(await r.arrayBuffer()).toString("base64");
+}
+
+/** Waits the merchant-chosen delay while showing "typing…" (best effort, never blocks the reply). */
+export async function typingDelay(number: string, seconds: number) {
+  const sec = Math.min(Math.max(Math.round(seconds || 0), 0), 25);
+  if (!sec) return;
+  const url = (process.env["EVOLUTION_API_URL"] ?? "").replace(/\/$/, "");
+  const key = process.env["EVOLUTION_API_KEY"] ?? "";
+  const raw = String(number);
+  const chatId = /@(lid|c\.us)$/.test(raw) ? raw : `${raw.replace(/@.*$/, "").replace(/\D/g, "")}@c.us`;
+  const call = (p: string) => fetch(`${url}/api/${p}`, { method: "POST", headers: { "X-Api-Key": key, "Content-Type": "application/json" }, body: JSON.stringify({ session: "default", chatId }) }).catch(() => null);
+  if (url) await call("startTyping");
+  await new Promise((r) => setTimeout(r, sec * 1000));
+  if (url) await call("stopTyping");
 }
 
 export async function evoSend(path: string, body: unknown) {
