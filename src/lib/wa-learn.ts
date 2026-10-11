@@ -1,7 +1,7 @@
 // "علميها بذكاء": 3 optional fields stored inside the existing system_prompt text (no DB change needed).
 const MARK = "\n\n<<LEARN>>";
 export type Example = { u: string; r: string };
-export type Learn = { identity: string; banned: string; dialect: string; examples?: Example[] };
+export type Learn = { identity: string; banned: string; dialect: string; examples?: Example[]; delay?: number };
 
 export function splitPrompt(full: string | null | undefined): { base: string; learn: Learn } {
   const s = full ?? "";
@@ -10,14 +10,17 @@ export function splitPrompt(full: string | null | undefined): { base: string; le
   if (i < 0) return { base: s, learn: empty };
   try {
     const j = JSON.parse(s.slice(i + MARK.length)) as Partial<Learn>;
-    return { base: s.slice(0, i), learn: { identity: j.identity ?? "", banned: j.banned ?? "", dialect: j.dialect ?? "", examples: Array.isArray(j.examples) ? j.examples : [] } };
+    return { base: s.slice(0, i), learn: { identity: j.identity ?? "", banned: j.banned ?? "", dialect: j.dialect ?? "", examples: Array.isArray(j.examples) ? j.examples : [], delay: typeof j.delay === "number" ? j.delay : 0 } };
   } catch { return { base: s.slice(0, i), learn: empty }; }
 }
 
 export function joinPrompt(base: string, l: Learn): string {
-  if (!l.identity.trim() && !l.banned.trim() && !l.dialect.trim() && !(l.examples ?? []).some((e) => e.u.trim() || e.r.trim())) return base;
+  if (!l.identity.trim() && !l.banned.trim() && !l.dialect.trim() && !(l.examples ?? []).some((e) => e.u.trim() || e.r.trim()) && !l.delay) return base;
   return base + MARK + JSON.stringify(l);
 }
+
+/** Reply delay (seconds) chosen by the merchant; 0 = instant. */
+export const replyDelay = (full: string | null | undefined) => splitPrompt(full).learn.delay ?? 0;
 
 /** Final system prompt: identity + persona + extra rules. */
 export function composePrompt(full: string | null | undefined): string {

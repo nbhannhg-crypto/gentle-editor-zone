@@ -103,6 +103,21 @@ export function WaExtras({ name, myNumber }: { name: string; myNumber: string })
         ))}
         <Button size="sm" variant="outline" onClick={() => setEx([...ex, { u: "", r: "" }])}>➕ إضافة مثال</Button>
       </div>
+      <div className="space-y-2 rounded-lg border p-3">
+        <span className="text-sm font-semibold">⏱️ تأخير الرد</span>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {[0, 3, 5, 10, 20].map((s) => (
+            <button key={s} onClick={() => update({ system_prompt: joinPrompt(sp.base, { ...sp.learn, delay: s }) })}
+              className={`rounded-full border px-2.5 py-1 text-xs ${(sp.learn.delay ?? 0) === s ? "bg-primary text-primary-foreground" : "bg-background"}`}>
+              {s === 0 ? "فوري" : `${s} ثواني`}
+            </button>
+          ))}
+          <Input type="number" min={0} max={25} className="w-20" value={sp.learn.delay ?? 0}
+            onChange={(e) => update({ system_prompt: joinPrompt(sp.base, { ...sp.learn, delay: Math.min(25, Math.max(0, Number(e.target.value) || 0)) }) })} />
+          <span className="text-xs text-muted-foreground">ثانية</span>
+        </div>
+        <p className="text-xs text-muted-foreground">يظهر للزبون «يكتب…» طول مدة الانتظار (أقصى شي 25 ثانية).</p>
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs text-muted-foreground">قوة الذكاء:</span>
         <select className="rounded-md border bg-background px-2 py-1 text-sm" value={x.ai_model} onChange={(e) => update({ ai_model: e.target.value })}>

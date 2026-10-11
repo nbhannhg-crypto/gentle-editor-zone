@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { timingSafeEqual } from "crypto";
-import { aiReplyWith, bestRule, evoSend, fishTts, kingdomAutoReply, kingdomWelcome, numberAllowed, type AiOpts } from "@/lib/autoreply.server";
+import { aiReplyWith, bestRule, evoSend, fishTts, kingdomAutoReply, kingdomWelcome, numberAllowed, typingDelay, type AiOpts } from "@/lib/autoreply.server";
+import { replyDelay } from "@/lib/wa-learn";
 
 const ok = (s = 200, t = "ok") => new Response(t, { status: s });
 
@@ -72,7 +73,7 @@ export const Route = createFileRoute("/api/public/evolution")({
               if (data.length < 1000) break;
             }
             const hit = bestRule(text, all);
-            if (hit && hit.score >= 0.35) await evoSend(`/message/sendText/${encodeURIComponent(instance)}`, { number, text: hit.rule.response_text });
+            if (hit && hit.score >= 0.6) await evoSend(`/message/sendText/${encodeURIComponent(instance)}`, { number, text: hit.rule.response_text });
           } catch (e) { console.error("limited autoreply", e); }
           return ok();
         }
@@ -126,7 +127,8 @@ export const Route = createFileRoute("/api/public/evolution")({
           ]);
           const src = cfg.source ?? "smart";
           let m = src === "ai" ? null : bestRule(text, rules ?? []);
-          if (m && m.score < 0.35) m = null;
+          // تدقيق: المطابقة الضعيفة ما تنرسل كما هي — الذكاء يفهم القصد بدلها
+          if (m && m.score < 0.6) m = null;
           // Library: send a pre-recorded studio voice whose text best matches
           let libAudio: string | null = null;
           if (src === "library") {
@@ -164,11 +166,16 @@ export const Route = createFileRoute("/api/public/evolution")({
             reply = m.rule.response_text;
             if (!libAudio && m.rule.id && !kingdom) await db.from("training_rules").update({ use_count: m.rule.use_count + 1 }).eq("id", m.rule.id);
           } else {
+            // أقرب القواعد لرسالة الزبون (مو أول 40 عشوائية) عشان الذكاء يرد بأسلوبك وكلامك
+            const qw = text.split(/\s+/).filter((w) => w.length > 2);
+            const related = (rules ?? []).filter((r) => qw.some((w) => r.trigger_text.includes(w))).slice(0, 30);
+            const pool = [...related, ...(rules ?? []).filter((r) => !related.includes(r)).slice(0, 40 - related.length)];
             const ctx = "منتجات المتجر:\n" + (products ?? []).map((p: any) => `- ${p.name}: ${p.price} ريال ${p.description}`).join("\n") +
-              "\nردود المتجر المعتمدة:\n" + (rules ?? []).slice(0, 40).map((r) => `- إذا قال "${r.trigger_text}" → "${r.response_text}"`).join("\n");
+              "\nردود المتجر المعتمدة (افهمي قصد الزبون واختاري الرد الأنسب منها بنفس الكلام، ولا تردي برد لا يناسب سؤاله):\n" + pool.map((r) => `- إذا قال "${r.trigger_text}" → "${r.response_text}"`).join("\n");
             reply = await aiReplyWith(text, ctx, cfg);
           }
           if (!reply) throw new Error("empty reply");
+          await typingDelay(number, replyDelay(cfg.system_prompt));
           const path = `/message/${useVoice ? "sendWhatsAppAudio" : "sendText"}/${encodeURIComponent(instance)}`;
           if (useVoice) await evoSend(path, { number, audio: libAudio ?? (await fishTts(reply)), encoding: true, ptt: true });
           else await evoSend(path, { number, text: reply });
