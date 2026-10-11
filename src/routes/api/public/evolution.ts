@@ -62,7 +62,7 @@ export const Route = createFileRoute("/api/public/evolution")({
         const cfg = cfgRow as ({ store_id: string; enabled: boolean; voice: boolean; source: string | null } & AiOpts & { allowed_numbers?: string | null }) | null;
         if (!cfg) {
           // Settings locked (no server key): still answer from saved rules exactly like the in-app test
-          if (!limited) return ok();
+          // No store config for this session: still answer from saved rules (same as in-app test)
           try {
             const all: { id: string; trigger_text: string; response_text: string; use_count: number }[] = [];
             for (let from = 0; ; from += 1000) {
