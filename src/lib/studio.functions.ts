@@ -10,22 +10,97 @@ async function myStore(ctx: Ctx): Promise<string> {
   return data.id as string;
 }
 
+let wahaCache: boolean | null = null;
+async function isWaha(url: string, key: string): Promise<boolean> {
+  if (wahaCache !== null) return wahaCache;
+  try {
+    const r = await fetch(`${url}/api/sessions`, { headers: { "X-Api-Key": key } });
+    wahaCache = r.ok;
+  } catch { wahaCache = false; }
+  return wahaCache;
+}
+
+const WAHA_SESSION = "default"; // WAHA Core supports one session
+const wahaState = (s: string) => (s === "WORKING" ? "open" : s === "SCAN_QR_CODE" || s === "STARTING" ? "connecting" : "close");
+
 function evo() {
-  const url = process.env["EVOLUTION_API_URL"];
+  const rawUrl = process.env["EVOLUTION_API_URL"];
   const key = process.env["EVOLUTION_API_KEY"];
-  if (!url || !key) throw new Error("خدمة واتساب غير مربوطة");
+  if (!rawUrl || !key) throw new Error("خدمة واتساب غير مربوطة");
+  const url = rawUrl.replace(/\/$/, "");
+  const raw = async (path: string, method = "GET", body?: unknown, waha = false) => {
+    const r = await fetch(`${url}${path}`, {
+      method,
+      headers: { ...(waha ? { "X-Api-Key": key } : { apikey: key }), "Content-Type": "application/json" },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    if (waha && (r.headers.get("content-type") || "").startsWith("image/")) {
+      return { base64: `data:image/png;base64,${Buffer.from(await r.arrayBuffer()).toString("base64")}` };
+    }
+    const t = await r.text();
+    let j: any = null;
+    try { j = JSON.parse(t); } catch { j = t; }
+    if (!r.ok) throw new Error(`واتساب رفض الطلب (${r.status}): ${typeof j === "string" ? j.slice(0, 200) : JSON.stringify(j).slice(0, 200)}`);
+    return j;
+  };
+  // Translate Evolution-style calls to WAHA when the server is WAHA
+  const wahaCall = async (path: string, method: string, body?: any): Promise<any> => {
+    const s = WAHA_SESSION;
+    const session = async () => { try { return await raw(`/api/sessions/${s}`, "GET", undefined, true); } catch { return null; } };
+    const qr = async () => {
+      for (let i = 0; i < 6; i++) {
+        const st = await session();
+        if (st?.status === "WORKING") return { base64: "" };
+        if (!st || st.status === "STOPPED" || st.status === "FAILED") {
+          try { await raw(`/api/sessions/${s}/start`, "POST", undefined, true); } catch { /* ignore */ }
+        }
+        if (st?.status === "SCAN_QR_CODE") {
+          try { return await raw(`/api/${s}/auth/qr?format=image`, "GET", undefined, true); } catch { /* retry */ }
+        }
+        await new Promise((x) => setTimeout(x, 2000));
+      }
+      return { base64: "" };
+    };
+    if (path.startsWith("/instance/fetchInstances")) {
+      const st = await session();
+      return st ? [{ name: s, connectionStatus: wahaState(st.status), ownerJid: st.me?.id || "" }] : [];
+    }
+    if (path.startsWith("/instance/connectionState")) {
+      const st = await session();
+      return { instance: { state: wahaState(st?.status || "") } };
+    }
+    if (path.startsWith("/instance/create")) {
+      const webhookUrl = body?.webhook?.url ? `${body.webhook.url}${body.webhook.url.includes("?") ? "&" : "?"}i=${encodeURIComponent(body.instanceName ?? "")}` : "";
+      if (webhookUrl) {
+        try { await raw(`/api/sessions/${s}`, "PUT", { config: { webhooks: [{ url: webhookUrl, events: ["message", "session.status"] }] } }, true); } catch { /* ignore */ }
+      }
+      return { qrcode: await qr() };
+    }
+    if (path.startsWith("/instance/connect")) return qr();
+    if (path.startsWith("/instance/logout")) { try { await raw(`/api/sessions/${s}/logout`, "POST", undefined, true); } catch { /* ignore */ } return { ok: true }; }
+    if (path.startsWith("/instance/delete")) {
+      try { await raw(`/api/sessions/${s}/logout`, "POST", undefined, true); } catch { /* ignore */ }
+      try { await raw(`/api/sessions/${s}/stop`, "POST", undefined, true); } catch { /* ignore */ }
+      return { ok: true };
+    }
+    if (path.startsWith("/message/sendText")) {
+      return raw(`/api/sendText`, "POST", { session: s, chatId: `${String(body.number).replace(/\D/g, "")}@c.us`, text: body.text }, true);
+    }
+    if (path.startsWith("/message/sendWhatsAppAudio")) {
+      return raw(`/api/sendVoice`, "POST", { session: s, chatId: `${String(body.number).replace(/\D/g, "")}@c.us`, file: { mimetype: "audio/ogg; codecs=opus", data: String(body.audio).replace(/^data:[^,]+,/, "") }, convert: true }, true);
+    }
+    if (path.startsWith("/webhook/set")) {
+      const u0 = body?.webhook?.url || body?.url;
+      const u = u0 ? `${u0}${u0.includes("?") ? "&" : "?"}i=${encodeURIComponent(decodeURIComponent(path.split("/").pop() || ""))}` : "";
+      if (u) await raw(`/api/sessions/${s}`, "PUT", { config: { webhooks: [{ url: u, events: ["message", "session.status"] }] } }, true);
+      return { ok: true };
+    }
+    return raw(path, method, body, true);
+  };
   return {
     async call(path: string, method = "GET", body?: unknown) {
-      const r = await fetch(`${url.replace(/\/$/, "")}${path}`, {
-        method,
-        headers: { apikey: key, "Content-Type": "application/json" },
-        ...(body ? { body: JSON.stringify(body) } : {}),
-      });
-      const t = await r.text();
-      let j: any = null;
-      try { j = JSON.parse(t); } catch { j = t; }
-      if (!r.ok) throw new Error(`واتساب رفض الطلب (${r.status}): ${typeof j === "string" ? j.slice(0, 200) : JSON.stringify(j).slice(0, 200)}`);
-      return j;
+      if (await isWaha(url, key)) return wahaCall(path, method, body);
+      return raw(path, method, body);
     },
   };
 }
@@ -113,7 +188,9 @@ export const waList = createServerFn({ method: "POST" })
     const p = prefix(await myStore(context as Ctx));
     const e = evo();
     const all = (await e.call("/instance/fetchInstances")) as any[];
-    const mine = (Array.isArray(all) ? all : []).filter((i) => typeof i.name === "string" && i.name.startsWith(p));
+    const mine = (Array.isArray(all) ? all : [])
+      .map((i) => (i?.name === WAHA_SESSION ? { ...i, name: p + "واتساب" } : i))
+      .filter((i) => typeof i.name === "string" && i.name.startsWith(p));
     return Promise.all(mine.map(async (i) => {
       let status = (i.connectionStatus as string) || "close";
       try {

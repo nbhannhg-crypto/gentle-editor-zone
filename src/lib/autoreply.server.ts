@@ -140,6 +140,23 @@ export async function fishTts(text: string): Promise<string> {
 
 export async function evoSend(path: string, body: unknown) {
   const url = process.env["EVOLUTION_API_URL"]!.replace(/\/$/, "");
+  const key = process.env["EVOLUTION_API_KEY"]!;
+  // WAHA server support
+  const probe = await fetch(`${url}/api/sessions`, { headers: { "X-Api-Key": key } }).catch(() => null);
+  if (probe?.ok) {
+    const b = body as { number?: string; text?: string; audio?: string };
+    const chatId = `${String(b.number ?? "").replace(/\D/g, "")}@c.us`;
+    const isAudio = path.includes("Audio");
+    const w = await fetch(`${url}/api/${isAudio ? "sendVoice" : "sendText"}`, {
+      method: "POST",
+      headers: { "X-Api-Key": key, "Content-Type": "application/json" },
+      body: JSON.stringify(isAudio
+        ? { session: "default", chatId, file: { mimetype: "audio/ogg; codecs=opus", data: String(b.audio ?? "").replace(/^data:[^,]+,/, "") }, convert: true }
+        : { session: "default", chatId, text: b.text }),
+    });
+    if (!w.ok) throw new Error(`waha ${w.status}: ${(await w.text()).slice(0, 200)}`);
+    return;
+  }
   const r = await fetch(`${url}${path}`, {
     method: "POST",
     headers: { apikey: process.env["EVOLUTION_API_KEY"]!, "Content-Type": "application/json" },
