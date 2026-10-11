@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { timingSafeEqual } from "crypto";
 import { aiReplyWith, bestRule, evoSend, fishTts, kingdomAutoReply, kingdomWelcome, numberAllowed, typingDelay, type AiOpts } from "@/lib/autoreply.server";
 import { replyDelay } from "@/lib/wa-learn";
+import { CTRL_PREFIX, digits, parseCtrl } from "@/lib/wa-controls";
 
 const ok = (s = 200, t = "ok") => new Response(t, { status: s });
 
@@ -65,25 +66,50 @@ export const Route = createFileRoute("/api/public/evolution")({
           // Settings locked (no server key): still answer from saved rules exactly like the in-app test
           // No store config for this session: still answer from saved rules (same as in-app test)
           try {
-            const all: { id: string; trigger_text: string; response_text: string; use_count: number }[] = [];
+            const raw: { id: string; trigger_text: string; response_text: string; use_count: number }[] = [];
             for (let from = 0; ; from += 1000) {
               const { data, error } = await db.from("training_rules").select("id, trigger_text, response_text, use_count").order("id").range(from, from + 999);
               if (error || !data) break;
-              all.push(...data);
+              raw.push(...data);
               if (data.length < 1000) break;
             }
-            const hit = bestRule(text, all);
+            // Control-panel settings row (not a reply rule) — defaults keep the current behaviour
+            const ctrlRows = raw.filter((r) => r.trigger_text.startsWith(CTRL_PREFIX));
+            const ctrlRow = ctrlRows.find((r) => r.trigger_text === CTRL_PREFIX + instance) ?? ctrlRows[0];
+            const ctrl = parseCtrl(ctrlRow?.response_text);
+            const all = raw.filter((r) => !r.trigger_text.startsWith(CTRL_PREFIX));
+            const sender = digits(number) || number;
+            if (!ctrl.enabled) return ok();
+            if (ctrl.paused.some((p) => sender === p || sender.endsWith(p) || p.endsWith(sender))) return ok();
+            if (!numberAllowed(ctrl.allowed, number)) return ok();
+            const hit = ctrl.source === "ai" ? null : bestRule(text, all);
             let reply = hit && hit.score >= 0.6 ? hit.rule.response_text : "";
+            // Enabled brains/libraries (after the merchant's own rules)
+            if (!reply && ctrl.source !== "ai" && ctrl.brains.length) {
+              for (const b of ctrl.brains) {
+                try {
+                  const { data: lib } = await db.rpc("kingdom_replies", { _brain: b });
+                  const h = bestRule(text, ((lib ?? []) as any[]).map((x, i) => ({ id: String(i), trigger_text: x.trigger_text, response_text: x.reply_text, use_count: 0 })));
+                  if (h && h.score >= 0.6) { reply = h.rule.response_text; break; }
+                } catch (e) { console.error("brain lib", e); }
+              }
+            }
+            if (!reply && ctrl.source === "rules" && ctrlRow) {
+              // Rules-only: stay silent and log the message so the merchant can teach it
+              const misses = [...ctrl.misses.filter((m) => m.t !== text), { n: sender, t: text.slice(0, 300), at: Date.now() }].slice(-20);
+              await db.from("training_rules").update({ response_text: JSON.stringify({ ...ctrl, misses }) }).eq("id", ctrlRow.id).then(() => {}, () => {});
+              return ok();
+            }
             if (!reply) {
               // ما فيه قاعدة مطابقة بقوة: الذكاء يفهم القصد ويرد بأسلوب القواعد
               const qw = text.split(/\s+/).filter((w) => w.length > 2);
               const related = all.filter((r) => qw.some((w) => r.trigger_text.includes(w))).slice(0, 30);
               const pool = [...related, ...all.filter((r) => !related.includes(r)).slice(0, 40 - related.length)];
               const ctx = "ردود المتجر المعتمدة (افهمي قصد الزبون واختاري الرد الأنسب منها بنفس الكلام، ولا تردي برد لا يناسب سؤاله، وردي باختصار):\n" + pool.map((r) => `- إذا قال "${r.trigger_text}" → "${r.response_text}"`).join("\n");
-              reply = await aiReplyWith(text, ctx, {} as AiOpts).catch(() => "");
+              reply = await aiReplyWith(text, ctx, (ctrl.prompt ? { system_prompt: ctrl.prompt } : {}) as AiOpts).catch(() => "");
             }
             if (reply) {
-              await typingDelay(number, 3);
+              await typingDelay(number, ctrlRow ? ctrl.delay : 3);
               await evoSend(`/message/sendText/${encodeURIComponent(instance)}`, { number, text: reply });
             }
           } catch (e) { console.error("limited autoreply", e); }
