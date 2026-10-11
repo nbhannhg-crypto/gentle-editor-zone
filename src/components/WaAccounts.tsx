@@ -7,6 +7,7 @@ import { waList, waCreate, waQr, waDelete, waAutoList, waAutoSet, waHardReset } 
 import QRCode from "qrcode";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { WaExtras } from "@/components/WaExtras";
+import { WaControls, TeachButton } from "@/components/WaControls";
 
 export type Wa = { name: string; label: string; status: string; number: string };
 
@@ -106,6 +107,7 @@ export function WhatsApp({ was, reload }: { was: Wa[]; reload: () => Promise<voi
               <Button size="sm" variant="ghost" onClick={async () => { try { await delFn({ data: { name: w.name } }); await reload(); } catch (e) { toast.error((e as Error).message); } }}>🗑️</Button>
             </div>
           </div>
+          <WaControls instance={w.name} />
           <div className="flex flex-wrap gap-2 rounded-lg bg-muted/50 p-2 text-sm">
             <Button size="sm" variant={c?.enabled ? "default" : "outline"} onClick={() => setAuto(w.name, !c?.enabled, c?.voice ?? false)}>
               🤖 الموظفة ترد تلقائياً: {c?.enabled ? "شغّالة" : "مطفية"}
@@ -136,6 +138,7 @@ export function WhatsApp({ was, reload }: { was: Wa[]; reload: () => Promise<voi
               <div dir="ltr" className="text-xs text-muted-foreground">+{m.from_number} • {m.status === "done" ? "✅ انرد" : m.status === "skipped" ? `⚠️ ${m.error || "تخطّى"}` : m.status === "failed" ? "❌ تعذر الرد" : "⏳"}</div>
               <div>👤 {m.text}</div>
               {m.reply && <div className="text-primary">👩‍💼 {m.reply}</div>}
+              {!m.reply && m.status !== "done" && <TeachButton text={m.text} />}
             </div>
           ))}
         </div>
