@@ -15,6 +15,16 @@ export const Route = createFileRoute("/api/public/evolution")({
 
         let body: any;
         try { body = await request.json(); } catch { return ok(400, "bad json"); }
+        // WAHA format -> Evolution format
+        if (body?.event === "message" && body?.payload) {
+          const pl = body.payload;
+          const from = String(pl.from ?? "");
+          body = {
+            event: "messages.upsert",
+            instance: new URL(request.url).searchParams.get("i") ?? "",
+            data: { key: { remoteJid: from.replace(/@c\.us$/, "@s.whatsapp.net"), id: String(pl.id ?? Date.now()), fromMe: !!pl.fromMe }, message: { conversation: String(pl.body ?? "") } },
+          };
+        }
         const event = String(body?.event ?? "").toLowerCase();
         if (event !== "messages.upsert" && event !== "messages_upsert") return ok();
         const instance = String(body?.instance ?? "");

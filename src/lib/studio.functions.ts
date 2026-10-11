@@ -70,7 +70,7 @@ function evo() {
       return { instance: { state: wahaState(st?.status || "") } };
     }
     if (path.startsWith("/instance/create")) {
-      const webhookUrl = body?.webhook?.url;
+      const webhookUrl = body?.webhook?.url ? `${body.webhook.url}${body.webhook.url.includes("?") ? "&" : "?"}i=${encodeURIComponent(body.instanceName ?? "")}` : "";
       if (webhookUrl) {
         try { await raw(`/api/sessions/${s}`, "PUT", { config: { webhooks: [{ url: webhookUrl, events: ["message", "session.status"] }] } }, true); } catch { /* ignore */ }
       }
@@ -90,7 +90,8 @@ function evo() {
       return raw(`/api/sendVoice`, "POST", { session: s, chatId: `${String(body.number).replace(/\D/g, "")}@c.us`, file: { mimetype: "audio/ogg; codecs=opus", data: String(body.audio).replace(/^data:[^,]+,/, "") }, convert: true }, true);
     }
     if (path.startsWith("/webhook/set")) {
-      const u = body?.webhook?.url || body?.url;
+      const u0 = body?.webhook?.url || body?.url;
+      const u = u0 ? `${u0}${u0.includes("?") ? "&" : "?"}i=${encodeURIComponent(decodeURIComponent(path.split("/").pop() || ""))}` : "";
       if (u) await raw(`/api/sessions/${s}`, "PUT", { config: { webhooks: [{ url: u, events: ["message", "session.status"] }] } }, true);
       return { ok: true };
     }
