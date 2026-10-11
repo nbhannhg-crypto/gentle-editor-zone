@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { timingSafeEqual } from "crypto";
-import { aiReplyWith, bestRule, evoSend, fishTts, kingdomAutoReply, kingdomWelcome, numberAllowed, type AiOpts } from "@/lib/autoreply.server";
+import { aiReplyWith, bestRule, evoSend, fishTts, kingdomAutoReply, kingdomWelcome, numberAllowed, typingDelay, type AiOpts } from "@/lib/autoreply.server";
+import { replyDelay } from "@/lib/wa-learn";
 
 const ok = (s = 200, t = "ok") => new Response(t, { status: s });
 
@@ -72,7 +73,7 @@ export const Route = createFileRoute("/api/public/evolution")({
               if (data.length < 1000) break;
             }
             const hit = bestRule(text, all);
-            if (hit && hit.score >= 0.35) await evoSend(`/message/sendText/${encodeURIComponent(instance)}`, { number, text: hit.rule.response_text });
+            if (hit && hit.score >= 0.6) await evoSend(`/message/sendText/${encodeURIComponent(instance)}`, { number, text: hit.rule.response_text });
           } catch (e) { console.error("limited autoreply", e); }
           return ok();
         }
@@ -126,7 +127,8 @@ export const Route = createFileRoute("/api/public/evolution")({
           ]);
           const src = cfg.source ?? "smart";
           let m = src === "ai" ? null : bestRule(text, rules ?? []);
-          if (m && m.score < 0.35) m = null;
+          // تدقيق: المطابقة الضعيفة ما تنرسل كما هي — الذكاء يفهم القصد بدلها
+          if (m && m.score < 0.6) m = null;
           // Library: send a pre-recorded studio voice whose text best matches
           let libAudio: string | null = null;
           if (src === "library") {
@@ -169,6 +171,7 @@ export const Route = createFileRoute("/api/public/evolution")({
             reply = await aiReplyWith(text, ctx, cfg);
           }
           if (!reply) throw new Error("empty reply");
+          await typingDelay(number, replyDelay(cfg.system_prompt));
           const path = `/message/${useVoice ? "sendWhatsAppAudio" : "sendText"}/${encodeURIComponent(instance)}`;
           if (useVoice) await evoSend(path, { number, audio: libAudio ?? (await fishTts(reply)), encoding: true, ptt: true });
           else await evoSend(path, { number, text: reply });
