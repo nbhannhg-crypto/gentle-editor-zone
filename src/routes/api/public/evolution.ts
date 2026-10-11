@@ -16,13 +16,15 @@ export const Route = createFileRoute("/api/public/evolution")({
         let body: any;
         try { body = await request.json(); } catch { return ok(400, "bad json"); }
         // WAHA format -> Evolution format
+        let wahaChat = "";
         if (body?.event === "message" && body?.payload) {
           const pl = body.payload;
           const from = String(pl.from ?? "");
+          wahaChat = from;
           body = {
             event: "messages.upsert",
             instance: new URL(request.url).searchParams.get("i") ?? "",
-            data: { key: { remoteJid: from.replace(/@c\.us$/, "@s.whatsapp.net"), id: String(pl.id ?? Date.now()), fromMe: !!pl.fromMe }, message: { conversation: String(pl.body ?? "") } },
+            data: { key: { remoteJid: from.replace(/@c\.us$/, "@s.whatsapp.net"), id: String(pl.id ?? Date.now()), fromMe: !!pl.fromMe }, pushName: pl._data?.notifyName ?? "", message: { conversation: String(pl.body ?? "") } },
           };
         }
         const event = String(body?.event ?? "").toLowerCase();
@@ -31,10 +33,12 @@ export const Route = createFileRoute("/api/public/evolution")({
         const d = Array.isArray(body?.data) ? body.data[0] : body?.data;
         const jid: string = d?.key?.remoteJid ?? "";
         const msgId: string = d?.key?.id ?? "";
-        if (!d || d.key?.fromMe || !msgId || !jid.endsWith("@s.whatsapp.net")) return ok();
+        // Accept direct chats only: @s.whatsapp.net, @c.us and @lid (groups/status ignored)
+        if (!d || d.key?.fromMe || !msgId || !/@(s\.whatsapp\.net|c\.us|lid)$/.test(jid)) return ok();
         const text: string = d.message?.conversation ?? d.message?.extendedTextMessage?.text ?? "";
         if (!text.trim()) return ok();
-        const number = jid.split("@")[0]!;
+        // For WAHA reply to the exact chat id (works for @lid); Evolution uses plain number
+        const number = wahaChat && wahaChat.endsWith("@lid") ? wahaChat : jid.split("@")[0]!;
 
         // Admin client when the server key exists; otherwise fall back to the public key (rules table is readable)
         let db: any;
@@ -58,7 +62,7 @@ export const Route = createFileRoute("/api/public/evolution")({
         const cfg = cfgRow as ({ store_id: string; enabled: boolean; voice: boolean; source: string | null } & AiOpts & { allowed_numbers?: string | null }) | null;
         if (!cfg) {
           // Settings locked (no server key): still answer from saved rules exactly like the in-app test
-          if (!limited) return ok();
+          // No store config for this session: still answer from saved rules (same as in-app test)
           try {
             const all: { id: string; trigger_text: string; response_text: string; use_count: number }[] = [];
             for (let from = 0; ; from += 1000) {

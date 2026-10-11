@@ -145,7 +145,9 @@ export async function evoSend(path: string, body: unknown) {
   const probe = await fetch(`${url}/api/sessions`, { headers: { "X-Api-Key": key } }).catch(() => null);
   if (probe?.ok) {
     const b = body as { number?: string; text?: string; audio?: string };
-    const chatId = `${String(b.number ?? "").replace(/\D/g, "")}@c.us`;
+    const raw = String(b.number ?? "");
+    // Keep WAHA chat ids as-is (@lid / @c.us); plain numbers become @c.us
+    const chatId = /@(lid|c\.us)$/.test(raw) ? raw : `${raw.replace(/@.*$/, "").replace(/\D/g, "")}@c.us`;
     const isAudio = path.includes("Audio");
     const w = await fetch(`${url}/api/${isAudio ? "sendVoice" : "sendText"}`, {
       method: "POST",
