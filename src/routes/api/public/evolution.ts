@@ -73,7 +73,19 @@ export const Route = createFileRoute("/api/public/evolution")({
               if (data.length < 1000) break;
             }
             const hit = bestRule(text, all);
-            if (hit && hit.score >= 0.6) await evoSend(`/message/sendText/${encodeURIComponent(instance)}`, { number, text: hit.rule.response_text });
+            let reply = hit && hit.score >= 0.6 ? hit.rule.response_text : "";
+            if (!reply) {
+              // ما فيه قاعدة مطابقة بقوة: الذكاء يفهم القصد ويرد بأسلوب القواعد
+              const qw = text.split(/\s+/).filter((w) => w.length > 2);
+              const related = all.filter((r) => qw.some((w) => r.trigger_text.includes(w))).slice(0, 30);
+              const pool = [...related, ...all.filter((r) => !related.includes(r)).slice(0, 40 - related.length)];
+              const ctx = "ردود المتجر المعتمدة (افهمي قصد الزبون واختاري الرد الأنسب منها بنفس الكلام، ولا تردي برد لا يناسب سؤاله، وردي باختصار):\n" + pool.map((r) => `- إذا قال "${r.trigger_text}" → "${r.response_text}"`).join("\n");
+              reply = await aiReplyWith(text, ctx, {} as AiOpts).catch(() => "");
+            }
+            if (reply) {
+              await typingDelay(number, 3);
+              await evoSend(`/message/sendText/${encodeURIComponent(instance)}`, { number, text: reply });
+            }
           } catch (e) { console.error("limited autoreply", e); }
           return ok();
         }

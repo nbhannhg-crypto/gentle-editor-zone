@@ -311,11 +311,11 @@ export const placeCall = createServerFn({ method: "POST" })
   });
 
 // ---------- WhatsApp auto-reply (AI employee answers linked numbers) ----------
-const DEV_URL = "https://project--9dd8d475-301a-4d8a-a63c-aedad35430ab-dev.lovable.app";
+const DEV_URL = "https://gentle-editor-zone.lovable.app";
 function hookBase(origin: string) {
   try {
     const h = new URL(origin).hostname;
-    if (/^[a-z0-9-]+\.lovable\.app$/.test(h) && !h.startsWith("id-preview--")) return `https://${h}`;
+    void h;
   } catch { /* ignore */ }
   return DEV_URL;
 }
@@ -391,7 +391,7 @@ export const waAutoSet = createServerFn({ method: "POST" })
     if (!data.name.startsWith(prefix(storeId))) throw new Error("غير مسموح");
     const { error } = await context.supabase.from("wa_autoreply").upsert({ instance: data.name, store_id: storeId, enabled: data.enabled, voice: data.voice, source: data.source });
     if (error) throw new Error(error.message);
-    const url = `${hookBase(data.origin)}/api/public/evolution?t=${process.env["EVO_WEBHOOK_SECRET"]}`;
+    const url = `${hookBase(data.origin)}/api/public/evolution${process.env["EVO_WEBHOOK_SECRET"] ? `?t=${process.env["EVO_WEBHOOK_SECRET"]}` : ""}`;
     await evo().call(`/webhook/set/${encodeURIComponent(data.name)}`, "POST", {
       webhook: { enabled: data.enabled, url, byEvents: false, base64: false, events: ["MESSAGES_UPSERT"] },
     });
