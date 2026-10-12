@@ -7,11 +7,13 @@ const toChat = (to: string) => (/@(lid|c\.us)$/.test(to) ? to : to.replace(/\D/g
 /** Send a manual / approved reply (text or voice note) from the panel. */
 export const waCtrlSend = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ instance: z.string().min(1).max(80), to: z.string().min(5).max(60), text: z.string().min(1).max(3000), voice: z.boolean().default(false) }).parse(d))
+  .inputValidator((d) => z.object({ instance: z.string().min(1).max(80), to: z.string().min(5).max(60), text: z.string().min(1).max(3000), voice: z.boolean().default(false), audio: z.string().max(8_000_000).optional() }).parse(d))
   .handler(async ({ data }) => {
     const { evoSend, fishTts } = await import("@/lib/autoreply.server");
     const number = toChat(data.to);
-    if (data.voice) await evoSend(`/message/sendWhatsAppAudio/${encodeURIComponent(data.instance)}`, { number, audio: await fishTts(data.text), encoding: true, ptt: true });
+    // Same saved clip the merchant heard (no re-generation) when provided
+    const saved = data.audio ? data.audio.replace(/^data:[^,]*,/, "") : "";
+    if (data.voice) await evoSend(`/message/sendWhatsAppAudio/${encodeURIComponent(data.instance)}`, { number, audio: saved || await fishTts(data.text), encoding: true, ptt: true });
     else await evoSend(`/message/sendText/${encodeURIComponent(data.instance)}`, { number, text: data.text });
     return { ok: true };
   });

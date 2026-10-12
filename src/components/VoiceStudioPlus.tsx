@@ -34,6 +34,7 @@ export function VoiceStudioPlus() {
   const [rec, setRec] = useState(false);
   const [filter, setFilter] = useState("");
   const [to, setTo] = useState("");
+  const [last, setLast] = useState<{ text: string; audio: string; sec: number } | null>(null);
   const mr = useRef<MediaRecorder | null>(null);
   const speak = useServerFn(fishSpeak);
   const info = useServerFn(fishVoiceInfo);
@@ -49,6 +50,7 @@ export function VoiceStudioPlus() {
       const { audio } = await speak({ data: { text: addPauses(text, s.pauses), voiceId: voice?.id ?? "", custom: !!voice, speed: s.speed, volume: 0, emotion: s.mood } });
       const a = new Audio(audio);
       a.onloadedmetadata = () => {
+        setLast({ text, audio, sec: Math.round(a.duration || 0) });
         if (keep) up({ clips: [{ id: crypto.randomUUID(), text, audio, sec: Math.round(a.duration || 0), at: Date.now() }, ...s.clips].slice(0, 15) });
       };
       await a.play();
@@ -85,7 +87,7 @@ export function VoiceStudioPlus() {
   const sendClip = async (c: Clip) => {
     if (to.replace(/\D/g, "").length < 8) { toast.error("اكتب رقم العميل"); return; }
     setBusy(c.id);
-    try { await send({ data: { instance: "default", to: to.replace(/\D/g, ""), text: c.text, voice: true } }); toast.success("🎙️ انرسل كفويس"); }
+    try { await send({ data: { instance: "default", to: to.replace(/\D/g, ""), text: c.text, voice: true, audio: c.audio } }); toast.success("🎙️ انرسل كفويس أزرق بنفس الصوت"); }
     catch (e) { toast.error((e as Error).message); }
     setBusy("");
   };
@@ -114,7 +116,29 @@ export function VoiceStudioPlus() {
         <div className="mt-4 flex flex-wrap gap-2">
           <Button onClick={() => gen(s.chosen)} disabled={!!busy}>{busy === (s.chosen?.id ?? "main") ? "🔊…" : "▶ جرّب الصوت الموزون"}</Button>
           <Button variant="secondary" onClick={() => gen(s.chosen, sample, true)} disabled={!!busy}>💾 ولّد واحفظ في الخزينة</Button>
+          {last && <Button variant="outline" onClick={() => { up({ clips: [{ id: crypto.randomUUID(), ...last, at: Date.now() }, ...s.clips].slice(0, 15) }); toast.success("✅ انحفظ نفس المقطع اللي سمعته"); setLast(null); }} disabled={!!busy}>💾 احفظ اللي سمعته في الخزينة</Button>}
         </div>
+      </section>
+      <section className={card}>
+        <h2 className="font-display mb-2 text-lg text-primary">🗄️ خزينة المقاطع الصوتية وإرسال واتساب</h2>
+        <p className="mb-2 text-xs text-muted-foreground">🟢 يرسل نفس المقطع اللي سمعته كفويس أزرق، ويظهر عند العميل «جاري التسجيل…» قبل وصوله.</p>
+        <Input dir="ltr" className="mb-3" value={to} onChange={(e) => setTo(e.target.value)} placeholder="رقم العميل للإرسال 9665…" />
+        {!s.clips.length ? <p className="text-sm text-muted-foreground">ما فيه مقاطع محفوظة. اسمع الصوت ثم اضغط «احفظ اللي سمعته في الخزينة».</p> : (
+          <>
+            <ul className="space-y-2">
+              {s.clips.map((c) => (
+                <li key={c.id} className="rounded-xl border p-2 text-sm">
+                  <p>{c.text} <span className="text-xs text-muted-foreground">({c.sec} ث)</span></p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <audio controls src={c.audio} className="h-8 max-w-full" />
+                    <Button size="sm" onClick={() => sendClip(c)} disabled={!!busy}>{busy === c.id ? "…" : "🎙️ أرسل للواتساب"}</Button>
+                    <Button size="sm" variant="ghost" onClick={() => up({ clips: s.clips.filter((x) => x.id !== c.id) })}>🗑️</Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </section>
 
       <section className={card}>
@@ -164,26 +188,6 @@ export function VoiceStudioPlus() {
         </ul>
       </section>
 
-      <section className={card}>
-        <h2 className="font-display mb-2 text-lg text-primary">🗄️ خزينة المقاطع الصوتية</h2>
-        {!s.clips.length ? <p className="text-sm text-muted-foreground">ما فيه مقاطع محفوظة. اضغط «ولّد واحفظ في الخزينة».</p> : (
-          <>
-            <Input dir="ltr" className="mb-3" value={to} onChange={(e) => setTo(e.target.value)} placeholder="رقم العميل للإرسال 9665…" />
-            <ul className="space-y-2">
-              {s.clips.map((c) => (
-                <li key={c.id} className="rounded-xl border p-2 text-sm">
-                  <p>{c.text} <span className="text-xs text-muted-foreground">({c.sec} ث)</span></p>
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <audio controls src={c.audio} className="h-8 max-w-full" />
-                    <Button size="sm" onClick={() => sendClip(c)} disabled={!!busy}>{busy === c.id ? "…" : "🎙️ أرسل للواتساب"}</Button>
-                    <Button size="sm" variant="ghost" onClick={() => up({ clips: s.clips.filter((x) => x.id !== c.id) })}>🗑️</Button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-      </section>
     </div>
   );
 }
