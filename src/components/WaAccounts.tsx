@@ -57,8 +57,40 @@ export function WhatsApp({ was, reload }: { was: Wa[]; reload: () => Promise<voi
     const t = setInterval(() => setLeft((s) => s - 1), 1000);
     return () => clearInterval(t);
   }, [qr?.img, qr?.name]);
-  useEffect(() => { if (qr && left <= 0) void showQr(qr.name); // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (qr && left <= 0 && !pair.code) void showQr(qr.name); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [left]);
+  // كود الاقتران (8 أرقام) بدل تصوير QR
+  const [pair, setPair] = useState<{ phone: string; code: string; busy: boolean }>({ phone: "", code: "", busy: false });
+  const getPairCode = async () => {
+    if (!qr) return;
+    const number = pair.phone.replace(/\D/g, "");
+    if (number.length < 8) { toast.error("اكتب رقمك مع مفتاح الدولة، مثال 9665xxxxxxxx"); return; }
+    setPair((p) => ({ ...p, busy: true, code: "" }));
+    try {
+      const r = await qrFn({ data: { name: qr.name, number } });
+      if (r.code) setPair((p) => ({ ...p, code: r.code, busy: false }));
+      else { setPair((p) => ({ ...p, busy: false })); toast.error("السيرفر ما أعطى كود — جرّب QR أو «فك الربط» ثم أعد المحاولة"); }
+    } catch (e) { setPair((p) => ({ ...p, busy: false })); toast.error((e as Error).message); }
+  };
+  // فحص الحالة كل ثانيتين وإغلاق النافذة تلقائياً عند نجاح الربط
+  const listFn = useServerFn(waList);
+  useEffect(() => {
+    if (!qr || qr.demo) return;
+    const name = qr.name;
+    const t = setInterval(async () => {
+      try {
+        const list = await listFn();
+        const w = list.find((x) => x.name === name || x.name.endsWith(`_${name}`));
+        if (w?.status === "open") {
+          clearInterval(t); setQr(null); setPair({ phone: "", code: "", busy: false });
+          toast.success(`✅ تم الربط${w.number ? ` بالرقم +${w.number}` : ""}`);
+          await reload(); await loadAuto();
+        }
+      } catch { /* تجاهل */ }
+    }, 2000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [qr?.name, qr?.demo]);
   const connected = was.filter((w) => w.status === "open");
   const checkStatus = async () => {
     await reload(); await loadAuto();
@@ -77,13 +109,25 @@ export function WhatsApp({ was, reload }: { was: Wa[]; reload: () => Promise<voi
         </div>
         <p className="mt-2 text-xs text-muted-foreground">افتح واتساب بجوالك ← الأجهزة المرتبطة ← ربط جهاز ← صوّر الكود.</p>
       </div>
-      <Dialog open={!!qr} onOpenChange={(o) => { if (!o) setQr(null); }}>
+      <Dialog open={!!qr} onOpenChange={(o) => { if (!o) { setQr(null); setPair({ phone: "", code: "", busy: false }); } }}>
         <DialogContent className="max-w-sm text-center">
           <DialogHeader><DialogTitle className="text-center">صوّر الكود من واتساب</DialogTitle></DialogHeader>
           {qr?.demo && <p className="rounded-lg bg-muted p-2 text-xs text-muted-foreground">🧪 كود تجريبي للعرض فقط — ما يربط فعلياً لأن سيرفر واتساب غير مربوط بعد.</p>}
           {qr?.img ? <img src={qr.img} alt="رمز ربط واتساب" className="mx-auto w-72 rounded-xl bg-background p-2" /> : <p className="py-16">جاري تجهيز الكود…</p>}
           <p className="text-sm">افتح واتساب بجوالك ← الأجهزة المرتبطة ← ربط جهاز ← صوّر الكود</p>
           {qr?.img && <p className="text-xs text-muted-foreground">يتحدث الكود بعد {Math.max(left, 0)} ثانية</p>}
+          {!qr?.demo && (
+            <div className="space-y-2 rounded-xl border p-3 text-sm">
+              <p className="font-semibold">أو اربط برقم الجوال (كود 8 أرقام)</p>
+              <div className="flex gap-2">
+                <Input dir="ltr" inputMode="numeric" value={pair.phone} onChange={(e) => setPair((p) => ({ ...p, phone: e.target.value }))} placeholder="9665xxxxxxxx" />
+                <Button size="sm" onClick={getPairCode} disabled={pair.busy}>{pair.busy ? "…" : "اطلب الكود"}</Button>
+              </div>
+              {pair.code && <p dir="ltr" className="text-2xl font-bold tracking-widest text-primary">{pair.code}</p>}
+              {pair.code && <p className="text-xs text-muted-foreground">واتساب ← الأجهزة المرتبطة ← ربط جهاز ← الربط برقم الهاتف بدلاً من ذلك ← اكتب الكود</p>}
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">⏱️ نفحص الربط كل ثانيتين وتنقفل النافذة تلقائياً أول ما ينربط</p>
           <div className="flex justify-center gap-2">
             <Button size="sm" onClick={() => qr && showQr(qr.name)}>🔄 تحديث الكود</Button>
             <Button size="sm" variant="secondary" onClick={async () => { setQr(null); await checkStatus(); }}>تم الربط ✅</Button>
