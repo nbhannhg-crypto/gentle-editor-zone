@@ -244,13 +244,15 @@ export const waCreate = createServerFn({ method: "POST" })
 
 export const waQr = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ name: z.string().max(80) }).parse(d))
+  .inputValidator((d) => z.object({ name: z.string().max(80), number: z.string().regex(/^\d{8,15}$/).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     if (!data.name.startsWith(prefix(await myStore(context as Ctx)))) throw new Error("غير مسموح");
-    let r = await evo().call(`/instance/connect/${encodeURIComponent(data.name)}`);
-    for (let i = 0; i < 3 && !r?.base64; i++) {
+    const path = `/instance/connect/${encodeURIComponent(data.name)}${data.number ? `?number=${data.number}` : ""}`;
+    let r = await evo().call(path);
+    const done = () => (data.number ? r?.pairingCode : r?.base64);
+    for (let i = 0; i < 3 && !done(); i++) {
       await new Promise((x) => setTimeout(x, 2000));
-      try { r = await evo().call(`/instance/connect/${encodeURIComponent(data.name)}`); } catch { /* ignore */ }
+      try { r = await evo().call(path); } catch { /* ignore */ }
     }
     return { qr: (r?.base64 as string) || "", code: (r?.pairingCode as string) || "" };
   });
