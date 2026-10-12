@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { timingSafeEqual } from "crypto";
 import { aiReplyWith, bestRule, evoSend, fishTts, kingdomAutoReply, kingdomWelcome, numberAllowed, typingDelay, type AiOpts } from "@/lib/autoreply.server";
 import { replyDelay } from "@/lib/wa-learn";
-import { CTRL_PREFIX, digits, parseCtrl } from "@/lib/wa-controls";
+import { CTRL_PREFIX, cleanReply, ctrlPrompt, digits, listHas, parseCtrl } from "@/lib/wa-controls";
 
 const ok = (s = 200, t = "ok") => new Response(t, { status: s });
 
