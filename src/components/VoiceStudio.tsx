@@ -94,6 +94,8 @@ export function VoiceStudio() {
 
   return (
     <div className="space-y-6">
+      <VoiceStudioPlus />
+
       <section className="rounded-2xl border bg-card p-5 shadow-soft">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -131,7 +133,6 @@ export function VoiceStudio() {
         </div>
       </section>
 
-      <VoiceStudioPlus />
 
       {v.favorites.length > 0 && (
         <section className="rounded-2xl border bg-card p-5 shadow-soft">
