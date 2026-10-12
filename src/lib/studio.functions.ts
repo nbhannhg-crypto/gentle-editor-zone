@@ -98,10 +98,31 @@ function evo() {
     }
     return raw(path, method, body, true);
   };
+  // Custom multi-session server (whatsapp-multi): only /instances, /instance/connect, /instance/delete, /message/*
+  const multiCall = async (path: string, method: string, body?: any): Promise<any> => {
+    const list = async () => { try { const a = await raw("/instances"); return Array.isArray(a) ? a : []; } catch { return []; } };
+    if (path.startsWith("/instance/fetchInstances")) return list();
+    if (path.startsWith("/instance/connectionState/")) {
+      const n = decodeURIComponent(path.split("/").pop() || "");
+      const i = (await list()).find((x: any) => x?.name === n);
+      return { instance: { state: i?.connectionStatus === "open" ? "open" : i?.connectionStatus === "qr_ready" ? "connecting" : "close" } };
+    }
+    if (path.startsWith("/instance/create")) {
+      const r = await raw(`/instance/connect/${encodeURIComponent(body?.instanceName ?? "")}`);
+      return { qrcode: { base64: r?.base64 || "" } };
+    }
+    if (path.startsWith("/instance/logout/")) { try { return await raw(path.replace("/instance/logout/", "/instance/delete/"), "DELETE"); } catch { return { ok: true }; } }
+    if (path.startsWith("/webhook/set")) return { ok: true };
+    return raw(path, method, body);
+  };
   return {
     async call(path: string, method = "GET", body?: unknown) {
       if (await isWaha(url, key)) return wahaCall(path, method, body);
-      return raw(path, method, body);
+      try { return await raw(path, method, body); }
+      catch (e) {
+        if (/\((404)\)/.test((e as Error).message)) return multiCall(path, method, body);
+        throw e;
+      }
     },
   };
 }
