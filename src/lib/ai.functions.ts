@@ -258,6 +258,40 @@ export const fishVoices = createServerFn({ method: "POST" })
 
 type FishVoice = { id: string; title: string; cover: string; tags: string[]; likes: number };
 
+/** Look up any external voice by its ID (for "link a voice by ID"). */
+export const fishVoiceInfo = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ id: z.string().trim().regex(/^[a-zA-Z0-9_-]{6,64}$/, "المعرّف غير صحيح") }).parse(d))
+  .handler(async ({ data }) => {
+    const key = process.env['FISH_AUDIO_API_KEY'];
+    if (!key) throw new Error("خدمة الأصوات غير مربوطة");
+    const res = await fetch(`${FISH}/model/${data.id}`, { headers: { Authorization: `Bearer ${key}` } });
+    if (!res.ok) throw new Error(res.status === 404 ? "ما لقينا صوت بهذا المعرّف" : `تعذر فحص الصوت (${res.status})`);
+    const m: any = await res.json();
+    return { id: String(m._id ?? data.id), title: String(m.title ?? "صوت خارجي"), cover: m.cover_image ? `https://public-platform.r2.fish.audio/${m.cover_image}` : "" };
+  });
+
+/** Create a private custom voice from a 15-30s sample (base64 data URL). */
+export const fishClone = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ name: z.string().trim().min(1).max(60), audio: z.string().min(100).max(15_000_000), priv: z.boolean().default(true) }).parse(d))
+  .handler(async ({ data }) => {
+    const key = process.env['FISH_AUDIO_API_KEY'];
+    if (!key) throw new Error("خدمة الأصوات غير مربوطة");
+    const m = data.audio.match(/^data:([^;,]+)[^,]*,(.*)$/);
+    if (!m) throw new Error("ملف الصوت غير صالح");
+    const mime = m[1] ?? "audio/webm";
+    const buf = Buffer.from(m[2] ?? "", "base64");
+    const form = new FormData();
+    form.append("type", "tts");
+    form.append("train_mode", "fast");
+    form.append("title", data.name);
+    form.append("visibility", data.priv ? "private" : "unlist");
+    form.append("voices", new Blob([new Uint8Array(buf)], { type: mime }), `sample.${mime.split("/")[1]?.split(";")[0] || "webm"}`);
+    const res = await fetch(`${FISH}/model`, { method: "POST", headers: { Authorization: `Bearer ${key}` }, body: form });
+    if (!res.ok) throw new Error(res.status === 402 ? "رصيد الأصوات خلص" : `تعذر الاستنساخ (${res.status}): ${(await res.text()).slice(0, 150)}`);
+    const j: any = await res.json();
+    return { id: String(j._id), title: String(j.title ?? data.name) };
+  });
+
 export const fishSpeak = createServerFn({ method: "POST" })
   .inputValidator((d) =>
     z.object({
@@ -266,6 +300,7 @@ export const fishSpeak = createServerFn({ method: "POST" })
       speed: z.number().min(0.5).max(2).default(1),
       volume: z.number().min(-10).max(10).default(0),
       emotion: z.string().max(30).default(""),
+      custom: z.boolean().default(false),
     }).parse(d),
   )
   .handler(async ({ data }) => {
@@ -273,7 +308,7 @@ export const fishSpeak = createServerFn({ method: "POST" })
     const brand = await getBrandNames();
     const key = process.env['FISH_AUDIO_API_KEY'];
     if (!key) throw new Error(`${brand.voice} غير مربوط بعد`);
-    const voiceId = BUILTIN_FISH_VOICE_ID;
+    const voiceId = data.custom && data.voiceId ? data.voiceId : BUILTIN_FISH_VOICE_ID;
     const res = await fetch(`${FISH}/v1/tts`, {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", model: "s1" },

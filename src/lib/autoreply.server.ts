@@ -178,6 +178,11 @@ export async function evoSend(path: string, body: unknown) {
     // Keep WAHA chat ids as-is (@lid / @c.us); plain numbers become @c.us
     const chatId = /@(lid|c\.us)$/.test(raw) ? raw : `${raw.replace(/@.*$/, "").replace(/\D/g, "")}@c.us`;
     const isAudio = path.includes("Audio");
+    // Show "recording audio…" for ~3s before a voice note (best effort)
+    if (isAudio) {
+      await fetch(`${url}/api/default/presence`, { method: "POST", headers: { "X-Api-Key": key, "Content-Type": "application/json" }, body: JSON.stringify({ chatId, presence: "recording" }) }).catch(() => null);
+      await new Promise((r) => setTimeout(r, 3000));
+    }
     const w = await fetch(`${url}/api/${isAudio ? "sendVoice" : "sendText"}`, {
       method: "POST",
       headers: { "X-Api-Key": key, "Content-Type": "application/json" },
