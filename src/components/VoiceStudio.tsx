@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { fishSpeak, fishStatus, fishVoices } from "@/lib/ai.functions";
 import { useBranding } from "@/lib/branding";
+import { VoiceStudioPlus } from "./VoiceStudioPlus";
 
 export type VoiceSettings = {
   provider: "fish" | "builtin";
@@ -129,6 +130,8 @@ export function VoiceStudio() {
           <Button onClick={() => preview(BUILTIN_VOICE_ID, "الصوت المدمج")} disabled={!!playing}>▶ جرّب الصوت المدمج</Button>
         </div>
       </section>
+
+      <VoiceStudioPlus />
 
       {v.favorites.length > 0 && (
         <section className="rounded-2xl border bg-card p-5 shadow-soft">
