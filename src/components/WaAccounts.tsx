@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { waList, waCreate, waQr, waDelete, waAutoList, waAutoSet, waHardReset } from "@/lib/studio.functions";
 import QRCode from "qrcode";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { WaExtras } from "@/components/WaExtras";
 import { WaControls, TeachButton } from "@/components/WaControls";
 
 export type Wa = { name: string; label: string; status: string; number: string };
@@ -107,25 +106,12 @@ export function WhatsApp({ was, reload }: { was: Wa[]; reload: () => Promise<voi
               <Button size="sm" variant="ghost" onClick={async () => { try { await delFn({ data: { name: w.name } }); await reload(); } catch (e) { toast.error((e as Error).message); } }}>🗑️</Button>
             </div>
           </div>
-          <WaControls instance={w.name} />
-          <div className="flex flex-wrap gap-2 rounded-lg bg-muted/50 p-2 text-sm">
-            <Button size="sm" variant={c?.enabled ? "default" : "outline"} onClick={() => setAuto(w.name, !c?.enabled, c?.voice ?? false)}>
-              🤖 الموظفة ترد تلقائياً: {c?.enabled ? "شغّالة" : "مطفية"}
-            </Button>
-            <Button size="sm" variant={c?.voice ? "default" : "outline"} disabled={!c?.enabled} onClick={() => setAuto(w.name, true, !c?.voice)}>
-              {c?.voice ? "🔊 ترد بفويس سعودي" : "💬 ترد بالكتابة"}
-            </Button>
-            {c?.enabled && (
-              <div className="flex w-full flex-wrap items-center gap-1.5">
-                <span className="text-xs text-muted-foreground">ترد من:</span>
-                {([["smart", "🧠 ردودي + الذكاء"], ["rules", "📘 ردودي المكتوبة بس"], ["library", "📚 محفظة أصواتي"], ["ai", "✨ الذكاء بالكامل"]] as const).map(([k, l]) => (
-                  <button key={k} onClick={() => setAuto(w.name, true, c.voice, k)}
-                    className={`rounded-full border px-2.5 py-1 text-xs ${(c.source ?? "smart") === k ? "bg-primary text-primary-foreground" : "bg-background"}`}>{l}</button>
-                ))}
-              </div>
-            )}
-            {c?.enabled && <WaExtras name={w.name} myNumber={w.number} />}
-          </div>
+          <WaControls instance={w.name} myNumber={w.number} />
+          {c && (
+            <button className="text-xs text-muted-foreground underline" onClick={() => setAuto(w.name, !c.enabled, c.voice)}>
+              إعداد المتجر القديم: {c.enabled ? "شغّال (اضغط للإيقاف)" : "موقف"}
+            </button>
+          )}
         </div>
         );
       })}
@@ -133,7 +119,7 @@ export function WhatsApp({ was, reload }: { was: Wa[]; reload: () => Promise<voi
       {auto.inbox.length > 0 && (
         <div className="rounded-2xl border bg-card p-4">
           <h3 className="mb-2 font-semibold">📥 آخر ردود الموظفة</h3>
-          {auto.inbox.map((m) => (
+          {auto.inbox.filter((m, i, a) => a.findIndex((x) => x.from_number === m.from_number && x.text === m.text) === i).map((m) => (
             <div key={m.msg_id} className="border-b py-2 text-sm last:border-0">
               <div dir="ltr" className="text-xs text-muted-foreground">+{m.from_number} • {m.status === "done" ? "✅ انرد" : m.status === "skipped" ? `⚠️ ${m.error || "تخطّى"}` : m.status === "failed" ? "❌ تعذر الرد" : "⏳"}</div>
               <div>👤 {m.text}</div>
