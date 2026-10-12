@@ -260,7 +260,7 @@ export async function mediaToText(url: string, mime: string): Promise<string> {
     const type = mime || res.headers.get("content-type") || "";
     if (type.startsWith("audio/")) {
       const form = new FormData();
-      form.append("model", "openai/gpt-4o-mini-transcribe");
+      form.append("model", "openai/gpt-transcribe");
       form.append("file", new File([buf], "voice.ogg", { type: type.split(";")[0] }));
       form.append("response_format", "json");
       form.append("language", "ar");
