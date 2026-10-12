@@ -24,8 +24,9 @@ const WAHA_SESSION = "default"; // WAHA Core supports one session
 const wahaState = (s: string) => (s === "WORKING" ? "open" : s === "SCAN_QR_CODE" || s === "STARTING" ? "connecting" : "close");
 
 function evo() {
-  const rawUrl = process.env["EVOLUTION_API_URL"];
-  const key = process.env["EVOLUTION_API_KEY"];
+  // New multi-session Evolution v2 server first; old server stays as fallback
+  const rawUrl = process.env["EVO2_API_URL"] || process.env["EVOLUTION_API_URL"];
+  const key = process.env["EVO2_API_KEY"] || process.env["EVOLUTION_API_KEY"];
   if (!rawUrl || !key) throw new Error("خدمة واتساب غير مربوطة");
   const url = rawUrl.replace(/\/$/, "");
   const raw = async (path: string, method = "GET", body?: unknown, waha = false) => {
@@ -211,7 +212,12 @@ export const waCreate = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ label: z.string().trim().min(1).max(30).regex(/^[\p{L}\p{N}_-]+$/u) }).parse(d))
   .handler(async ({ data, context }) => {
     const name = prefix(await myStore(context as Ctx)) + data.label;
-    const r = await evo().call("/instance/create", "POST", { instanceName: name, qrcode: true, integration: "WHATSAPP-BAILEYS" });
+    const secret = process.env["EVO_WEBHOOK_SECRET"];
+    const url = `https://gentle-editor-zone.lovable.app/api/public/evolution${secret ? `?t=${secret}` : ""}`;
+    const r = await evo().call("/instance/create", "POST", {
+      instanceName: name, qrcode: true, integration: "WHATSAPP-BAILEYS",
+      webhook: { enabled: true, url, byEvents: false, base64: false, events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"] },
+    });
     return { name, qr: (r?.qrcode?.base64 as string) || "" };
   });
 
