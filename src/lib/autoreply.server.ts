@@ -261,7 +261,7 @@ export async function mediaToText(url: string, mime: string): Promise<string> {
     if (type.startsWith("audio/")) {
       const form = new FormData();
       form.append("model", "openai/gpt-transcribe");
-      form.append("file", new File([buf], "voice.ogg", { type: type.split(";")[0] }));
+      form.append("file", new File([buf], "voice.ogg", { type: type.split(";")[0] ?? "audio/ogg" }));
       form.append("response_format", "json");
       form.append("language", "ar");
       const r = await fetch("https://ai.gateway.lovable.dev/v1/audio/transcriptions", { method: "POST", headers: { Authorization: `Bearer ${gw}` }, body: form });
