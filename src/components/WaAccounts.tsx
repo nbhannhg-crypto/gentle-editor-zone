@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { waList, waCreate, waQr, waDelete, waAutoList, waAutoSet, waHardReset } from "@/lib/studio.functions";
 import QRCode from "qrcode";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { WaExtras } from "@/components/WaExtras";
 import { WaControls, TeachButton } from "@/components/WaControls";
 
 export type Wa = { name: string; label: string; status: string; number: string };
