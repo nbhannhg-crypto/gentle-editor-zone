@@ -82,6 +82,19 @@ export const Route = createFileRoute("/api/public/evolution")({
             if (!ctrl.enabled) return ok();
             if (ctrl.paused.some((p) => sender === p || sender.endsWith(p) || p.endsWith(sender))) return ok();
             if (!numberAllowed(ctrl.allowed, number)) return ok();
+            if (ctrl.blocked && listHas(ctrl.blocked, sender)) return ok();
+            // Conversation log for the in-panel inbox (deduped, capped)
+            const saveCtrl = async (patch: Partial<typeof ctrl>) => {
+              if (!ctrlRow) return;
+              Object.assign(ctrl, patch);
+              await db.from("training_rules").update({ response_text: JSON.stringify(ctrl) }).eq("id", ctrlRow.id).then(() => {}, () => {});
+            };
+            const logMsg = (r?: string) => {
+              const last = ctrl.log[ctrl.log.length - 1];
+              const dup = last && last.n === number && last.t === text && Date.now() - last.at < 60000;
+              const entry = { n: number, t: text.slice(0, 500), at: Date.now(), ...(r ? { r: r.slice(0, 1000) } : {}) };
+              return dup ? [...ctrl.log.slice(0, -1), { ...last, ...entry }] : [...ctrl.log, entry].slice(-300);
+            };
             const hit = ctrl.source === "ai" ? null : bestRule(text, all);
             let reply = hit && hit.score >= 0.6 ? hit.rule.response_text : "";
             // Enabled brains/libraries (after the merchant's own rules)
@@ -97,7 +110,7 @@ export const Route = createFileRoute("/api/public/evolution")({
             if (!reply && ctrl.source === "rules" && ctrlRow) {
               // Rules-only: stay silent and log the message so the merchant can teach it
               const misses = [...ctrl.misses.filter((m) => m.t !== text), { n: sender, t: text.slice(0, 300), at: Date.now() }].slice(-20);
-              await db.from("training_rules").update({ response_text: JSON.stringify({ ...ctrl, misses }) }).eq("id", ctrlRow.id).then(() => {}, () => {});
+              await saveCtrl({ misses, log: logMsg() });
               return ok();
             }
             if (!reply) {
@@ -106,12 +119,21 @@ export const Route = createFileRoute("/api/public/evolution")({
               const related = all.filter((r) => qw.some((w) => r.trigger_text.includes(w))).slice(0, 30);
               const pool = [...related, ...all.filter((r) => !related.includes(r)).slice(0, 40 - related.length)];
               const ctx = "ردود المتجر المعتمدة (افهمي قصد الزبون واختاري الرد الأنسب منها بنفس الكلام، ولا تردي برد لا يناسب سؤاله، وردي باختصار):\n" + pool.map((r) => `- إذا قال "${r.trigger_text}" → "${r.response_text}"`).join("\n");
-              reply = await aiReplyWith(text, ctx, (ctrl.prompt ? { system_prompt: ctrl.prompt } : {}) as AiOpts).catch(() => "");
+              const sys = ctrlPrompt(ctrl);
+              reply = await aiReplyWith(text, ctx, ({ ...(sys ? { system_prompt: sys } : {}), ...(ctrl.model ? { ai_model: ctrl.model } : {}) }) as AiOpts).catch(() => "");
+            }
+            if (reply) reply = cleanReply(ctrl, reply);
+            if (reply && ctrl.mode === "approval" && ctrlRow) {
+              // Approval mode: keep the suggestion for the merchant instead of sending
+              await saveCtrl({ pending: [...ctrl.pending.filter((p) => !(p.n === number && p.t === text)), { n: number, t: text.slice(0, 500), s: reply, at: Date.now() }].slice(-30), log: logMsg() });
+              return ok();
             }
             if (reply) {
               await typingDelay(number, ctrlRow ? ctrl.delay : 3);
-              await evoSend(`/message/sendText/${encodeURIComponent(instance)}`, { number, text: reply });
+              if (ctrl.voice) await evoSend(`/message/sendWhatsAppAudio/${encodeURIComponent(instance)}`, { number, audio: await fishTts(reply), encoding: true, ptt: true }).catch(() => evoSend(`/message/sendText/${encodeURIComponent(instance)}`, { number, text: reply }));
+              else await evoSend(`/message/sendText/${encodeURIComponent(instance)}`, { number, text: reply });
             }
+            await saveCtrl({ log: logMsg(reply) });
           } catch (e) { console.error("limited autoreply", e); }
           return ok();
         }
