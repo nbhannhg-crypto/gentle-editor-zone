@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { timingSafeEqual } from "crypto";
-import { aiReplyWith, bestRule, evoSend, fishTts, kingdomAutoReply, kingdomWelcome, numberAllowed, typingDelay, type AiOpts } from "@/lib/autoreply.server";
+import { aiReplyWith, bestRule, evoSend, fishTts, kingdomAutoReply, kingdomWelcome, mediaToText, numberAllowed, typingDelay, type AiOpts } from "@/lib/autoreply.server";
 import { replyDelay } from "@/lib/wa-learn";
 import { CTRL_PREFIX, cleanReply, ctrlPrompt, digits, listHas, parseCtrl } from "@/lib/wa-controls";
 
@@ -23,10 +23,16 @@ export const Route = createFileRoute("/api/public/evolution")({
           const pl = body.payload;
           const from = String(pl.from ?? "");
           wahaChat = from;
+          let mtext = String(pl.body ?? "");
+          if (!mtext.trim() && pl.hasMedia && pl.media?.url && !pl.fromMe) {
+            const t2 = await mediaToText(String(pl.media.url), String(pl.media.mimetype ?? ""));
+            const isAudio = String(pl.media.mimetype ?? "").startsWith("audio/");
+            if (t2) mtext = isAudio ? t2 : `[الزبون أرسل صورة: ${t2}]`;
+          }
           body = {
             event: "messages.upsert",
             instance: new URL(request.url).searchParams.get("i") ?? "",
-            data: { key: { remoteJid: from.replace(/@c\.us$/, "@s.whatsapp.net"), id: String(pl.id ?? Date.now()), fromMe: !!pl.fromMe }, pushName: pl._data?.notifyName ?? "", message: { conversation: String(pl.body ?? "") } },
+            data: { key: { remoteJid: from.replace(/@c\.us$/, "@s.whatsapp.net"), id: String(pl.id ?? Date.now()), fromMe: !!pl.fromMe }, pushName: pl._data?.notifyName ?? "", message: { conversation: mtext } },
           };
         }
         const event = String(body?.event ?? "").toLowerCase();
