@@ -157,8 +157,8 @@ export async function fishTts(text: string): Promise<string> {
 export async function typingDelay(number: string, seconds: number) {
   const sec = Math.min(Math.max(Math.round(seconds || 0), 0), 25);
   if (!sec) return;
-  const url = (process.env["EVOLUTION_API_URL"] ?? "").replace(/\/$/, "");
-  const key = process.env["EVOLUTION_API_KEY"] ?? "";
+  const url = (process.env["EVO2_API_URL"] || process.env["EVOLUTION_API_URL"] || "").replace(/\/$/, "");
+  const key = process.env["EVO2_API_KEY"] || process.env["EVOLUTION_API_KEY"] || "";
   const raw = String(number);
   const chatId = /@(lid|c\.us)$/.test(raw) ? raw : `${raw.replace(/@.*$/, "").replace(/\D/g, "")}@c.us`;
   const call = (p: string) => fetch(`${url}/api/${p}`, { method: "POST", headers: { "X-Api-Key": key, "Content-Type": "application/json" }, body: JSON.stringify({ session: "default", chatId }) }).catch(() => null);
@@ -168,8 +168,8 @@ export async function typingDelay(number: string, seconds: number) {
 }
 
 export async function evoSend(path: string, body: unknown) {
-  const url = process.env["EVOLUTION_API_URL"]!.replace(/\/$/, "");
-  const key = process.env["EVOLUTION_API_KEY"]!;
+  const url = (process.env["EVO2_API_URL"] || process.env["EVOLUTION_API_URL"])!.replace(/\/$/, "");
+  const key = (process.env["EVO2_API_KEY"] || process.env["EVOLUTION_API_KEY"])!;
   // WAHA server support
   const probe = await fetch(`${url}/api/sessions`, { headers: { "X-Api-Key": key } }).catch(() => null);
   if (probe?.ok) {
@@ -193,9 +193,15 @@ export async function evoSend(path: string, body: unknown) {
     if (!w.ok) throw new Error(`waha ${w.status}: ${(await w.text()).slice(0, 200)}`);
     return;
   }
+  // Evolution v2: show "recording…" for ~3s before a voice note (best effort)
+  if (path.includes("Audio")) {
+    const inst = path.split("/").pop() ?? "";
+    const num = String((body as { number?: string }).number ?? "");
+    await fetch(`${url}/chat/sendPresence/${inst}`, { method: "POST", headers: { apikey: key, "Content-Type": "application/json" }, body: JSON.stringify({ number: num, presence: "recording", delay: 3000 }) }).catch(() => null);
+  }
   const r = await fetch(`${url}${path}`, {
     method: "POST",
-    headers: { apikey: process.env["EVOLUTION_API_KEY"]!, "Content-Type": "application/json" },
+    headers: { apikey: key, "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   if (!r.ok) throw new Error(`evo ${r.status}: ${(await r.text()).slice(0, 200)}`);
