@@ -77,7 +77,7 @@ export function LiveHybrid(p: {
     let final = "";
     r.onresult = (e) => {
       let t = "";
-      for (let i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
+      for (let i = 0; i < e.results.length; i++) t += e.results[i]?.[0]?.transcript ?? "";
       final = t; setHeard(t);
     };
     r.onend = () => { setRec(false); if (final.trim()) void fire(final.trim()); };
