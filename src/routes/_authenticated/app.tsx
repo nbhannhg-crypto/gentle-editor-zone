@@ -147,6 +147,12 @@ function Card({ title, children, className = "" }: { title?: string; children: R
 }
 
 const rulesPayload = (rules: Rule[]) => rules.slice(0, 200).map((r) => ({ trigger: r.trigger_text, response: r.response_text }));
+const DEFAULT_BOARD = [
+  "👋 هلا والله وحياك", "🌸 نورتنا يا غالي", "☕ سمّ آمرني",
+  "💰 هذا سعره شامل التوصيل والضمان", "✨ الجودة أصلية ومضمونة 100%", "🎁 عندي لك خصم خاص الحين",
+  "🚚 التوصيل خلال 24-48 ساعة لباب بيتك", "📦 الدفع عند الاستلام متاح",
+  "🎉 تم اعتماد طلبك ويوصلك كود التتبع", "🤝 تشرفنا بخدمتك والله يبارك لك",
+];
 
 /* ---------------- Reply engine ---------------- */
 export function useReplyEngine(rules: Rule[], mode: Mode, product: string) {
@@ -610,6 +616,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
       const audio = await tts(text, { emotion });
       audioRef.current?.pause();
       const a = new Audio(audio); audioRef.current = a;
+      a.volume = loud ? 1 : 0.3;
       a.onended = () => setSpeaking(false);
       await a.play();
     } catch (e) { toast.error((e as Error).message); setSpeaking(false); }
@@ -638,6 +645,42 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
 
   return (
     <div className="grid gap-6 lg:grid-cols-3">
+      <section className="rounded-2xl bg-royal p-5 text-primary-foreground shadow-soft lg:col-span-3">
+        <div className="flex flex-col items-center">
+          <div className={`relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-full bg-gold text-5xl transition-transform ${speaking ? "scale-105 animate-pulse ring-8 ring-gold/60" : live ? "ring-4 ring-gold/30" : ""}`}>
+            {avatar ? <img src={avatar} alt="صورة الموظفة" className="h-full w-full object-cover" /> : "👩‍💼"}
+            {live && <span className="absolute bottom-1 left-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px]">✓</span>}
+          </div>
+          <label className="mt-2 cursor-pointer text-xs underline opacity-80">
+            📷 {avatar ? "غيّر صورة الموظفة" : "حط صورة للموظفة"}
+            <input type="file" accept="image/*" className="hidden" onChange={(e) => pickAvatar(e.target.files?.[0])} />
+          </label>
+          <p className="mt-2 text-sm opacity-80">
+            {live ? (speaking ? "🔊 تتكلم…" : busy ? "🧠 تفكر في الرد…" : muted ? "🔇 المايك مكتوم" : "👂 تسمع الزبون…") : "جاهزة للاتصال"}
+          </p>
+          <p className="font-mono text-lg" dir="ltr">{fmt(seconds)}</p>
+          <div className="mt-2 flex h-8 items-end gap-1" aria-hidden>
+            {[0.4, 0.9, 0.6, 1, 0.5, 0.8, 0.35, 0.7].map((h, i) => (
+              <span key={i} className={`w-1.5 rounded-full bg-gold ${live && !muted ? "animate-pulse" : ""}`} style={{ height: `${(speaking ? h : h * 0.6) * 100}%`, animationDelay: `${i * 0.12}s`, opacity: live ? 1 : 0.25 }} />
+            ))}
+          </div>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <Button size="sm" variant="secondary" onClick={() => setMuted((m) => !m)} disabled={!live}>{muted ? "🔇 شغّل المايك" : "🎙️ اكتم المايك"}</Button>
+            <Button size="sm" variant="secondary" onClick={() => { setLoud((v) => !v); if (audioRef.current) audioRef.current.volume = loud ? 0.3 : 1; }}>{loud ? "🔊 مكبر" : "🔉 خافض"}</Button>
+            <Button size="sm" className={autopilot ? "bg-gold text-accent-foreground hover:opacity-90" : ""} variant={autopilot ? "default" : "secondary"}
+              onClick={() => { const v = !autopilot; setAutopilot(v); localStorage.setItem("live_autopilot", v ? "1" : "0"); }}>
+              {autopilot ? "🤖 طيار آلي 100%" : "🧑‍💼 إشراف يدوي"}
+            </Button>
+          </div>
+          {countdown > 0 && (
+            <div className="mt-3 flex items-center gap-2 rounded-xl bg-primary-foreground/10 px-3 py-2 text-sm">
+              ⏳ بتنطق الرد بعد {countdown}…
+              <Button size="sm" className="bg-gold text-accent-foreground" onClick={() => { cancelCountdown(); say(answer); }}>✅ موافق الحين</Button>
+              <Button size="sm" variant="secondary" onClick={cancelCountdown}>✋ أوقف</Button>
+            </div>
+          )}
+        </div>
+      </section>
       <div className="space-y-6 lg:col-span-2">
         <Card>
           <div className="flex flex-wrap items-center justify-between gap-3">
