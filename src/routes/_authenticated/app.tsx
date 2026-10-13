@@ -16,6 +16,7 @@ import { waCtrlSend } from "@/lib/wa-ctrl.functions";
 import { waList } from "@/lib/studio.functions";
 import { getOrCreateMyStore, isAdmin, type Store } from "@/lib/stores";
 import { VoiceStudio, useSpeaker, EMOTIONS, loadVoice } from "@/components/VoiceStudio";
+import { LiveCallPlus, loadTuning } from "@/components/LiveCallPlus";
 import { Channels } from "@/components/Channels";
 import { Customers } from "@/components/Customers";
 import { Products } from "@/components/Products";
@@ -503,6 +504,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
   const [waText, setWaText] = useState("");
   const [board, setBoard] = useState<string[]>([]);
   const [newClip, setNewClip] = useState("");
+  const [custList, setCustList] = useState<{ name: string; phone: string }[]>([]);
   const mutedRef = useRef(false);
   const autoRef = useRef(false);
   const cdRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -514,6 +516,10 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
     setWaFrom(localStorage.getItem("live_wa_from") ?? "");
     try { const b = JSON.parse(localStorage.getItem("live_board") ?? "null"); setBoard(Array.isArray(b) ? b : DEFAULT_BOARD); } catch { setBoard(DEFAULT_BOARD); }
     listWa().then((r) => setAccounts((r as any[]) ?? [])).catch(() => {});
+    const t = loadTuning(); if (t.emotion) setEmotion(t.emotion);
+    let q = supabase.from("customers").select("*").limit(500);
+    if (storeId) q = q.eq("store_id", storeId);
+    q.then(({ data }) => setCustList(((data ?? []) as any[]).map((c) => ({ name: c.name ?? c.phone ?? "", phone: String(c.phone ?? "") })).filter((c) => c.phone)));
   }, []);
   useEffect(() => {
     if (!live) return;
@@ -594,7 +600,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
   };
   useEffect(() => {
     if (!live) return;
-    const id = setInterval(() => { if (log.length >= 2 && !analyzing) analyze({ data: { conversation: log.slice(-40) } }).then((d) => setDeal(d as any)).catch(() => {}); }, 30000);
+    const id = setInterval(() => { if (log.length >= 2 && !analyzing) analyze({ data: { conversation: log.slice(-40) } }).then((d) => setDeal(d as any)).catch(() => {}); }, 10000);
     return () => clearInterval(id);
   }, [live, log, analyzing]);
 
@@ -608,6 +614,12 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
     catch (e) { toast.error((e as Error).message); }
   };
 
+  const applyTuning = (a: HTMLAudioElement) => {
+    const t = loadTuning();
+    a.volume = loud ? 1 : 0.3;
+    (a as any).preservesPitch = t.pitch === 1;
+    a.playbackRate = Math.min(2, Math.max(0.5, t.speed * t.pitch));
+  };
   const say = async (text: string) => {
     if (!text.trim()) return;
     setSpeaking(true);
@@ -616,10 +628,24 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
       const audio = await tts(text, { emotion });
       audioRef.current?.pause();
       const a = new Audio(audio); audioRef.current = a;
-      a.volume = loud ? 1 : 0.3;
+      applyTuning(a);
       a.onended = () => setSpeaking(false);
       await a.play();
     } catch (e) { toast.error((e as Error).message); setSpeaking(false); }
+  };
+  const playAudio = async (src: string) => {
+    audioRef.current?.pause();
+    const a = new Audio(src); audioRef.current = a;
+    a.volume = loud ? 1 : 0.3; setSpeaking(true);
+    a.onended = () => setSpeaking(false);
+    try { await a.play(); } catch { setSpeaking(false); }
+  };
+  const sendPlus = async ({ text, voice, audio }: { text: string; voice: boolean; audio?: string }) => {
+    const inst = waFrom || accounts.find((a) => a.status === "open")?.name;
+    if (!inst) { toast.error("ما فيه رقم واتساب متصل — اربط واحد من القنوات"); return false; }
+    if (!waTo.replace(/\D/g, "")) { toast.error("اكتب رقم الزبون"); return false; }
+    try { await sendWa({ data: { instance: inst, to: waTo, text, voice, audio } }); toast.success(voice ? "🎙️ انرسل فويس" : "✅ انرسلت"); return true; }
+    catch (e) { toast.error((e as Error).message); return false; }
   };
 
   const sendCustom = async () => {
@@ -765,7 +791,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
               <p className="text-sm text-muted-foreground">{deal.summary}</p>
               {deal.tips?.map((t, i) => <p key={i} className="rounded-lg bg-secondary px-3 py-2 text-sm">💡 {t}</p>)}
             </div>
-          ) : <p className="text-sm text-muted-foreground">تتحدث تلقائياً كل 30 ثانية أثناء المكالمة.</p>}
+          ) : <p className="text-sm text-muted-foreground">تتحدث تلقائياً كل 10 ثوانٍ أثناء المكالمة.</p>}
           <Button className="mt-3" variant="outline" onClick={runDealEye} disabled={analyzing}>{analyzing ? "تحلل…" : "حلّل الحين"}</Button>
         </Card>
 
@@ -782,6 +808,10 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
             <Button variant="secondary" onClick={() => dispatchWa(true)}>🎙️ أرسل كفويس</Button>
           </div>
         </Card>
+
+        <LiveCallPlus waTo={waTo} setWaTo={setWaTo} live={live} speaking={speaking} customer={customer} answer={answer} log={log}
+          say={say} playAudio={playAudio} bargeIn={() => { audioRef.current?.pause(); setSpeaking(false); cancelCountdown(); }}
+          send={sendPlus} setEmotion={setEmotion} customers={custList} />
       </div>
 
       <Card title="📜 سجل المكالمة">

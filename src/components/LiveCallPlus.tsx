@@ -6,7 +6,7 @@ import { useSpeaker, EMOTIONS } from "@/components/VoiceStudio";
 
 /* إضافات لوحة المكالمة الحية — كلها إضافة، ما تلمس الموجود */
 
-type Clip = { id: string; cat: string; text: string; audio?: string; speed?: number; emotion?: string };
+type Clip = { id: string; cat: string; text: string; audio?: string | undefined; speed?: number; emotion?: string };
 type Personal = { id: string; name: string; audio: string; vip?: string };
 export type Tuning = { voice: string; speed: number; pitch: number; emotion: string };
 
