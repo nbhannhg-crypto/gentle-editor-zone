@@ -18,6 +18,15 @@ export const waCtrlSend = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/** Generate the voice note for preview only (same audio is then sent as-is). */
+export const waVoicePreview = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ text: z.string().min(1).max(3000) }).parse(d))
+  .handler(async ({ data }) => {
+    const { fishTts } = await import("@/lib/autoreply.server");
+    return { audio: `data:audio/mpeg;base64,${await fishTts(data.text)}` };
+  });
+
 const STYLES = {
   welcome: "ترحيب دافئ ولطيف بالعميل واهتمام بطلبه",
   story: "قصة قصيرة مشوقة عن تجربة عميل مع منتجاتنا",
