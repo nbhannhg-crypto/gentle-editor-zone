@@ -17,6 +17,7 @@ import { waList } from "@/lib/studio.functions";
 import { getOrCreateMyStore, isAdmin, type Store } from "@/lib/stores";
 import { VoiceStudio, useSpeaker, EMOTIONS, loadVoice } from "@/components/VoiceStudio";
 import { LiveCallPlus, loadTuning } from "@/components/LiveCallPlus";
+import { LiveHybrid } from "@/components/LiveHybrid";
 import { Channels } from "@/components/Channels";
 import { Customers } from "@/components/Customers";
 import { Products } from "@/components/Products";
@@ -812,6 +813,9 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
         <LiveCallPlus waTo={waTo} setWaTo={setWaTo} live={live} speaking={speaking} customer={customer} answer={answer} log={log}
           say={say} playAudio={playAudio} bargeIn={() => { audioRef.current?.pause(); setSpeaking(false); cancelCountdown(); }}
           send={sendPlus} setEmotion={setEmotion} customers={custList} />
+
+        <LiveHybrid live={live} speaking={speaking} customer={customer} log={log} say={say} send={sendPlus}
+          stopAll={() => { audioRef.current?.pause(); setSpeaking(false); cancelCountdown(); }} />
       </div>
 
       <Card title="📜 سجل المكالمة">
