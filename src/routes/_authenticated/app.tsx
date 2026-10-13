@@ -11,7 +11,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { addRule, backupRules, cacheRules, cachedRules, fetchRules, findMatches, guessCategory, normalize, recordUse, type Rule } from "@/lib/rules";
-import { smartReply, suggestReplies, weeklyReport } from "@/lib/ai.functions";
+import { smartReply, suggestReplies, weeklyReport, analyzeDeal } from "@/lib/ai.functions";
+import { waCtrlSend } from "@/lib/wa-ctrl.functions";
+import { waList } from "@/lib/studio.functions";
 import { getOrCreateMyStore, isAdmin, type Store } from "@/lib/stores";
 import { VoiceStudio, useSpeaker, EMOTIONS, loadVoice } from "@/components/VoiceStudio";
 import { Channels } from "@/components/Channels";
