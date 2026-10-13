@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { fishSpeak, fishVoiceInfo, fishClone } from "@/lib/ai.functions";
 import { waCtrlSend } from "@/lib/wa-ctrl.functions";
-import { waList } from "@/lib/studio.functions";
+import { waList, voiceStateLoad, voiceStateSave } from "@/lib/studio.functions";
 import { STUDIO_VOICES } from "@/lib/studio-voices";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -52,18 +52,36 @@ export function VoiceStudioPlus() {
 
   // Per-merchant key: each signed-in account sees only its own voices/clips
   const key = useRef(K);
+  const loadCloud = useServerFn(voiceStateLoad);
+  const saveCloud = useServerFn(voiceStateSave);
+  const saveT = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
+    supabase.auth.getUser().then(async ({ data }) => {
       const uid = data.user?.id;
       key.current = uid ? `${K}_${uid}` : K;
+      let local: Partial<St> = {};
       try {
         let raw = localStorage.getItem(key.current);
         if (!raw && uid && localStorage.getItem(K)) { raw = localStorage.getItem(K); localStorage.setItem(key.current, raw!); localStorage.removeItem(K); }
-        setS({ ...DEF, ...JSON.parse(raw || "{}") });
+        local = JSON.parse(raw || "{}");
+        setS({ ...DEF, ...local });
       } catch { /* ignore */ }
+      // Cloud copy wins so every device shows the same voices and clips
+      try {
+        const { state } = await loadCloud();
+        if (state) { const c = JSON.parse(state); setS({ ...DEF, ...c }); try { localStorage.setItem(key.current, state); } catch { /* ignore */ } }
+        else if (Object.keys(local).length) await saveCloud({ data: { state: JSON.stringify(local) } });
+      } catch { /* offline: keep local copy */ }
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const up = (p: Partial<St>) => setS((o) => { const n = { ...o, ...p }; try { localStorage.setItem(key.current, JSON.stringify(n)); } catch { toast.error("المساحة امتلأت، احذف مقاطع قديمة"); } return n; });
+  const up = (p: Partial<St>) => setS((o) => {
+    const n = { ...o, ...p }; const json = JSON.stringify(n);
+    try { localStorage.setItem(key.current, json); } catch { /* cloud copy still saved */ }
+    if (saveT.current) clearTimeout(saveT.current);
+    saveT.current = setTimeout(() => { saveCloud({ data: { state: json } }).catch(() => toast.error("تعذر الحفظ في حسابك، بنحاول مرة ثانية")); }, 800);
+    return n;
+  });
 
   const gen = async (voice: Voice | null, text = sample, keep = false) => {
     setBusy(voice?.id ?? "main");

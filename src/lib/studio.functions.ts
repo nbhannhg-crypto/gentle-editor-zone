@@ -235,11 +235,18 @@ export const waCreate = createServerFn({ method: "POST" })
     const name = prefix(await myStore(context as Ctx)) + data.label;
     const secret = process.env["EVO_WEBHOOK_SECRET"];
     const url = `https://gentle-editor-zone.lovable.app/api/public/evolution${secret ? `?t=${secret}` : ""}`;
-    const r = await evo().call("/instance/create", "POST", {
-      instanceName: name, qrcode: true, integration: "WHATSAPP-BAILEYS",
-      webhook: { enabled: true, url, byEvents: false, base64: false, events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"] },
-    });
-    return { name, qr: (r?.qrcode?.base64 as string) || "" };
+    try {
+      const r = await evo().call("/instance/create", "POST", {
+        instanceName: name, qrcode: true, integration: "WHATSAPP-BAILEYS",
+        webhook: { enabled: true, url, byEvents: false, base64: false, events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"] },
+      });
+      return { name, qr: (r?.qrcode?.base64 as string) || "" };
+    } catch (e) {
+      // Name already exists on the server: reuse that session and return its QR instead of failing
+      if (!/already in use|\(403\)/i.test((e as Error).message)) throw e;
+      const r = await evo().call(`/instance/connect/${encodeURIComponent(name)}`);
+      return { name, qr: (r?.base64 as string) || "" };
+    }
   });
 
 export const waQr = createServerFn({ method: "POST" })
@@ -469,4 +476,25 @@ export const waAiTest = createServerFn({ method: "POST" })
     const ctx = "منتجات المتجر:\n" + ((products ?? []) as any[]).map((p) => `- ${p.name}: ${p.price} ريال ${p.description}`).join("\n");
     const { aiReplyWith } = await import("./autoreply.server");
     return { reply: await aiReplyWith(data.message, ctx, { system_prompt: data.system_prompt, ai_model: data.ai_model }) };
+  });
+
+// ---------- Voice studio cloud sync (same voices/clips on every device) ----------
+export const voiceStateLoad = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const storeId = await myStore(context as Ctx);
+    const dl = await context.supabase.storage.from("studio-audio").download(`${storeId}/voice-state.json`);
+    if (dl.error || !dl.data) return { state: null as string | null };
+    return { state: await dl.data.text() };
+  });
+
+export const voiceStateSave = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ state: z.string().max(20_000_000) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const storeId = await myStore(context as Ctx);
+    const up = await context.supabase.storage.from("studio-audio")
+      .upload(`${storeId}/voice-state.json`, new Blob([data.state], { type: "application/json" }), { upsert: true, contentType: "application/json" });
+    if (up.error) throw new Error(up.error.message);
+    return { ok: true };
   });
