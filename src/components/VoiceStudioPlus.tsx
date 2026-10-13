@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { fishSpeak, fishVoiceInfo, fishClone } from "@/lib/ai.functions";
 import { waCtrlSend } from "@/lib/wa-ctrl.functions";
+import { waList } from "@/lib/studio.functions";
 import { STUDIO_VOICES } from "@/lib/studio-voices";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -41,6 +42,13 @@ export function VoiceStudioPlus() {
   const info = useServerFn(fishVoiceInfo);
   const clone = useServerFn(fishClone);
   const send = useServerFn(waCtrlSend);
+  const listWa = useServerFn(waList);
+  const [accs, setAccs] = useState<{ name: string; label: string; status: string; number: string }[]>([]);
+  const [fromWa, setFromWa] = useState("");
+  useEffect(() => {
+    listWa().then((l) => setAccs(l)).catch(() => {});
+    try { setFromWa(localStorage.getItem(key.current + "_from") || ""); } catch { /* ignore */ }
+  }, []);
 
   // Per-merchant key: each signed-in account sees only its own voices/clips
   const key = useRef(K);
@@ -100,7 +108,9 @@ export function VoiceStudioPlus() {
   const sendClip = async (c: Clip) => {
     if (to.replace(/\D/g, "").length < 8) { toast.error("اكتب رقم العميل"); return; }
     setBusy(c.id);
-    try { await send({ data: { instance: "default", to: to.replace(/\D/g, ""), text: c.text, voice: true, audio: c.audio } }); toast.success("🎙️ انرسل كفويس أزرق بنفس الصوت"); }
+    const inst = fromWa || accs.find((a) => a.status === "open")?.name || "";
+    if (!inst) { toast.error("ما فيه واتساب متصل — اربط رقم أول من لوحة الواتساب"); setBusy(""); return; }
+    try { await send({ data: { instance: inst, to: to.replace(/\D/g, ""), text: c.text, voice: true, audio: c.audio } }); toast.success("🎙️ انرسل كفويس أزرق بنفس الصوت"); }
     catch (e) { toast.error((e as Error).message); }
     setBusy("");
   };
@@ -135,6 +145,11 @@ export function VoiceStudioPlus() {
       <section className={card}>
         <h2 className="font-display mb-2 text-lg text-primary">🗄️ خزينة المقاطع الصوتية وإرسال واتساب</h2>
         <p className="mb-2 text-xs text-muted-foreground">🟢 يرسل نفس المقطع اللي سمعته كفويس أزرق، ويظهر عند العميل «جاري التسجيل…» قبل وصوله.</p>
+        <label className="mb-1 block text-sm font-medium">📱 أرسل من رقم:</label>
+        <select value={fromWa} onChange={(e) => { setFromWa(e.target.value); try { localStorage.setItem(key.current + "_from", e.target.value); } catch { /* ignore */ } }} className="mb-2 w-full rounded-md border bg-background px-2 py-2 text-sm">
+          <option value="">تلقائي (أول رقم متصل)</option>
+          {accs.map((a) => <option key={a.name} value={a.name} disabled={a.status !== "open"}>{a.status === "open" ? "🟢" : "🔴"} {a.label}{a.number ? ` — ${a.number}` : " (غير متصل)"}</option>)}
+        </select>
         <Input dir="ltr" className="mb-3" value={to} onChange={(e) => setTo(e.target.value)} placeholder="رقم العميل للإرسال 9665…" />
         {!s.clips.length ? <p className="text-sm text-muted-foreground">ما فيه مقاطع محفوظة. اسمع الصوت ثم اضغط «احفظ اللي سمعته في الخزينة».</p> : (
           <>
