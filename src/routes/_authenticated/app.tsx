@@ -18,6 +18,7 @@ import { getOrCreateMyStore, isAdmin, type Store } from "@/lib/stores";
 import { VoiceStudio, useSpeaker, EMOTIONS, loadVoice } from "@/components/VoiceStudio";
 import { LiveCallPlus, loadTuning } from "@/components/LiveCallPlus";
 import { LiveHybrid } from "@/components/LiveHybrid";
+import { LiveCockpit, loadCockpit, DEFAULT_COCKPIT, COCKPIT_KEY, EXTRA_HINT, applyFixes, hitBanned, isBlocked, type Cockpit } from "@/components/LiveCockpit";
 import { Channels } from "@/components/Channels";
 import { Customers } from "@/components/Customers";
 import { Products } from "@/components/Products";
@@ -506,6 +507,20 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
   const [board, setBoard] = useState<string[]>([]);
   const [newClip, setNewClip] = useState("");
   const [custList, setCustList] = useState<{ name: string; phone: string }[]>([]);
+  const [cfg, setCfg] = useState<Cockpit>(DEFAULT_COCKPIT);
+  const cfgRef = useRef<Cockpit>(DEFAULT_COCKPIT);
+  const [accErr, setAccErr] = useState("");
+  const [teachQ, setTeachQ] = useState("");
+  const [teachA, setTeachA] = useState("");
+  const smart = useServerFn(smartReply);
+  const saveCfg = (c: Cockpit) => {
+    setCfg(c); cfgRef.current = c; localStorage.setItem(COCKPIT_KEY, JSON.stringify(c));
+    setAutopilot(c.fast); localStorage.setItem("live_autopilot", c.fast ? "1" : "0");
+  };
+  const loadAccounts = () => {
+    setAccErr("");
+    listWa().then((r) => setAccounts((r as any[]) ?? [])).catch((e) => setAccErr((e as Error).message || "السيرفر ما رد"));
+  };
   const mutedRef = useRef(false);
   const autoRef = useRef(false);
   const cdRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -516,7 +531,8 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
     setAutopilot(localStorage.getItem("live_autopilot") === "1");
     setWaFrom(localStorage.getItem("live_wa_from") ?? "");
     try { const b = JSON.parse(localStorage.getItem("live_board") ?? "null"); setBoard(Array.isArray(b) ? b : DEFAULT_BOARD); } catch { setBoard(DEFAULT_BOARD); }
-    listWa().then((r) => setAccounts((r as any[]) ?? [])).catch(() => {});
+    const ck = loadCockpit(); ck.fast = localStorage.getItem("live_autopilot") === "1" || ck.fast; setCfg(ck); cfgRef.current = ck;
+    loadAccounts();
     const t = loadTuning(); if (t.emotion) setEmotion(t.emotion);
     let q = supabase.from("customers").select("*").limit(500);
     if (storeId) q = q.eq("store_id", storeId);
@@ -543,7 +559,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
   const cancelCountdown = () => { if (cdRef.current) clearInterval(cdRef.current); cdRef.current = null; setCountdown(0); };
   const autoSay = (text: string) => {
     if (!text) return;
-    if (autoRef.current) { say(text); return; }
+    if (autoRef.current || cfgRef.current.fast) { say(text); return; }
     cancelCountdown();
     let n = 3; setCountdown(n);
     cdRef.current = setInterval(() => {
@@ -552,18 +568,40 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
     }, 1000);
   };
 
+  const clipMatch = (text: string) => {
+    const q = normalize(text).split(" ").filter((w) => w.length > 2);
+    if (!q.length) return "";
+    let pool: string[] = [...board];
+    try { pool = pool.concat(((JSON.parse(localStorage.getItem("live_clips") ?? "[]") as { text: string }[]) ?? []).map((c) => c.text)); } catch { /* ignore */ }
+    let best = "", score = 0;
+    for (const s of pool) { const n = normalize(s); const sc = q.filter((w) => n.includes(w)).length / q.length; if (sc > score) { score = sc; best = s; } }
+    return score >= 0.5 ? best : "";
+  };
+
   const handleCustomer = async (text: string) => {
     cancelCountdown();
     setCustomer(text); setAiSugs([]); setBusy(true);
     setLog((l) => [...l, { who: "c", t: text }]);
+    const c = cfgRef.current;
     try {
-      const r = await engine(text);
-      setAnswer(r.answer);
-      const others = r.matches.filter((m) => m.rule.response_text !== r.answer).map((m) => m.rule.response_text);
-      const pool = [...others, ...rules.filter((x) => x.category === (r.rule?.category ?? "")).map((x) => x.response_text)];
-      setAlts([...new Set(pool)].filter((x) => x !== r.answer).slice(0, 3));
-      recordUse(text, r.rule).then(reload);
-      if (liveRef.current && r.answer) autoSay(r.answer);
+      let ans = "";
+      let rule: Rule | undefined;
+      if (c.brains.mine) {
+        const r = await engine(text);
+        ans = r.answer; rule = r.rule;
+        const others = r.matches.filter((m) => m.rule.response_text !== r.answer).map((m) => m.rule.response_text);
+        const pool = [...others, ...rules.filter((x) => x.category === (r.rule?.category ?? "")).map((x) => x.response_text)];
+        setAlts([...new Set(pool)].filter((x) => x !== r.answer).slice(0, 3));
+      } else setAlts([]);
+      if (!ans && c.brains.clips) ans = clipMatch(text);
+      if (!ans && (c.brains.ai || c.brains.queen)) {
+        const ctx = [product, c.persona && `شخصية الموظفة: ${c.persona}`, c.brains.queen && "تكلمي بخبرة عقل الملكة: ذكية وحاسمة في البيع.", ...c.extra.map((k) => EXTRA_HINT[k])].filter(Boolean).join("\n");
+        const { reply } = await smart({ data: { customer: text, product: ctx.slice(0, 2000), rules: c.brains.mine ? rulesPayload(rules) : [] } });
+        ans = reply;
+      }
+      setAnswer(ans);
+      recordUse(text, rule).then(reload);
+      if (liveRef.current && ans) autoSay(ans);
     } catch (e) { toast.error((e as Error).message); }
     setBusy(false);
   };
@@ -607,8 +645,9 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
 
   const dispatchWa = async (voice: boolean) => {
     const inst = waFrom || accounts.find((a) => a.status === "open")?.name;
-    if (!inst) { toast.error("ما فيه رقم واتساب متصل — اربط واحد من القنوات"); return; }
+    if (!inst) { toast.error(accErr ? `أرقامك ما وصلت من السيرفر: ${accErr}` : "ما فيه رقم واتساب متصل — اربط واحد من القنوات"); return; }
     if (!waTo.replace(/\D/g, "")) { toast.error("اكتب رقم الزبون"); return; }
+    if (isBlocked(waTo, cfgRef.current)) { toast.error("📞 هذا الرقم مستثنى"); return; }
     const text = waText.trim() || answer;
     if (!text) { toast.error("اكتب الرسالة"); return; }
     try { await sendWa({ data: { instance: inst, to: waTo, text, voice } }); toast.success(voice ? "🎙️ انرسل فويس" : "✅ انرسلت الرسالة"); setWaText(""); }
@@ -623,10 +662,20 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
   };
   const say = async (text: string) => {
     if (!text.trim()) return;
-    setSpeaking(true);
+    const c = cfgRef.current;
+    const bad = hitBanned(text, c);
+    if (bad) { toast.error(`🚫 الرد فيه كلمة ممنوعة «${bad}» — ما نطقته`); return; }
     setLog((l) => [...l, { who: "a", t: text }]);
+    if (c.route === "text") { setAnswer(text); return; }
+    const spoken = applyFixes(text, c);
+    if (c.route === "ptt") {
+      setSpeaking(true);
+      try { await sendPlus({ text: spoken, voice: true }); } finally { setSpeaking(false); }
+      return;
+    }
+    setSpeaking(true);
     try {
-      const audio = await tts(text, { emotion });
+      const audio = await tts(spoken, { emotion });
       audioRef.current?.pause();
       const a = new Audio(audio); audioRef.current = a;
       applyTuning(a);
@@ -643,8 +692,9 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
   };
   const sendPlus = async ({ text, voice, audio }: { text: string; voice: boolean; audio?: string }) => {
     const inst = waFrom || accounts.find((a) => a.status === "open")?.name;
-    if (!inst) { toast.error("ما فيه رقم واتساب متصل — اربط واحد من القنوات"); return false; }
+    if (!inst) { toast.error(accErr ? `أرقامك ما وصلت من السيرفر: ${accErr}` : "ما فيه رقم واتساب متصل — اربط واحد من القنوات"); return false; }
     if (!waTo.replace(/\D/g, "")) { toast.error("اكتب رقم الزبون"); return false; }
+    if (isBlocked(waTo, cfgRef.current)) { toast.error("📞 هذا الرقم مستثنى"); return false; }
     try { await sendWa({ data: { instance: inst, to: waTo, text, voice, audio } }); toast.success(voice ? "🎙️ انرسل فويس" : "✅ انرسلت"); return true; }
     catch (e) { toast.error((e as Error).message); return false; }
   };
@@ -659,6 +709,13 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
     }
     setCustom("");
   };
+  const teach = async () => {
+    const q = (teachQ || customer).trim(); const a = teachA.trim();
+    if (!q || !a) { toast.error("اكتب السؤال والرد"); return; }
+    const { error } = await addRule(q, a, storeId);
+    if (error) { toast.error(error.message); return; }
+    toast.success("🧠 تعلّمتها — صارت قاعدة دائمة"); setTeachQ(""); setTeachA(""); reload();
+  };
 
   const askAi = async () => {
     if (!customer) { toast.error("لازم الزبون يقول شي أول"); return; }
@@ -672,6 +729,9 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
 
   return (
     <div className="grid gap-6 lg:grid-cols-3">
+      <LiveCockpit cfg={cfg} setCfg={saveCfg} live={live} onToggle={() => (live ? stop() : start())}
+        accounts={accounts} accErr={accErr} reloadAcc={loadAccounts}
+        waFrom={waFrom} setWaFrom={(v) => { setWaFrom(v); localStorage.setItem("live_wa_from", v); }} waTo={waTo} setWaTo={setWaTo} customers={custList} />
       <section className="rounded-2xl bg-royal p-5 text-primary-foreground shadow-soft lg:col-span-3">
         <div className="flex flex-col items-center">
           <div className={`relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-full bg-gold text-5xl transition-transform ${speaking ? "scale-105 animate-pulse ring-8 ring-gold/60" : live ? "ring-4 ring-gold/30" : ""}`}>
@@ -740,7 +800,8 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
             {busy ? "تفكر…" : answer || (customer ? "ما عندها رد من تعليمك — اختر اقتراح أو اكتب ردك" : "—")}
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
-            <Button className="bg-gold text-accent-foreground hover:opacity-90" disabled={!answer || speaking} onClick={() => say(answer)}>✅ موافق</Button>
+            <Button className="bg-gold text-accent-foreground hover:opacity-90" disabled={!answer || speaking} onClick={() => { cancelCountdown(); say(answer); }}>✅ موافق وانطق</Button>
+            <Button variant="secondary" disabled={!alts.length} onClick={() => { const [n, ...rest] = alts; if (n) { setAlts([...rest, answer].filter(Boolean)); setAnswer(n); } }}>اقترح بديل 💡</Button>
             {alts.map((s, i) => (
               <Button key={i} variant="secondary" title={s} onClick={() => say(s)} disabled={speaking}>اقتراح {i + 1}</Button>
             ))}
@@ -766,6 +827,13 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
             <Input value={custom} onChange={(e) => setCustom(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendCustom()} placeholder="الموظفة بتقوله فوراً وتحفظه كقاعدة" />
             <Button onClick={sendCustom}>قوليها</Button>
           </div>
+        </Card>
+
+        <Card title="💡 علّم الموظفة فوراً">
+          <Input value={teachQ || customer} onChange={(e) => setTeachQ(e.target.value)} placeholder="سؤال الزبون (يتعبى تلقائياً من آخر كلامه)" />
+          <Textarea className="mt-2" rows={2} value={teachA} onChange={(e) => setTeachA(e.target.value)} placeholder="الرد الصحيح اللي تبيها تقوله دايماً…" />
+          <Button className="mt-2" onClick={teach}>🧠 علّمها</Button>
+          <p className="mt-1 text-xs text-muted-foreground">ينحفظ كقاعدة دائمة مع قواعدك ({rules.length.toLocaleString("ar")} قاعدة).</p>
         </Card>
 
         <Card title="🎛️ بنك المقاطع الجاهزة — اضغط تنطق فوراً">
@@ -814,7 +882,8 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
           say={say} playAudio={playAudio} bargeIn={() => { audioRef.current?.pause(); setSpeaking(false); cancelCountdown(); }}
           send={sendPlus} setEmotion={setEmotion} customers={custList} />
 
-        <LiveHybrid live={live} speaking={speaking} customer={customer} log={log} say={say} send={sendPlus}
+        <LiveHybrid live={live} speaking={speaking} customer={customer} log={log} say={say} send={sendPlus} persona={cfg.persona}
+          onMode={(m) => { if (m === "auto") saveCfg({ ...cfg, fast: true }); if (m === "copilot") saveCfg({ ...cfg, fast: false }); if (m === "ptt") saveCfg({ ...cfg, route: "ptt" }); if (m === "line") saveCfg({ ...cfg, route: "speaker" }); }}
           stopAll={() => { audioRef.current?.pause(); setSpeaking(false); cancelCountdown(); }} />
       </div>
 
