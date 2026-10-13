@@ -479,8 +479,68 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
   const [voiceName, setVoiceName] = useState("");
   useEffect(() => { const v = loadVoice(); setEmotion(v.emotion); setVoiceName(v.provider === "fish" && v.voiceId ? v.voiceTitle : "الصوت المدمج"); }, []);
   const suggest = useServerFn(suggestReplies);
+  const analyze = useServerFn(analyzeDeal);
+  const sendWa = useServerFn(waCtrlSend);
+  const listWa = useServerFn(waList);
+  // ---- إضافات اللوحة الحية ----
+  const [seconds, setSeconds] = useState(0);
+  const [muted, setMuted] = useState(false);
+  const [loud, setLoud] = useState(true);
+  const [autopilot, setAutopilot] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const [avatar, setAvatar] = useState("");
+  const [deal, setDeal] = useState<{ verdict: string; score: number; summary: string; tips: string[] } | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [accounts, setAccounts] = useState<{ name: string; label?: string; status: string; number?: string }[]>([]);
+  const [waFrom, setWaFrom] = useState("");
+  const [waTo, setWaTo] = useState("");
+  const [waText, setWaText] = useState("");
+  const [board, setBoard] = useState<string[]>([]);
+  const [newClip, setNewClip] = useState("");
+  const mutedRef = useRef(false);
+  const autoRef = useRef(false);
+  const cdRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => { mutedRef.current = muted; }, [muted]);
+  useEffect(() => { autoRef.current = autopilot; }, [autopilot]);
+  useEffect(() => {
+    setAvatar(localStorage.getItem("live_avatar") ?? "");
+    setAutopilot(localStorage.getItem("live_autopilot") === "1");
+    setWaFrom(localStorage.getItem("live_wa_from") ?? "");
+    try { const b = JSON.parse(localStorage.getItem("live_board") ?? "null"); setBoard(Array.isArray(b) ? b : DEFAULT_BOARD); } catch { setBoard(DEFAULT_BOARD); }
+    listWa().then((r) => setAccounts((r as any[]) ?? [])).catch(() => {});
+  }, []);
+  useEffect(() => {
+    if (!live) return;
+    const id = setInterval(() => setSeconds((s) => s + 1), 1000);
+    return () => clearInterval(id);
+  }, [live]);
+  const saveBoard = (b: string[]) => { setBoard(b); localStorage.setItem("live_board", JSON.stringify(b)); };
+  const pickAvatar = (f?: File) => {
+    if (!f) return;
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement("canvas"); const s = 300; c.width = s; c.height = s;
+      const k = Math.max(s / img.width, s / img.height);
+      c.getContext("2d")!.drawImage(img, (s - img.width * k) / 2, (s - img.height * k) / 2, img.width * k, img.height * k);
+      const url = c.toDataURL("image/jpeg", 0.85);
+      setAvatar(url); localStorage.setItem("live_avatar", url); toast.success("✅ صارت صورة الموظفة");
+    };
+    img.src = URL.createObjectURL(f);
+  };
+  const cancelCountdown = () => { if (cdRef.current) clearInterval(cdRef.current); cdRef.current = null; setCountdown(0); };
+  const autoSay = (text: string) => {
+    if (!text) return;
+    if (autoRef.current) { say(text); return; }
+    cancelCountdown();
+    let n = 3; setCountdown(n);
+    cdRef.current = setInterval(() => {
+      n -= 1; setCountdown(n);
+      if (n <= 0) { cancelCountdown(); say(text); }
+    }, 1000);
+  };
 
   const handleCustomer = async (text: string) => {
+    cancelCountdown();
     setCustomer(text); setAiSugs([]); setBusy(true);
     setLog((l) => [...l, { who: "c", t: text }]);
     try {
@@ -490,6 +550,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
       const pool = [...others, ...rules.filter((x) => x.category === (r.rule?.category ?? "")).map((x) => x.response_text)];
       setAlts([...new Set(pool)].filter((x) => x !== r.answer).slice(0, 3));
       recordUse(text, r.rule).then(reload);
+      if (liveRef.current && r.answer) autoSay(r.answer);
     } catch (e) { toast.error((e as Error).message); }
     setBusy(false);
   };
@@ -501,20 +562,45 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
     const rec: SR = new C();
     rec.lang = "ar-SA"; rec.continuous = true; rec.interimResults = true;
     rec.onresult = (e) => {
+      if (mutedRef.current) return;
       let fin = "", tmp = "";
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const t = e.results[i][0].transcript;
         if (e.results[i].isFinal) fin += t; else tmp += t;
       }
+      // كاشف المقاطعة: الزبون تكلم والموظفة تتكلم → تسكت فوراً
+      if ((tmp.trim() || fin.trim()) && audioRef.current && !audioRef.current.paused) { audioRef.current.pause(); setSpeaking(false); }
       setInterim(tmp);
       if (fin.trim()) handleCustomer(fin.trim());
     };
     rec.onend = () => { if (liveRef.current) try { rec.start(); } catch { /* ignore */ } };
     recRef.current = rec; liveRef.current = true;
-    rec.start(); setLive(true);
+    rec.start(); setLive(true); setSeconds(0); setDeal(null);
   };
-  const stop = () => { liveRef.current = false; recRef.current?.stop(); setLive(false); setInterim(""); audioRef.current?.pause(); };
-  useEffect(() => () => { liveRef.current = false; recRef.current?.stop(); }, []);
+  const stop = () => { liveRef.current = false; recRef.current?.stop(); setLive(false); setInterim(""); audioRef.current?.pause(); setSpeaking(false); cancelCountdown(); };
+  useEffect(() => () => { liveRef.current = false; recRef.current?.stop(); cancelCountdown(); }, []);
+
+  const runDealEye = async () => {
+    if (log.length < 2) { toast.error("المحادثة قصيرة — خل الزبون يتكلم شوي"); return; }
+    setAnalyzing(true);
+    try { setDeal(await analyze({ data: { conversation: log.slice(-40) } }) as any); } catch (e) { toast.error((e as Error).message); }
+    setAnalyzing(false);
+  };
+  useEffect(() => {
+    if (!live) return;
+    const id = setInterval(() => { if (log.length >= 2 && !analyzing) analyze({ data: { conversation: log.slice(-40) } }).then((d) => setDeal(d as any)).catch(() => {}); }, 30000);
+    return () => clearInterval(id);
+  }, [live, log, analyzing]);
+
+  const dispatchWa = async (voice: boolean) => {
+    const inst = waFrom || accounts.find((a) => a.status === "open")?.name;
+    if (!inst) { toast.error("ما فيه رقم واتساب متصل — اربط واحد من القنوات"); return; }
+    if (!waTo.replace(/\D/g, "")) { toast.error("اكتب رقم الزبون"); return; }
+    const text = waText.trim() || answer;
+    if (!text) { toast.error("اكتب الرسالة"); return; }
+    try { await sendWa({ data: { instance: inst, to: waTo, text, voice } }); toast.success(voice ? "🎙️ انرسل فويس" : "✅ انرسلت الرسالة"); setWaText(""); }
+    catch (e) { toast.error((e as Error).message); }
+  };
 
   const say = async (text: string) => {
     if (!text.trim()) return;
