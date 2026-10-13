@@ -38,7 +38,9 @@ export function LiveHybrid(p: {
   persona?: string; onMode?: (m: string) => void;
 }) {
   const polish = useServerFn(polishSpeech);
-  const [changer, setChanger] = useState(false);
+  const [changer, setChangerS] = useState(false);
+  const changerRef = useRef(false);
+  const setChanger = (v: boolean) => { changerRef.current = v; setChangerS(v); };
   const [target, setTarget] = useState<"call" | "wa">("wa");
   const [polished, setPolished] = useState("");
   const tts = useSpeaker();
@@ -97,7 +99,7 @@ export function LiveHybrid(p: {
       for (let i = 0; i < e.results.length; i++) t += e.results[i]?.[0]?.transcript ?? "";
       final = t; setHeard(t);
     };
-    r.onend = () => { setRec(false); if (final.trim()) void (changer ? changeVoice(final.trim()) : fire(final.trim())); };
+    r.onend = () => { setRec(false); if (final.trim()) void (changerRef.current ? changeVoice(final.trim()) : fire(final.trim())); };
     srRef.current = r; setHeard(""); setRec(true); r.start();
   };
 
