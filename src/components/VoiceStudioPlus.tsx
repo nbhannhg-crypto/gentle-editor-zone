@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { fishSpeak, fishVoiceInfo, fishClone } from "@/lib/ai.functions";
 import { waCtrlSend } from "@/lib/wa-ctrl.functions";
 import { STUDIO_VOICES } from "@/lib/studio-voices";
+import { supabase } from "@/integrations/supabase/client";
 
 /** Added studio sections: tuned preview, link by ID, custom voice, filters, saved clips. Stored locally. */
 type Voice = { id: string; title: string };
@@ -41,8 +42,20 @@ export function VoiceStudioPlus() {
   const clone = useServerFn(fishClone);
   const send = useServerFn(waCtrlSend);
 
-  useEffect(() => { try { setS({ ...DEF, ...JSON.parse(localStorage.getItem(K) || "{}") }); } catch { /* ignore */ } }, []);
-  const up = (p: Partial<St>) => setS((o) => { const n = { ...o, ...p }; try { localStorage.setItem(K, JSON.stringify(n)); } catch { toast.error("المساحة امتلأت، احذف مقاطع قديمة"); } return n; });
+  // Per-merchant key: each signed-in account sees only its own voices/clips
+  const key = useRef(K);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      const uid = data.user?.id;
+      key.current = uid ? `${K}_${uid}` : K;
+      try {
+        let raw = localStorage.getItem(key.current);
+        if (!raw && uid && localStorage.getItem(K)) { raw = localStorage.getItem(K); localStorage.setItem(key.current, raw!); localStorage.removeItem(K); }
+        setS({ ...DEF, ...JSON.parse(raw || "{}") });
+      } catch { /* ignore */ }
+    });
+  }, []);
+  const up = (p: Partial<St>) => setS((o) => { const n = { ...o, ...p }; try { localStorage.setItem(key.current, JSON.stringify(n)); } catch { toast.error("المساحة امتلأت، احذف مقاطع قديمة"); } return n; });
 
   const gen = async (voice: Voice | null, text = sample, keep = false) => {
     setBusy(voice?.id ?? "main");
