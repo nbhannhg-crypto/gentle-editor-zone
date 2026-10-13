@@ -11,7 +11,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { addRule, backupRules, cacheRules, cachedRules, fetchRules, findMatches, guessCategory, normalize, recordUse, type Rule } from "@/lib/rules";
-import { smartReply, suggestReplies, weeklyReport } from "@/lib/ai.functions";
+import { smartReply, suggestReplies, weeklyReport, analyzeDeal } from "@/lib/ai.functions";
+import { waCtrlSend } from "@/lib/wa-ctrl.functions";
+import { waList } from "@/lib/studio.functions";
 import { getOrCreateMyStore, isAdmin, type Store } from "@/lib/stores";
 import { VoiceStudio, useSpeaker, EMOTIONS, loadVoice } from "@/components/VoiceStudio";
 import { Channels } from "@/components/Channels";
@@ -145,6 +147,12 @@ function Card({ title, children, className = "" }: { title?: string; children: R
 }
 
 const rulesPayload = (rules: Rule[]) => rules.slice(0, 200).map((r) => ({ trigger: r.trigger_text, response: r.response_text }));
+const DEFAULT_BOARD = [
+  "👋 هلا والله وحياك", "🌸 نورتنا يا غالي", "☕ سمّ آمرني",
+  "💰 هذا سعره شامل التوصيل والضمان", "✨ الجودة أصلية ومضمونة 100%", "🎁 عندي لك خصم خاص الحين",
+  "🚚 التوصيل خلال 24-48 ساعة لباب بيتك", "📦 الدفع عند الاستلام متاح",
+  "🎉 تم اعتماد طلبك ويوصلك كود التتبع", "🤝 تشرفنا بخدمتك والله يبارك لك",
+];
 
 /* ---------------- Reply engine ---------------- */
 export function useReplyEngine(rules: Rule[], mode: Mode, product: string) {
@@ -477,8 +485,68 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
   const [voiceName, setVoiceName] = useState("");
   useEffect(() => { const v = loadVoice(); setEmotion(v.emotion); setVoiceName(v.provider === "fish" && v.voiceId ? v.voiceTitle : "الصوت المدمج"); }, []);
   const suggest = useServerFn(suggestReplies);
+  const analyze = useServerFn(analyzeDeal);
+  const sendWa = useServerFn(waCtrlSend);
+  const listWa = useServerFn(waList);
+  // ---- إضافات اللوحة الحية ----
+  const [seconds, setSeconds] = useState(0);
+  const [muted, setMuted] = useState(false);
+  const [loud, setLoud] = useState(true);
+  const [autopilot, setAutopilot] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const [avatar, setAvatar] = useState("");
+  const [deal, setDeal] = useState<{ verdict: string; score: number; summary: string; tips: string[] } | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [accounts, setAccounts] = useState<{ name: string; label?: string; status: string; number?: string }[]>([]);
+  const [waFrom, setWaFrom] = useState("");
+  const [waTo, setWaTo] = useState("");
+  const [waText, setWaText] = useState("");
+  const [board, setBoard] = useState<string[]>([]);
+  const [newClip, setNewClip] = useState("");
+  const mutedRef = useRef(false);
+  const autoRef = useRef(false);
+  const cdRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => { mutedRef.current = muted; }, [muted]);
+  useEffect(() => { autoRef.current = autopilot; }, [autopilot]);
+  useEffect(() => {
+    setAvatar(localStorage.getItem("live_avatar") ?? "");
+    setAutopilot(localStorage.getItem("live_autopilot") === "1");
+    setWaFrom(localStorage.getItem("live_wa_from") ?? "");
+    try { const b = JSON.parse(localStorage.getItem("live_board") ?? "null"); setBoard(Array.isArray(b) ? b : DEFAULT_BOARD); } catch { setBoard(DEFAULT_BOARD); }
+    listWa().then((r) => setAccounts((r as any[]) ?? [])).catch(() => {});
+  }, []);
+  useEffect(() => {
+    if (!live) return;
+    const id = setInterval(() => setSeconds((s) => s + 1), 1000);
+    return () => clearInterval(id);
+  }, [live]);
+  const saveBoard = (b: string[]) => { setBoard(b); localStorage.setItem("live_board", JSON.stringify(b)); };
+  const pickAvatar = (f?: File) => {
+    if (!f) return;
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement("canvas"); const s = 300; c.width = s; c.height = s;
+      const k = Math.max(s / img.width, s / img.height);
+      c.getContext("2d")!.drawImage(img, (s - img.width * k) / 2, (s - img.height * k) / 2, img.width * k, img.height * k);
+      const url = c.toDataURL("image/jpeg", 0.85);
+      setAvatar(url); localStorage.setItem("live_avatar", url); toast.success("✅ صارت صورة الموظفة");
+    };
+    img.src = URL.createObjectURL(f);
+  };
+  const cancelCountdown = () => { if (cdRef.current) clearInterval(cdRef.current); cdRef.current = null; setCountdown(0); };
+  const autoSay = (text: string) => {
+    if (!text) return;
+    if (autoRef.current) { say(text); return; }
+    cancelCountdown();
+    let n = 3; setCountdown(n);
+    cdRef.current = setInterval(() => {
+      n -= 1; setCountdown(n);
+      if (n <= 0) { cancelCountdown(); say(text); }
+    }, 1000);
+  };
 
   const handleCustomer = async (text: string) => {
+    cancelCountdown();
     setCustomer(text); setAiSugs([]); setBusy(true);
     setLog((l) => [...l, { who: "c", t: text }]);
     try {
@@ -488,6 +556,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
       const pool = [...others, ...rules.filter((x) => x.category === (r.rule?.category ?? "")).map((x) => x.response_text)];
       setAlts([...new Set(pool)].filter((x) => x !== r.answer).slice(0, 3));
       recordUse(text, r.rule).then(reload);
+      if (liveRef.current && r.answer) autoSay(r.answer);
     } catch (e) { toast.error((e as Error).message); }
     setBusy(false);
   };
@@ -499,20 +568,45 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
     const rec: SR = new C();
     rec.lang = "ar-SA"; rec.continuous = true; rec.interimResults = true;
     rec.onresult = (e) => {
+      if (mutedRef.current) return;
       let fin = "", tmp = "";
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const t = e.results[i][0].transcript;
         if (e.results[i].isFinal) fin += t; else tmp += t;
       }
+      // كاشف المقاطعة: الزبون تكلم والموظفة تتكلم → تسكت فوراً
+      if ((tmp.trim() || fin.trim()) && audioRef.current && !audioRef.current.paused) { audioRef.current.pause(); setSpeaking(false); }
       setInterim(tmp);
       if (fin.trim()) handleCustomer(fin.trim());
     };
     rec.onend = () => { if (liveRef.current) try { rec.start(); } catch { /* ignore */ } };
     recRef.current = rec; liveRef.current = true;
-    rec.start(); setLive(true);
+    rec.start(); setLive(true); setSeconds(0); setDeal(null);
   };
-  const stop = () => { liveRef.current = false; recRef.current?.stop(); setLive(false); setInterim(""); audioRef.current?.pause(); };
-  useEffect(() => () => { liveRef.current = false; recRef.current?.stop(); }, []);
+  const stop = () => { liveRef.current = false; recRef.current?.stop(); setLive(false); setInterim(""); audioRef.current?.pause(); setSpeaking(false); cancelCountdown(); };
+  useEffect(() => () => { liveRef.current = false; recRef.current?.stop(); cancelCountdown(); }, []);
+
+  const runDealEye = async () => {
+    if (log.length < 2) { toast.error("المحادثة قصيرة — خل الزبون يتكلم شوي"); return; }
+    setAnalyzing(true);
+    try { setDeal(await analyze({ data: { conversation: log.slice(-40) } }) as any); } catch (e) { toast.error((e as Error).message); }
+    setAnalyzing(false);
+  };
+  useEffect(() => {
+    if (!live) return;
+    const id = setInterval(() => { if (log.length >= 2 && !analyzing) analyze({ data: { conversation: log.slice(-40) } }).then((d) => setDeal(d as any)).catch(() => {}); }, 30000);
+    return () => clearInterval(id);
+  }, [live, log, analyzing]);
+
+  const dispatchWa = async (voice: boolean) => {
+    const inst = waFrom || accounts.find((a) => a.status === "open")?.name;
+    if (!inst) { toast.error("ما فيه رقم واتساب متصل — اربط واحد من القنوات"); return; }
+    if (!waTo.replace(/\D/g, "")) { toast.error("اكتب رقم الزبون"); return; }
+    const text = waText.trim() || answer;
+    if (!text) { toast.error("اكتب الرسالة"); return; }
+    try { await sendWa({ data: { instance: inst, to: waTo, text, voice } }); toast.success(voice ? "🎙️ انرسل فويس" : "✅ انرسلت الرسالة"); setWaText(""); }
+    catch (e) { toast.error((e as Error).message); }
+  };
 
   const say = async (text: string) => {
     if (!text.trim()) return;
@@ -522,6 +616,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
       const audio = await tts(text, { emotion });
       audioRef.current?.pause();
       const a = new Audio(audio); audioRef.current = a;
+      a.volume = loud ? 1 : 0.3;
       a.onended = () => setSpeaking(false);
       await a.play();
     } catch (e) { toast.error((e as Error).message); setSpeaking(false); }
@@ -550,6 +645,42 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
 
   return (
     <div className="grid gap-6 lg:grid-cols-3">
+      <section className="rounded-2xl bg-royal p-5 text-primary-foreground shadow-soft lg:col-span-3">
+        <div className="flex flex-col items-center">
+          <div className={`relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-full bg-gold text-5xl transition-transform ${speaking ? "scale-105 animate-pulse ring-8 ring-gold/60" : live ? "ring-4 ring-gold/30" : ""}`}>
+            {avatar ? <img src={avatar} alt="صورة الموظفة" className="h-full w-full object-cover" /> : "👩‍💼"}
+            {live && <span className="absolute bottom-1 left-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px]">✓</span>}
+          </div>
+          <label className="mt-2 cursor-pointer text-xs underline opacity-80">
+            📷 {avatar ? "غيّر صورة الموظفة" : "حط صورة للموظفة"}
+            <input type="file" accept="image/*" className="hidden" onChange={(e) => pickAvatar(e.target.files?.[0])} />
+          </label>
+          <p className="mt-2 text-sm opacity-80">
+            {live ? (speaking ? "🔊 تتكلم…" : busy ? "🧠 تفكر في الرد…" : muted ? "🔇 المايك مكتوم" : "👂 تسمع الزبون…") : "جاهزة للاتصال"}
+          </p>
+          <p className="font-mono text-lg" dir="ltr">{fmt(seconds)}</p>
+          <div className="mt-2 flex h-8 items-end gap-1" aria-hidden>
+            {[0.4, 0.9, 0.6, 1, 0.5, 0.8, 0.35, 0.7].map((h, i) => (
+              <span key={i} className={`w-1.5 rounded-full bg-gold ${live && !muted ? "animate-pulse" : ""}`} style={{ height: `${(speaking ? h : h * 0.6) * 100}%`, animationDelay: `${i * 0.12}s`, opacity: live ? 1 : 0.25 }} />
+            ))}
+          </div>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <Button size="sm" variant="secondary" onClick={() => setMuted((m) => !m)} disabled={!live}>{muted ? "🔇 شغّل المايك" : "🎙️ اكتم المايك"}</Button>
+            <Button size="sm" variant="secondary" onClick={() => { setLoud((v) => !v); if (audioRef.current) audioRef.current.volume = loud ? 0.3 : 1; }}>{loud ? "🔊 مكبر" : "🔉 خافض"}</Button>
+            <Button size="sm" className={autopilot ? "bg-gold text-accent-foreground hover:opacity-90" : ""} variant={autopilot ? "default" : "secondary"}
+              onClick={() => { const v = !autopilot; setAutopilot(v); localStorage.setItem("live_autopilot", v ? "1" : "0"); }}>
+              {autopilot ? "🤖 طيار آلي 100%" : "🧑‍💼 إشراف يدوي"}
+            </Button>
+          </div>
+          {countdown > 0 && (
+            <div className="mt-3 flex items-center gap-2 rounded-xl bg-primary-foreground/10 px-3 py-2 text-sm">
+              ⏳ بتنطق الرد بعد {countdown}…
+              <Button size="sm" className="bg-gold text-accent-foreground" onClick={() => { cancelCountdown(); say(answer); }}>✅ موافق الحين</Button>
+              <Button size="sm" variant="secondary" onClick={cancelCountdown}>✋ أوقف</Button>
+            </div>
+          )}
+        </div>
+      </section>
       <div className="space-y-6 lg:col-span-2">
         <Card>
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -607,6 +738,48 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
           <div className="flex gap-2">
             <Input value={custom} onChange={(e) => setCustom(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendCustom()} placeholder="الموظفة بتقوله فوراً وتحفظه كقاعدة" />
             <Button onClick={sendCustom}>قوليها</Button>
+          </div>
+        </Card>
+
+        <Card title="🎛️ بنك المقاطع الجاهزة — اضغط تنطق فوراً">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {board.map((s, i) => (
+              <div key={i} className="group relative">
+                <Button variant="secondary" className="h-auto w-full whitespace-normal py-2 text-xs" disabled={speaking} onClick={() => say(s)}>{s}</Button>
+                <button aria-label="احذف المقطع" onClick={() => saveBoard(board.filter((_, j) => j !== i))} className="absolute -left-1 -top-1 hidden h-5 w-5 rounded-full bg-destructive text-[10px] text-destructive-foreground group-hover:block">×</button>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 flex gap-2">
+            <Input value={newClip} onChange={(e) => setNewClip(e.target.value)} placeholder="أضف مقطع جديد…" onKeyDown={(e) => { if (e.key === "Enter" && newClip.trim()) { saveBoard([...board, newClip.trim()]); setNewClip(""); } }} />
+            <Button variant="outline" onClick={() => { if (newClip.trim()) { saveBoard([...board, newClip.trim()]); setNewClip(""); } }}>➕ أضف</Button>
+          </div>
+          <button onClick={() => saveBoard(DEFAULT_BOARD)} className="mt-2 text-xs text-muted-foreground underline">رجّع المقاطع الأساسية</button>
+        </Card>
+
+        <Card title="👁️ عين الصفقة اللحظية">
+          {deal ? (
+            <div className="space-y-2">
+              <p className="text-lg font-medium">{({ sold: "🏆 تم البيع", hot: "🔥 مهتم جداً", cold: "🤔 متردد", lost: "🥀 غير مهتم" } as Record<string, string>)[deal.verdict] ?? deal.verdict} — {deal.score}%</p>
+              <Progress value={deal.score} />
+              <p className="text-sm text-muted-foreground">{deal.summary}</p>
+              {deal.tips?.map((t, i) => <p key={i} className="rounded-lg bg-secondary px-3 py-2 text-sm">💡 {t}</p>)}
+            </div>
+          ) : <p className="text-sm text-muted-foreground">تتحدث تلقائياً كل 30 ثانية أثناء المكالمة.</p>}
+          <Button className="mt-3" variant="outline" onClick={runDealEye} disabled={analyzing}>{analyzing ? "تحلل…" : "حلّل الحين"}</Button>
+        </Card>
+
+        <Card title="📲 أرسل للزبون واتساب أثناء المكالمة">
+          <label className="mb-1 block text-xs text-muted-foreground">أرسل من رقم:</label>
+          <select value={waFrom} onChange={(e) => { setWaFrom(e.target.value); localStorage.setItem("live_wa_from", e.target.value); }} className="mb-2 w-full rounded-md border bg-background px-2 py-2 text-sm" aria-label="رقم الإرسال">
+            <option value="">تلقائي (أول رقم متصل)</option>
+            {accounts.map((a) => <option key={a.name} value={a.name}>{a.status === "open" ? "🟢" : "🔴"} {a.label || a.name}{a.number ? ` — ${a.number}` : ""}</option>)}
+          </select>
+          <Input value={waTo} onChange={(e) => setWaTo(e.target.value)} placeholder="رقم الزبون مثل 9665xxxxxxxx" dir="ltr" className="mb-2" />
+          <Textarea value={waText} onChange={(e) => setWaText(e.target.value)} rows={2} placeholder="الرسالة (فاضي = يرسل رد الموظفة الحالي)…" />
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button onClick={() => dispatchWa(false)}>💬 أرسل نص</Button>
+            <Button variant="secondary" onClick={() => dispatchWa(true)}>🎙️ أرسل كفويس</Button>
           </div>
         </Card>
       </div>
