@@ -235,11 +235,18 @@ export const waCreate = createServerFn({ method: "POST" })
     const name = prefix(await myStore(context as Ctx)) + data.label;
     const secret = process.env["EVO_WEBHOOK_SECRET"];
     const url = `https://gentle-editor-zone.lovable.app/api/public/evolution${secret ? `?t=${secret}` : ""}`;
-    const r = await evo().call("/instance/create", "POST", {
-      instanceName: name, qrcode: true, integration: "WHATSAPP-BAILEYS",
-      webhook: { enabled: true, url, byEvents: false, base64: false, events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"] },
-    });
-    return { name, qr: (r?.qrcode?.base64 as string) || "" };
+    try {
+      const r = await evo().call("/instance/create", "POST", {
+        instanceName: name, qrcode: true, integration: "WHATSAPP-BAILEYS",
+        webhook: { enabled: true, url, byEvents: false, base64: false, events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"] },
+      });
+      return { name, qr: (r?.qrcode?.base64 as string) || "" };
+    } catch (e) {
+      // Name already exists on the server: reuse that session and return its QR instead of failing
+      if (!/already in use|\(403\)/i.test((e as Error).message)) throw e;
+      const r = await evo().call(`/instance/connect/${encodeURIComponent(name)}`);
+      return { name, qr: (r?.base64 as string) || "" };
+    }
   });
 
 export const waQr = createServerFn({ method: "POST" })
