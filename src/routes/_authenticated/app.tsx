@@ -791,7 +791,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
               <p className="text-sm text-muted-foreground">{deal.summary}</p>
               {deal.tips?.map((t, i) => <p key={i} className="rounded-lg bg-secondary px-3 py-2 text-sm">💡 {t}</p>)}
             </div>
-          ) : <p className="text-sm text-muted-foreground">تتحدث تلقائياً كل 30 ثانية أثناء المكالمة.</p>}
+          ) : <p className="text-sm text-muted-foreground">تتحدث تلقائياً كل 10 ثوانٍ أثناء المكالمة.</p>}
           <Button className="mt-3" variant="outline" onClick={runDealEye} disabled={analyzing}>{analyzing ? "تحلل…" : "حلّل الحين"}</Button>
         </Card>
 
