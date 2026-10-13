@@ -346,3 +346,16 @@ export const magicBrain = createServerFn({ method: "POST" })
       return { level: ["hot", "warm", "cold"].includes(j.level) ? j.level as string : "", label: String(j.label ?? ""), why: String(j.why ?? ""), reply: String(j.reply ?? "") };
     } catch { return { level: "", label: "", why: "", reply: raw }; }
   });
+
+/* ---------------- مغيّر الصوت: تنقية كلام التاجر وصياغته بأسلوب الموظفة ---------------- */
+export const polishSpeech = createServerFn({ method: "POST" })
+  .inputValidator((d) =>
+    z.object({ text: z.string().min(1).max(1500), dialect: z.string().max(60).default(""), persona: z.string().max(1000).default("") }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const out = await askModel(
+      "أنتِ موظفة مبيعات. أعيدي صياغة كلام صاحب المتجر بأسلوبك أنتِ كأنك المتحدثة، بنفس المعنى بالضبط، بدون تأتأة أو تكرار أو حشو. لا تضيفي معلومات جديدة. أرجعي الجملة فقط.",
+      `اللهجة: ${data.dialect || "سعودية"}\nالشخصية: ${data.persona || "ودودة ومحترفة"}\n\nالكلام: "${data.text}"`,
+    );
+    return { text: out.replace(/^["«]|["»]$/g, "").trim() || data.text };
+  });

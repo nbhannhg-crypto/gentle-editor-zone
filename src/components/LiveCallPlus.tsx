@@ -81,6 +81,23 @@ export function LiveCallPlus(p: {
     try { const a = await clipAudio(c); await p.send({ text: c.text, voice: true, audio: a }); } catch (e) { toast.error((e as Error).message); }
   };
 
+  const launch = async (c: Clip) => { try { p.playAudio(await clipAudio(c)); } catch (e) { toast.error((e as Error).message); } };
+  const pttClip = async (c: Clip) => { try { const a = await clipAudio(c); await p.send({ text: c.text, voice: true, audio: a }); } catch (e) { toast.error((e as Error).message); } };
+  const [gen, setGen] = useState({ text: "", emotion: "", speed: 1 });
+  const [genBusy, setGenBusy] = useState(false);
+  const generateSave = async () => {
+    const t = gen.text.trim();
+    if (!t) { toast.error("اكتب العبارة"); return; }
+    setGenBusy(true);
+    try {
+      const a = await tts(t, { emotion: gen.emotion || tuning.emotion });
+      const c: Clip = { id: uid(), cat, text: t, audio: a, speed: gen.speed, emotion: gen.emotion || tuning.emotion };
+      try { saveClips([c, ...clips]); } catch { setClips([c, ...clips]); toast("المساحة ممتلئة — الصوت محفوظ لهذي الجلسة"); }
+      const el = new Audio(a); el.playbackRate = gen.speed; void el.play();
+      setGen({ ...gen, text: "" }); toast.success("🪄 انولّد وانحفظ في بنكك");
+    } catch (e) { toast.error((e as Error).message); } finally { setGenBusy(false); }
+  };
+
   const startRec = async () => {
     try {
       const s = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -165,15 +182,30 @@ export function LiveCallPlus(p: {
             <div className="mb-3 flex flex-wrap gap-1">
               {CATS.map(([k, l]) => <Button key={k} size="sm" variant={cat === k ? "default" : "outline"} onClick={() => setCat(k)}>{l}</Button>)}
             </div>
+            <div className="mb-3 space-y-2 rounded-xl bg-secondary p-3">
+              <p className="text-sm font-medium">🪄 توليد وحفظ مسبق ({CATS.find(([k]) => k === cat)?.[1]})</p>
+              <Input value={gen.text} onChange={(e) => setGen({ ...gen, text: e.target.value })} placeholder="اكتب العبارة…" />
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <select value={gen.emotion} onChange={(e) => setGen({ ...gen, emotion: e.target.value })} className="rounded-md border bg-background px-2 py-1" aria-label="النبرة">
+                  {EMOTIONS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                </select>
+                <label className="flex flex-1 items-center gap-1">السرعة {gen.speed.toFixed(2)}x
+                  <input type="range" min={0.7} max={1.3} step={0.05} value={gen.speed} className="flex-1" onChange={(e) => setGen({ ...gen, speed: +e.target.value })} />
+                </label>
+              </div>
+              <Button disabled={genBusy} onClick={generateSave}>{genBusy ? "…يتولد" : "🪄 ولّد واحفظ في بنكي"}</Button>
+            </div>
             <div className="space-y-2">
               {clips.filter((c) => c.cat === cat).map((c) => (
                 <div key={c.id} className="rounded-xl border bg-background p-3">
                   <p className="text-sm">{c.text}</p>
                   <div className="mt-2 flex flex-wrap gap-1">
-                    <Button size="sm" variant="secondary" disabled={busyId === c.id} onClick={() => preview(c)}>{busyId === c.id ? "…" : "🎧 معاينة"}</Button>
-                    <Button size="sm" onClick={() => sendClip(c)}>{p.live ? "📢 انطق في المكالمة" : "📢 أرسل فويس واتساب"}</Button>
-                    <Button size="sm" variant="outline" onClick={() => setEditing(editing === c.id ? null : c.id)}>⚙️ تعديل ووزن</Button>
-                    <Button size="sm" variant="outline" onClick={() => saveClips(clips.filter((x) => x.id !== c.id))}>🗑️</Button>
+                    <Button size="sm" variant="secondary" disabled={busyId === c.id} onClick={() => preview(c)}>{busyId === c.id ? "…" : "▶️ استماع فوري"}</Button>
+                    <Button size="sm" disabled={!p.live || busyId === c.id} onClick={() => launch(c)}>🗣️ أطلق في المكالمة</Button>
+                    <Button size="sm" disabled={busyId === c.id} onClick={() => pttClip(c)}>🚀 أرسل كـ PTT</Button>
+                    <Button size="sm" variant="outline" onClick={() => setEditing(editing === c.id ? null : c.id)}>✏️ تعديل</Button>
+                    <Button size="sm" variant="outline" onClick={() => saveClips(clips.filter((x) => x.id !== c.id))}>🗑️ حذف</Button>
+                    {c.audio && <span className="self-center text-[10px] text-muted-foreground">💾 محفوظ</span>}
                   </div>
                   {editing === c.id && (
                     <div className="mt-2 space-y-2 rounded-lg bg-secondary p-2 text-xs">
