@@ -2,14 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useSpeaker } from "@/components/VoiceStudio";
+import { useServerFn } from "@tanstack/react-start";
+import { polishSpeech } from "@/lib/ai.functions";
 
 /* نظام الاتصال الهجين — إضافة فقط فوق لوحة المكالمة الحية */
 
 const MODES = [
-  ["line", "🔌 مكالمة سلكية بدون صدى"],
-  ["ptt", "🎙️ مغير الصوت ← فويس"],
-  ["auto", "🤖 الطيار الآلي الصوتي"],
-  ["copilot", "🚀 التدخل السريع"],
+  ["line", "🔌 سلك AUX/Zero-Echo"],
+  ["ptt", "🚀 محادثة فويس PTT مباشرة"],
+  ["auto", "🤖 طيار آلي 100%"],
+  ["copilot", "🧑‍💼 مساعد مشترك"],
 ] as const;
 const DIALECTS = [["najdi", "سعودية نجدية"], ["hijazi", "سعودية حجازية"], ["sanaani", "يمنية صنعانية"], ["adeni", "يمنية عدنية"], ["gulf", "خليجية عامة"]] as const;
 const MOODS = [["friendly", "ودودة 😊"], ["happy", "فرحانة 🎉"], ["confident", "رسمية وواثقة 💼"], ["calm", "حنونة وصبورة 🤝"]] as const;
@@ -33,7 +35,12 @@ export function LiveHybrid(p: {
   live: boolean; speaking: boolean; customer: string; log: { who: "c" | "a"; t: string }[];
   say: (t: string) => void; stopAll: () => void;
   send: (a: { text: string; voice: boolean; audio?: string }) => Promise<boolean>;
+  persona?: string; onMode?: (m: string) => void;
 }) {
+  const polish = useServerFn(polishSpeech);
+  const [changer, setChanger] = useState(false);
+  const [target, setTarget] = useState<"call" | "wa">("wa");
+  const [polished, setPolished] = useState("");
   const tts = useSpeaker();
   const [mode, setMode] = useState<string>("copilot");
   const [dialect, setDialect] = useState("najdi");
@@ -69,6 +76,16 @@ export function LiveHybrid(p: {
     try { await p.send({ text, voice: true, audio: await voiceOf(text) }); } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
   };
 
+  // مغيّر الصوت: تفريغ ← تنقية وصياغة بأسلوب الموظفة ← نطق في المكالمة أو فويس واتساب
+  const changeVoice = async (raw: string) => {
+    setBusy(true);
+    try {
+      const { text } = await polish({ data: { text: raw, dialect: DIALECTS.find(([k]) => k === dialect)?.[1] ?? "", persona: p.persona ?? "" } });
+      setPolished(text);
+      if (target === "call") { p.say(text); } else { await p.send({ text, voice: true, audio: await voiceOf(text) }); }
+    } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
+  };
+
   const startPtt = () => {
     const W = window as unknown as { SpeechRecognition?: new () => SR; webkitSpeechRecognition?: new () => SR };
     const C = W.SpeechRecognition ?? W.webkitSpeechRecognition;
@@ -80,7 +97,7 @@ export function LiveHybrid(p: {
       for (let i = 0; i < e.results.length; i++) t += e.results[i]?.[0]?.transcript ?? "";
       final = t; setHeard(t);
     };
-    r.onend = () => { setRec(false); if (final.trim()) void fire(final.trim()); };
+    r.onend = () => { setRec(false); if (final.trim()) void (changer ? changeVoice(final.trim()) : fire(final.trim())); };
     srRef.current = r; setHeard(""); setRec(true); r.start();
   };
 
@@ -104,7 +121,7 @@ export function LiveHybrid(p: {
           <Button variant="destructive" onClick={() => { p.stopAll(); srRef.current?.stop(); toast("⏹️ انكتم فوراً"); }}>⏹️ كتم فوري</Button>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          {MODES.map(([k, l]) => <Button key={k} size="sm" variant={mode === k ? "default" : "outline"} onClick={() => { setMode(k); persist({ mode: k }); }}>{l}</Button>)}
+          {MODES.map(([k, l]) => <Button key={k} size="sm" variant={mode === k ? "default" : "outline"} onClick={() => { setMode(k); persist({ mode: k }); p.onMode?.(k); }}>{l}</Button>)}
         </div>
 
         {mode === "line" && (
@@ -127,7 +144,7 @@ export function LiveHybrid(p: {
         {mode === "ptt" && (
           <div className="mt-3 text-sm">
             <p>تكلم بصوتك، والموظفة تعيد جملتك بصوتها وترسلها للزبون فويس (يظهر عنده «يسجل مقطعاً صوتياً»).</p>
-            <Button className="mt-2" variant={rec ? "destructive" : "default"} disabled={busy} onClick={() => (rec ? srRef.current?.stop() : startPtt())}>
+            <Button className="mt-2" variant={rec ? "destructive" : "default"} disabled={busy} onClick={() => { if (rec) { srRef.current?.stop(); return; } setChanger(false); startPtt(); }}>
               {rec ? "⏹️ خلصت — أرسل" : busy ? "…جاري الإرسال" : "🎙️ اضغط وتكلم"}
             </Button>
             {heard && <p className="mt-2 rounded-xl bg-secondary p-2">«{heard}»</p>}
@@ -148,6 +165,21 @@ export function LiveHybrid(p: {
             <p className="text-xs text-muted-foreground">{p.live ? "المكالمة شغالة: ينطقها في المكالمة." : "ينرسل للزبون فويس على الواتساب."}</p>
           </div>
         )}
+      </section>
+
+      <section className={box}>
+        <h3 className="font-display mb-2 text-lg">🎙️ مغيّر الصوت اللحظي المباشر</h3>
+        <p className="text-sm text-muted-foreground">تكلّم بصوتك ولهجتك، والموظفة تفرّغ كلامك وتنقّيه وتصيغه بأسلوبها ولهجتها، وتنطقه بصوتها.</p>
+        <div className="mt-2 flex gap-2">
+          <Button size="sm" variant={target === "call" ? "default" : "outline"} onClick={() => setTarget("call")}>🗣️ ابثّه في المكالمة</Button>
+          <Button size="sm" variant={target === "wa" ? "default" : "outline"} onClick={() => setTarget("wa")}>🚀 أرسله فويس واتساب</Button>
+        </div>
+        <Button className="mt-3 w-full" variant={rec && changer ? "destructive" : "default"} disabled={busy}
+          onClick={() => { if (rec) { srRef.current?.stop(); return; } setChanger(true); setPolished(""); startPtt(); }}>
+          {rec && changer ? "⏹️ خلصت — بدّل صوتي" : busy ? "…تصيغ وتنطق" : "🎙️ تكلّم وأنا أبدّل صوتك"}
+        </Button>
+        {heard && changer && <p className="mt-2 rounded-xl bg-secondary p-2 text-sm">قلت: «{heard}»</p>}
+        {polished && <p className="mt-2 rounded-xl bg-primary/10 p-2 text-sm">👩‍💼 الموظفة: «{polished}»</p>}
       </section>
 
       <section className={box}>

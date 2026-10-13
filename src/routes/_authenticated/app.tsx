@@ -755,7 +755,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
             <Button size="sm" variant="secondary" onClick={() => setMuted((m) => !m)} disabled={!live}>{muted ? "🔇 شغّل المايك" : "🎙️ اكتم المايك"}</Button>
             <Button size="sm" variant="secondary" onClick={() => { setLoud((v) => !v); if (audioRef.current) audioRef.current.volume = loud ? 0.3 : 1; }}>{loud ? "🔊 مكبر" : "🔉 خافض"}</Button>
             <Button size="sm" className={autopilot ? "bg-gold text-accent-foreground hover:opacity-90" : ""} variant={autopilot ? "default" : "secondary"}
-              onClick={() => { const v = !autopilot; setAutopilot(v); localStorage.setItem("live_autopilot", v ? "1" : "0"); }}>
+              onClick={() => saveCfg({ ...cfg, fast: !autopilot })}>
               {autopilot ? "🤖 طيار آلي 100%" : "🧑‍💼 إشراف يدوي"}
             </Button>
           </div>
