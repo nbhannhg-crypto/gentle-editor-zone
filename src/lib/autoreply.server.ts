@@ -157,7 +157,7 @@ export async function fishTts(text: string): Promise<string> {
 export async function typingDelay(number: string, seconds: number, instance = "", presence: "composing" | "recording" = "composing") {
   const sec = Math.min(Math.max(Math.round(seconds || 0), 0), 25);
   if (!sec) return;
-  const url = (([process.env["EVO2_API_URL"], process.env["EVOLUTION_API_URL"], process.env["EVO_LIVE_URL"]].find((u) => u && !/^https?:\/\/\d+\.\d+\.\d+\.\d+/.test(u)) || process.env["EVO_LIVE_URL"]) || "").replace(/\/$/, "");
+  const url = (((process.env["EVO_LIVE_URL"] || process.env["EVO2_API_URL"] || process.env["EVOLUTION_API_URL"])) || "").replace(/\/$/, "");
   const key = process.env["EVO_LIVE_KEY"] || process.env["EVO2_API_KEY"] || process.env["EVOLUTION_API_KEY"] || "";
   const raw = String(number);
   // Evolution v2: real "typing…" / "recording…" shown on the customer's phone
@@ -174,7 +174,7 @@ export async function typingDelay(number: string, seconds: number, instance = ""
 }
 
 export async function evoSend(path: string, body: unknown) {
-  const url = ([process.env["EVO2_API_URL"], process.env["EVOLUTION_API_URL"], process.env["EVO_LIVE_URL"]].find((u) => u && !/^https?:\/\/\d+\.\d+\.\d+\.\d+/.test(u)) || process.env["EVO_LIVE_URL"])!.replace(/\/$/, "");
+  const url = ((process.env["EVO_LIVE_URL"] || process.env["EVO2_API_URL"] || process.env["EVOLUTION_API_URL"]))!.replace(/\/$/, "");
   const key = (process.env["EVO_LIVE_KEY"] || process.env["EVO2_API_KEY"] || process.env["EVOLUTION_API_KEY"])!;
   // WAHA server support
   const probe = await fetch(`${url}/api/sessions`, { headers: { "X-Api-Key": key } }).catch(() => null);

@@ -10,6 +10,18 @@ async function myStore(ctx: Ctx): Promise<string> {
   return data.id as string;
 }
 
+async function isQueen(ctx: Ctx): Promise<boolean> {
+  const { data } = await ctx.supabase.rpc("has_role", { _user_id: ctx.userId, _role: "admin" });
+  return !!data;
+}
+
+/** Merchant may touch only their own numbers; the queen (admin) may manage every merchant. */
+async function canManage(ctx: Ctx, name: string, storeId?: string): Promise<boolean> {
+  if (await isQueen(ctx)) return true;
+  const sid = storeId ?? (await myStore(ctx).catch(() => ""));
+  return !!sid && name.startsWith(prefix(sid));
+}
+
 let wahaCache: boolean | null = null;
 async function isWaha(url: string, key: string): Promise<boolean> {
   if (wahaCache !== null) return wahaCache;
@@ -25,7 +37,7 @@ const wahaState = (s: string) => (s === "WORKING" ? "open" : s === "SCAN_QR_CODE
 
 function evo() {
   // New multi-session Evolution v2 server first; old server stays as fallback
-  const rawUrl = [process.env["EVO2_API_URL"], process.env["EVOLUTION_API_URL"], process.env["EVO_LIVE_URL"]].find((u) => u && !/^https?:\/\/\d+\.\d+\.\d+\.\d+/.test(u)) || process.env["EVO_LIVE_URL"];
+  const rawUrl = (process.env["EVO_LIVE_URL"] || process.env["EVO2_API_URL"] || process.env["EVOLUTION_API_URL"]);
   const key = process.env["EVO_LIVE_KEY"] || process.env["EVO2_API_KEY"] || process.env["EVOLUTION_API_KEY"];
   if (!rawUrl || !key) throw new Error("خدمة واتساب غير مربوطة");
   const url = rawUrl.replace(/\/$/, "");
@@ -207,12 +219,14 @@ export const studioWrite = createServerFn({ method: "POST" })
 export const waList = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const p = prefix(await myStore(context as Ctx));
+    const queen = await isQueen(context as Ctx);
+    const sid = await myStore(context as Ctx).catch((err) => { if (queen) return ""; throw err; });
+    const p = sid ? prefix(sid) : "";
     const e = evo();
     const all = (await e.call("/instance/fetchInstances")) as any[];
     const mine = (Array.isArray(all) ? all : [])
-      .map((i) => (i?.name === WAHA_SESSION ? { ...i, name: p + "واتساب" } : i))
-      .filter((i) => typeof i.name === "string" && i.name.startsWith(p));
+      .map((i) => (i?.name === WAHA_SESSION && p ? { ...i, name: p + "واتساب" } : i))
+      .filter((i) => typeof i.name === "string" && (queen || (p && i.name.startsWith(p))));
     return Promise.all(mine.map(async (i) => {
       let status = (i.connectionStatus as string) || "close";
       try {
@@ -221,7 +235,7 @@ export const waList = createServerFn({ method: "POST" })
       } catch { /* keep */ }
       return {
         name: i.name as string,
-        label: (i.name as string).slice(p.length),
+        label: p && (i.name as string).startsWith(p) ? (i.name as string).slice(p.length) : `👑 ${i.name as string}`,
         status,
         number: status === "open" ? (((i.ownerJid as string) || "").split("@")[0] ?? "") : "",
       };
@@ -253,7 +267,7 @@ export const waQr = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ name: z.string().max(80), number: z.string().regex(/^\d{8,15}$/).optional() }).parse(d))
   .handler(async ({ data, context }) => {
-    if (!data.name.startsWith(prefix(await myStore(context as Ctx)))) throw new Error("غير مسموح");
+    if (!(await canManage(context as Ctx, data.name))) throw new Error("غير مسموح");
     const path = `/instance/connect/${encodeURIComponent(data.name)}${data.number ? `?number=${data.number}` : ""}`;
     let r = await evo().call(path);
     const done = () => (data.number ? r?.pairingCode : r?.base64);
@@ -268,7 +282,7 @@ export const waDelete = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ name: z.string().max(80) }).parse(d))
   .handler(async ({ data, context }) => {
-    if (!data.name.startsWith(prefix(await myStore(context as Ctx)))) throw new Error("غير مسموح");
+    if (!(await canManage(context as Ctx, data.name))) throw new Error("غير مسموح");
     await evo().call(`/instance/delete/${encodeURIComponent(data.name)}`, "DELETE");
     return { ok: true };
   });
@@ -278,7 +292,7 @@ export const waHardReset = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ name: z.string().max(80) }).parse(d))
   .handler(async ({ data, context }) => {
-    if (!data.name.startsWith(prefix(await myStore(context as Ctx)))) throw new Error("غير مسموح");
+    if (!(await canManage(context as Ctx, data.name))) throw new Error("غير مسموح");
     const e = evo(), n = encodeURIComponent(data.name);
     try { await e.call(`/instance/logout/${n}`, "DELETE"); } catch { /* ignore */ }
     try { await e.call(`/instance/delete/${n}`, "DELETE"); } catch { /* ignore */ }
@@ -313,7 +327,7 @@ export const waSendVoice = createServerFn({ method: "POST" })
     audioId: z.string().uuid(),
   }).parse(d))
   .handler(async ({ data, context }) => {
-    if (!data.name.startsWith(prefix(await myStore(context as Ctx)))) throw new Error("غير مسموح");
+    if (!(await canManage(context as Ctx, data.name))) throw new Error("غير مسموح");
     const { b64 } = await audioBase64(context as Ctx, data.audioId);
     await evo().call(`/message/sendWhatsAppAudio/${encodeURIComponent(data.name)}`, "POST", {
       number: data.number.replace(/^\+/, ""), audio: b64, encoding: true, ptt: true,
@@ -393,7 +407,7 @@ export const campaignSend = createServerFn({ method: "POST" })
   }).parse(d))
   .handler(async ({ data, context }) => {
     const storeId = await myStore(context as Ctx);
-    if (!data.name.startsWith(prefix(storeId))) throw new Error("غير مسموح");
+    if (!(await canManage(context as Ctx, data.name, storeId))) throw new Error("غير مسموح");
     const cost = data.numbers.length;
     const { error: spendErr } = await context.supabase.rpc("spend_points", { _store: storeId, _amount: cost, _reason: "حملة واتساب" });
     if (spendErr) throw new Error(spendErr.message.includes("insufficient") ? "رصيدك ما يكفي — اشحن من المحفظة" : spendErr.message);
@@ -424,7 +438,7 @@ export const waAutoSet = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ name: z.string().max(80), enabled: z.boolean(), voice: z.boolean(), source: z.enum(["smart", "rules", "ai", "library"]).default("smart"), origin: z.string().max(200) }).parse(d))
   .handler(async ({ data, context }) => {
     const storeId = await myStore(context as Ctx);
-    if (!data.name.startsWith(prefix(storeId))) throw new Error("غير مسموح");
+    if (!(await canManage(context as Ctx, data.name, storeId))) throw new Error("غير مسموح");
     const { error } = await context.supabase.from("wa_autoreply").upsert({ instance: data.name, store_id: storeId, enabled: data.enabled, voice: data.voice, source: data.source });
     if (error) throw new Error(error.message);
     const url = `${hookBase(data.origin)}/api/public/evolution${process.env["EVO_WEBHOOK_SECRET"] ? `?t=${process.env["EVO_WEBHOOK_SECRET"]}` : ""}`;
@@ -460,7 +474,7 @@ export const waExtraSet = createServerFn({ method: "POST" })
   }).parse(d))
   .handler(async ({ data, context }) => {
     const storeId = await myStore(context as Ctx);
-    if (!data.name.startsWith(prefix(storeId))) throw new Error("غير مسموح");
+    if (!(await canManage(context as Ctx, data.name, storeId))) throw new Error("غير مسموح");
     const { name, ...patch } = data;
     const { error } = await context.supabase.from("wa_autoreply").update(patch as any).eq("instance", name);
     if (error) throw new Error("الحفظ ما زبط — الإعداد الجديد يحتاج تحديث قاعدة البيانات أولاً");

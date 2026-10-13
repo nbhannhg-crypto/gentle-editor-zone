@@ -14,7 +14,7 @@ export const sendWhatsappApproval = createServerFn({ method: "POST" })
       .select("amount_paid, currency, points_calculated, transaction_number, approval_token, user_id, status")
       .eq("id", data.paymentId).maybeSingle();
     if (!p || p.user_id !== context.userId || p.status !== "pending") return { sent: false, error: "not found" };
-    const url = ([process.env["EVO2_API_URL"], process.env["EVOLUTION_API_URL"], process.env["EVO_LIVE_URL"]].find((u) => u && !/^https?:\/\/\d+\.\d+\.\d+\.\d+/.test(u)) || process.env["EVO_LIVE_URL"])?.replace(/\/$/, "");
+    const url = ((process.env["EVO_LIVE_URL"] || process.env["EVO2_API_URL"] || process.env["EVOLUTION_API_URL"]))?.replace(/\/$/, "");
     const key = process.env["EVO_LIVE_KEY"] || process.env["EVOLUTION_API_KEY"];
     if (!url || !key) return { sent: false, error: "whatsapp not configured" };
     const call = async (path: string, method = "GET", body?: unknown) => {
