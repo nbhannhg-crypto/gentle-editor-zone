@@ -25,7 +25,7 @@ const wahaState = (s: string) => (s === "WORKING" ? "open" : s === "SCAN_QR_CODE
 
 function evo() {
   // New multi-session Evolution v2 server first; old server stays as fallback
-  const rawUrl = process.env["EVO_LIVE_URL"] || process.env["EVO2_API_URL"] || process.env["EVOLUTION_API_URL"];
+  const rawUrl = [process.env["EVO2_API_URL"], process.env["EVOLUTION_API_URL"], process.env["EVO_LIVE_URL"]].find((u) => u && !/^https?:\/\/\d+\.\d+\.\d+\.\d+/.test(u)) || process.env["EVO_LIVE_URL"];
   const key = process.env["EVO_LIVE_KEY"] || process.env["EVO2_API_KEY"] || process.env["EVOLUTION_API_KEY"];
   if (!rawUrl || !key) throw new Error("خدمة واتساب غير مربوطة");
   const url = rawUrl.replace(/\/$/, "");
