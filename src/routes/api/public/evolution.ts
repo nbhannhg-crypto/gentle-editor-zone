@@ -135,7 +135,7 @@ export const Route = createFileRoute("/api/public/evolution")({
               return ok();
             }
             if (reply) {
-              await typingDelay(number, ctrlRow ? ctrl.delay : 3);
+              await typingDelay(number, ctrlRow ? ctrl.delay : 3, instance, ctrl.voice ? "recording" : "composing");
               if (ctrl.voice) await evoSend(`/message/sendWhatsAppAudio/${encodeURIComponent(instance)}`, { number, audio: await fishTts(reply), encoding: true, ptt: true }).catch(() => evoSend(`/message/sendText/${encodeURIComponent(instance)}`, { number, text: reply }));
               else await evoSend(`/message/sendText/${encodeURIComponent(instance)}`, { number, text: reply });
             }
@@ -241,7 +241,7 @@ export const Route = createFileRoute("/api/public/evolution")({
             reply = await aiReplyWith(text, ctx, cfg);
           }
           if (!reply) throw new Error("empty reply");
-          await typingDelay(number, replyDelay(cfg.system_prompt));
+          await typingDelay(number, replyDelay(cfg.system_prompt), instance, useVoice ? "recording" : "composing");
           const path = `/message/${useVoice ? "sendWhatsAppAudio" : "sendText"}/${encodeURIComponent(instance)}`;
           if (useVoice) await evoSend(path, { number, audio: libAudio ?? (await fishTts(reply)), encoding: true, ptt: true });
           else await evoSend(path, { number, text: reply });

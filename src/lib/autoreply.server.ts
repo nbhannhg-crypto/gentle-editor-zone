@@ -154,12 +154,18 @@ export async function fishTts(text: string): Promise<string> {
 }
 
 /** Waits the merchant-chosen delay while showing "typing…" (best effort, never blocks the reply). */
-export async function typingDelay(number: string, seconds: number) {
+export async function typingDelay(number: string, seconds: number, instance = "", presence: "composing" | "recording" = "composing") {
   const sec = Math.min(Math.max(Math.round(seconds || 0), 0), 25);
   if (!sec) return;
   const url = (process.env["EVO2_API_URL"] || process.env["EVOLUTION_API_URL"] || "").replace(/\/$/, "");
   const key = process.env["EVO2_API_KEY"] || process.env["EVOLUTION_API_KEY"] || "";
   const raw = String(number);
+  // Evolution v2: real "typing…" / "recording…" shown on the customer's phone
+  if (url && instance) {
+    const num = raw.replace(/@.*$/, "").replace(/\D/g, "") || raw;
+    await fetch(`${url}/chat/sendPresence/${encodeURIComponent(instance)}`, { method: "POST", headers: { apikey: key, "Content-Type": "application/json" }, body: JSON.stringify({ number: num, presence, delay: sec * 1000 }) }).catch(() => null);
+    return;
+  }
   const chatId = /@(lid|c\.us)$/.test(raw) ? raw : `${raw.replace(/@.*$/, "").replace(/\D/g, "")}@c.us`;
   const call = (p: string) => fetch(`${url}/api/${p}`, { method: "POST", headers: { "X-Api-Key": key, "Content-Type": "application/json" }, body: JSON.stringify({ session: "default", chatId }) }).catch(() => null);
   if (url) await call("startTyping");

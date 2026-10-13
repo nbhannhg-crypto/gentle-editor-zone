@@ -99,7 +99,7 @@ export function WhatsApp({ was, reload }: { was: Wa[]; reload: () => Promise<voi
   return (
     <section className="space-y-4">
       <div className={`rounded-xl border p-3 text-sm font-semibold ${connected.length ? "border-primary text-primary" : "text-muted-foreground"}`}>
-        {connected.length ? connected.map((w) => `متصل ✅ ${w.label.replace(/_/g, " ")}`).join(" • ") : "⚪ واتساب غير مربوط بعد"}
+        {connected.length ? connected.map((w) => `🟢 متصل ✓✓ ${w.label.replace(/_/g, " ")}`).join(" • ") : "⚪ واتساب غير مربوط بعد"}
       </div>
       <div className="rounded-2xl border bg-card p-5">
         <h2 className="mb-2 font-semibold">➕ أضف حساب واتساب (تقدر تضيف أكثر من حساب)</h2>
@@ -141,7 +141,7 @@ export function WhatsApp({ was, reload }: { was: Wa[]; reload: () => Promise<voi
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <b>{w.label}</b>{" "}
-              <span className="text-xs">حالة الجلسة الحقيقية: {w.status === "open" ? "🟢 open" : w.status === "connecting" ? "🟡 connecting" : "🔴 close"}</span>
+              <span className="text-xs">حالة الجلسة الحقيقية: {w.status === "open" ? <b className="text-primary">🟢 متصل ✓✓</b> : w.status === "connecting" ? "🟡 جاري الربط" : "🔴 غير متصل"}</span>
               <div dir="rtl" className="text-xs text-muted-foreground">الرقم المربوط فعلياً: <span dir="ltr">{w.number ? `+${w.number}` : "—"}</span></div>
             </div>
             <div className="flex flex-wrap gap-2">
