@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CTRL_PREFIX, defaultCtrl, digits, parseCtrl, type WaCtrl, type WaLog } from "@/lib/wa-controls";
 import { guessCategory } from "@/lib/rules";
-import { waCtrlSend, waOutreach } from "@/lib/wa-ctrl.functions";
+import { waCtrlSend, waOutreach, waVoicePreview } from "@/lib/wa-ctrl.functions";
 import { WaExtras } from "@/components/WaExtras";
 
 type Brain = { id: string; name: string };
@@ -33,6 +33,8 @@ export function WaControls({ instance, myNumber = "" }: { instance: string; myNu
   const [busy, setBusy] = useState(false);
   const [out, setOut] = useState({ to: "", goal: "", style: "welcome" as "welcome" | "story" | "sales", text: "" });
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const preview = useServerFn(waVoicePreview);
+  const heard = useRef<{ text: string; audio: string } | null>(null);
 
   const load = async () => {
     const { data } = await supabase.from("training_rules").select("id, response_text").eq("trigger_text", key).limit(1).maybeSingle();
@@ -84,11 +86,23 @@ export function WaControls({ instance, myNumber = "" }: { instance: string; myNu
     update({ misses: c.misses.filter((m) => !(m.t === teach.t && m.n === teach.n)) }, true);
     setTeach(null); setAns("");
   };
+  const listen = async () => {
+    if (!draft.trim()) return;
+    setBusy(true);
+    try {
+      const audio = heard.current?.text === draft ? heard.current.audio : (await preview({ data: { text: draft } })).audio;
+      heard.current = { text: draft, audio };
+      await new Audio(audio).play();
+    } catch (e) { toast.error((e as Error).message); }
+    setBusy(false);
+  };
   const doSend = async (to: string, text: string, voice = false, fromPending?: { n: string; t: string }) => {
     if (!text.trim()) return;
     setBusy(true);
     try {
-      await send({ data: { instance, to, text, voice } });
+      // Voice: send the exact clip you listened to (no re-generation)
+      const audio = voice && heard.current?.text === text ? heard.current.audio : undefined;
+      await send({ data: { instance, to, text, voice, audio } });
       toast.success(voice ? "🎙️ انرسل كفويس" : "🚀 انرسل");
       const log: WaLog[] = [...c.log, { n: to, t: "", r: text, at: Date.now(), me: true }].slice(-300);
       update({ log, pending: fromPending ? c.pending.filter((p) => !(p.n === fromPending.n && p.t === fromPending.t)) : c.pending }, true);
@@ -274,6 +288,7 @@ export function WaControls({ instance, myNumber = "" }: { instance: string; myNu
           <div className="flex flex-wrap gap-1.5">
             <Button size="sm" disabled={busy || !draft.trim()} onClick={() => chat && doSend(chat, draft, false, c.pending.find((p) => p.n === chat))}>🚀 إرسال</Button>
             <Button size="sm" variant="outline" disabled={busy || !draft.trim()} onClick={() => chat && doSend(chat, draft, true)}>🎙️ كفويس</Button>
+            <Button size="sm" variant="ghost" className="px-2" disabled={busy || !draft.trim()} onClick={listen} title="استمع قبل الإرسال">🎧 استمع</Button>
             <Button size="sm" variant="outline" onClick={() => chat && togglePause(chat)}>{chat && isPaused(chat) ? "▶️ رجّع الرد الآلي" : "⏸️ إيقاف مؤقت عنه"}</Button>
           </div>
           <p className="text-[11px] text-muted-foreground">📸 للصور والفيديو: الصق رابط الملف من المكتبة في الرد.</p>
