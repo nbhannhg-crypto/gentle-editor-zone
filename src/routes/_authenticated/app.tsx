@@ -697,6 +697,48 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
             <Button onClick={sendCustom}>قوليها</Button>
           </div>
         </Card>
+
+        <Card title="🎛️ بنك المقاطع الجاهزة — اضغط تنطق فوراً">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {board.map((s, i) => (
+              <div key={i} className="group relative">
+                <Button variant="secondary" className="h-auto w-full whitespace-normal py-2 text-xs" disabled={speaking} onClick={() => say(s)}>{s}</Button>
+                <button aria-label="احذف المقطع" onClick={() => saveBoard(board.filter((_, j) => j !== i))} className="absolute -left-1 -top-1 hidden h-5 w-5 rounded-full bg-destructive text-[10px] text-destructive-foreground group-hover:block">×</button>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 flex gap-2">
+            <Input value={newClip} onChange={(e) => setNewClip(e.target.value)} placeholder="أضف مقطع جديد…" onKeyDown={(e) => { if (e.key === "Enter" && newClip.trim()) { saveBoard([...board, newClip.trim()]); setNewClip(""); } }} />
+            <Button variant="outline" onClick={() => { if (newClip.trim()) { saveBoard([...board, newClip.trim()]); setNewClip(""); } }}>➕ أضف</Button>
+          </div>
+          <button onClick={() => saveBoard(DEFAULT_BOARD)} className="mt-2 text-xs text-muted-foreground underline">رجّع المقاطع الأساسية</button>
+        </Card>
+
+        <Card title="👁️ عين الصفقة اللحظية">
+          {deal ? (
+            <div className="space-y-2">
+              <p className="text-lg font-medium">{({ sold: "🏆 تم البيع", hot: "🔥 مهتم جداً", cold: "🤔 متردد", lost: "🥀 غير مهتم" } as Record<string, string>)[deal.verdict] ?? deal.verdict} — {deal.score}%</p>
+              <Progress value={deal.score} />
+              <p className="text-sm text-muted-foreground">{deal.summary}</p>
+              {deal.tips?.map((t, i) => <p key={i} className="rounded-lg bg-secondary px-3 py-2 text-sm">💡 {t}</p>)}
+            </div>
+          ) : <p className="text-sm text-muted-foreground">تتحدث تلقائياً كل 30 ثانية أثناء المكالمة.</p>}
+          <Button className="mt-3" variant="outline" onClick={runDealEye} disabled={analyzing}>{analyzing ? "تحلل…" : "حلّل الحين"}</Button>
+        </Card>
+
+        <Card title="📲 أرسل للزبون واتساب أثناء المكالمة">
+          <label className="mb-1 block text-xs text-muted-foreground">أرسل من رقم:</label>
+          <select value={waFrom} onChange={(e) => { setWaFrom(e.target.value); localStorage.setItem("live_wa_from", e.target.value); }} className="mb-2 w-full rounded-md border bg-background px-2 py-2 text-sm" aria-label="رقم الإرسال">
+            <option value="">تلقائي (أول رقم متصل)</option>
+            {accounts.map((a) => <option key={a.name} value={a.name}>{a.status === "open" ? "🟢" : "🔴"} {a.label || a.name}{a.number ? ` — ${a.number}` : ""}</option>)}
+          </select>
+          <Input value={waTo} onChange={(e) => setWaTo(e.target.value)} placeholder="رقم الزبون مثل 9665xxxxxxxx" dir="ltr" className="mb-2" />
+          <Textarea value={waText} onChange={(e) => setWaText(e.target.value)} rows={2} placeholder="الرسالة (فاضي = يرسل رد الموظفة الحالي)…" />
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button onClick={() => dispatchWa(false)}>💬 أرسل نص</Button>
+            <Button variant="secondary" onClick={() => dispatchWa(true)}>🎙️ أرسل كفويس</Button>
+          </div>
+        </Card>
       </div>
 
       <Card title="📜 سجل المكالمة">
