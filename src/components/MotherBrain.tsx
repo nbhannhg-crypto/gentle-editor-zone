@@ -22,6 +22,7 @@ type Row = { id: string; tag: string; trigger_text: string; reply_text: string }
 export function MotherBrain({ storeId }: { storeId?: string | undefined }) {
   const [brains, setBrains] = useState<B[]>([]);
   const [view, setView] = useState<"brains" | "library">("brains");
+  const [libTag, setLibTag] = useState("");
   const load = async () => {
     if (!storeId) return;
     const { data } = await supabase.from("brains").select("*").eq("store_id", storeId).order("created_at");
@@ -63,11 +64,11 @@ export function MotherBrain({ storeId }: { storeId?: string | undefined }) {
         <>
           <AddBrain onAdd={addBrain} existing={brains.filter((b) => !b.in_mother)} onAttach={(id) => inner.length >= MAX_BRAINS ? toast.error("الحد 10 عقول") : update(id, { in_mother: true })} />
           <div className="grid gap-3 md:grid-cols-2">
-            {inner.map((b) => <BrainCard key={b.id} b={b} onChange={(p) => update(b.id, p)} />)}
+            {inner.map((b) => <BrainCard key={b.id} b={b} onChange={(p) => update(b.id, p)} onOpenLib={(t) => { setLibTag(t); setView("library"); }} />)}
           </div>
           {!inner.length && <p className="rounded-xl bg-secondary p-4 text-center text-sm">ما فيه عقول داخل العقل الأم — أضف أول عقل (مبيعات، ردود، تصميم…)</p>}
         </>
-      ) : <Library storeId={storeId} />}
+      ) : <Library key={libTag} storeId={storeId} initialTag={libTag} />}
     </div>
   );
 }
@@ -91,7 +92,7 @@ function AddBrain({ onAdd, existing, onAttach }: { onAdd: (n: string, e: string)
   );
 }
 
-function BrainCard({ b, onChange }: { b: B; onChange: (p: Partial<B>) => void }) {
+function BrainCard({ b, onChange, onOpenLib }: { b: B; onChange: (p: Partial<B>) => void; onOpenLib: (tag: string) => void }) {
   const chat = useServerFn(brainChat);
   const [q, setQ] = useState(""); const [ans, setAns] = useState(""); const [busy, setBusy] = useState(false);
   const toggle = (s: string) => {
@@ -111,9 +112,13 @@ function BrainCard({ b, onChange }: { b: B; onChange: (p: Partial<B>) => void })
         <h3 className="font-display text-lg text-primary">{b.emoji} {b.name}</h3>
         <button onClick={() => onChange({ in_mother: false })} className="text-xs opacity-60">إخراج</button>
       </div>
-      <label className="block text-xs">📚 المكتبة المربوطة
-        <Input value={b.library_tag} onChange={(e) => onChange({ library_tag: e.target.value.slice(0, 40) })} placeholder="اسم قسم المكتبة (مثلاً: عطور)" />
-      </label>
+      <div className="rounded-xl bg-secondary/60 p-2 text-xs">
+        <div className="flex items-center justify-between gap-2">
+          <span>📁 قسم هذا العقل: <b>{b.library_tag || "ما تحدد"}</b></span>
+          <button onClick={() => { if (!b.library_tag) onChange({ library_tag: b.name.slice(0, 40) }); onOpenLib(b.library_tag || b.name.slice(0, 40)); }} className="rounded-full bg-gold px-3 py-1 font-semibold text-accent-foreground">{b.library_tag ? "📚 افتح ردوده" : "➕ أنشئ قسمه"}</button>
+        </div>
+        <Input className="mt-2" value={b.library_tag} onChange={(e) => onChange({ library_tag: e.target.value.slice(0, 40) })} placeholder="أو اكتب اسم قسم موجود" />
+      </div>
       <label className="block text-xs">🎙️ الصوت
         <select value={b.voice_name} onChange={(e) => onChange({ voice_name: e.target.value })} className="mt-1 w-full rounded-md border bg-background p-2 text-sm">
           {VOICES.map((v) => <option key={v}>{v}</option>)}
@@ -136,10 +141,16 @@ function BrainCard({ b, onChange }: { b: B; onChange: (p: Partial<B>) => void })
   );
 }
 
-function Library({ storeId }: { storeId?: string | undefined }) {
+function Library({ storeId, initialTag = "" }: { storeId?: string | undefined; initialTag?: string }) {
   const [rows, setRows] = useState<Row[]>([]); const [count, setCount] = useState(0);
-  const [search, setSearch] = useState(""); const [tag, setTag] = useState(""); const [tags, setTags] = useState<string[]>([]);
-  const [paste, setPaste] = useState(""); const [newTag, setNewTag] = useState("عام"); const [progress, setProgress] = useState<number | null>(null);
+  const [search, setSearch] = useState(""); const [tag, setTag] = useState(initialTag); const [tags, setTags] = useState<string[]>([]);
+  const [paste, setPaste] = useState(""); const [newTag, setNewTag] = useState(initialTag || "عام"); const [progress, setProgress] = useState<number | null>(null);
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [extra, setExtra] = useState<string[]>([]);
+  const [newSec, setNewSec] = useState("");
+  const secKey = `mb_sections_${storeId ?? ""}`;
+  useEffect(() => { try { setExtra(JSON.parse(localStorage.getItem(secKey) || "[]")); } catch { setExtra([]); } }, [secKey]);
+  const saveExtra = (l: string[]) => { setExtra(l); localStorage.setItem(secKey, JSON.stringify(l)); };
 
   const load = async () => {
     if (!storeId) return;
@@ -150,10 +161,46 @@ function Library({ storeId }: { storeId?: string | undefined }) {
     const { data, count: c } = await q;
     setRows((data ?? []) as Row[]);
     if (!s && !tag) setCount(c ?? 0);
-    const { data: t } = await supabase.from("reply_library").select("tag").eq("store_id", storeId).limit(1000);
-    setTags([...new Set((t ?? []).map((x) => x.tag))]);
+    const { data: t } = await supabase.from("reply_library").select("tag").eq("store_id", storeId).limit(20000);
+    const m: Record<string, number> = {};
+    (t ?? []).forEach((x) => { m[x.tag] = (m[x.tag] ?? 0) + 1; });
+    setCounts(m); setTags(Object.keys(m));
   };
   useEffect(() => { const h = setTimeout(load, 300); return () => clearTimeout(h); }, [storeId, search, tag]);
+
+  const sections = [...new Set([...tags, ...extra])];
+  const pick = (s: string) => { setTag(s); if (s) setNewTag(s); };
+  const addSection = () => {
+    const n = newSec.trim().slice(0, 40); if (!n) return;
+    if (sections.includes(n)) { toast.error("القسم موجود"); return; }
+    saveExtra([...extra, n]); setNewSec(""); pick(n); toast.success(`انضاف قسم «${n}» 📁`);
+  };
+  const renameSection = async (s: string) => {
+    const n = prompt("الاسم الجديد للقسم", s)?.trim().slice(0, 40);
+    if (!n || n === s || !storeId) return;
+    const { error } = await supabase.from("reply_library").update({ tag: n }).eq("store_id", storeId).eq("tag", s);
+    if (error) { toast.error(error.message); return; }
+    saveExtra(extra.map((x) => (x === s ? n : x))); pick(n); toast.success("تغيّر اسم القسم ✏️"); load();
+  };
+  const deleteSection = async (s: string) => {
+    if (!storeId || !confirm(`تحذف قسم «${s}» وكل ردوده (${counts[s] ?? 0})؟`)) return;
+    const { error } = await supabase.from("reply_library").delete().eq("store_id", storeId).eq("tag", s);
+    if (error) { toast.error(error.message); return; }
+    saveExtra(extra.filter((x) => x !== s)); pick(""); toast.success("انحذف القسم 🗑️"); load();
+  };
+  const exportSection = async (s: string) => {
+    if (!storeId) return;
+    const all: { trigger_text: string; reply_text: string }[] = [];
+    for (let from = 0; ; from += 1000) {
+      const { data } = await supabase.from("reply_library").select("trigger_text, reply_text").eq("store_id", storeId).eq("tag", s).range(from, from + 999);
+      all.push(...(data ?? [])); if (!data || data.length < 1000) break;
+    }
+    if (!all.length) { toast.error("القسم فاضي"); return; }
+    const XLSX = await import("xlsx");
+    const ws = XLSX.utils.aoa_to_sheet([["السؤال", "الرد"], ...all.map((r) => [r.trigger_text, r.reply_text])]);
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "ردود");
+    XLSX.writeFile(wb, `${s}-${all.length}.xlsx`);
+  };
 
   const parse = (text: string) => text.split(/\r?\n/).map((l) => {
     const m = l.split(/\s*(?:\||\t|=>|←|:)\s*/);
@@ -174,23 +221,59 @@ function Library({ storeId }: { storeId?: string | undefined }) {
     }
     setProgress(null); setPaste(""); toast.success(`انحفظ ${items.length.toLocaleString()} رد 📚`); load();
   };
-  const onFile = async (f?: File) => { if (f) upload(await f.text()); };
+  const onFile = async (f?: File) => {
+    if (!f) return;
+    if (/\.xlsx?$/i.test(f.name)) {
+      const XLSX = await import("xlsx");
+      const wb = XLSX.read(await f.arrayBuffer());
+      const rows = XLSX.utils.sheet_to_json<string[]>(wb.Sheets[wb.SheetNames[0] ?? ""]!, { header: 1 });
+      upload(rows.filter((r) => r[0] && r[1] && !/^(السؤال|سؤال|question)$/i.test(String(r[0]).trim())).map((r) => `${String(r[0]).replace(/\|/g, " ")} | ${String(r[1])}`).join("\n"));
+    } else upload(await f.text());
+  };
   const del = async (id: string) => { await supabase.from("reply_library").delete().eq("id", id); setRows((p) => p.filter((r) => r.id !== id)); setCount((c) => c - 1); };
 
   return (
     <div className="space-y-4">
       <section className="rounded-2xl border bg-card p-4 shadow-soft space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="font-display text-lg text-primary">📚 مكتبة الردود العملاقة</h3>
+          <h3 className="font-display text-lg text-primary">📁 أقسام العقل الأم ({sections.length} قسم)</h3>
+          <button onClick={() => pick("")} className={`rounded-full px-3 py-1 text-xs ${!tag ? "bg-gold font-semibold text-accent-foreground" : "bg-secondary"}`}>كل الردود</button>
+        </div>
+        <div className="flex gap-2">
+          <Input value={newSec} onChange={(e) => setNewSec(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addSection()} placeholder="اسم القسم: الترحيب، الأسعار والشحن، الاعتراضات…" className="flex-1" />
+          <Button onClick={addSection}>➕ أنشئ قسم</Button>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {sections.map((s) => (
+            <div key={s} className={`rounded-xl border p-3 ${tag === s ? "border-primary bg-secondary" : "bg-background"}`}>
+              <button onClick={() => pick(s)} className="w-full text-right">
+                <b>📁 {s}</b> <span className="text-xs opacity-70">— {(counts[s] ?? 0).toLocaleString()} رد</span>
+              </button>
+              <div className="mt-2 flex flex-wrap gap-1 text-xs">
+                <button onClick={() => pick(s)} className="rounded-full bg-secondary px-2 py-0.5">📚 الردود</button>
+                <button onClick={() => exportSection(s)} className="rounded-full bg-secondary px-2 py-0.5">📤 Excel</button>
+                <button onClick={() => renameSection(s)} className="rounded-full bg-secondary px-2 py-0.5">✏️</button>
+                <button onClick={() => deleteSection(s)} className="rounded-full bg-secondary px-2 py-0.5">🗑️</button>
+              </div>
+            </div>
+          ))}
+          {!sections.length && <p className="text-sm opacity-60">ما فيه أقسام — أنشئ أول قسم.</p>}
+        </div>
+      </section>
+      <section className="rounded-2xl border bg-card p-4 shadow-soft space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="font-display text-lg text-primary">📚 {tag ? `ردود قسم «${tag}»` : "مكتبة الردود العملاقة"}</h3>
           <span className="text-xs">{count.toLocaleString()} / {MAX_LIB.toLocaleString()}</span>
         </div>
         <Progress value={(count / MAX_LIB) * 100} />
         <Textarea value={paste} onChange={(e) => setPaste(e.target.value)} rows={5} placeholder={"كل سطر: السؤال | الرد\nكم السعر | السعر 99 ريال والتوصيل مجاني"} />
         <div className="flex flex-wrap gap-2">
-          <Input value={newTag} onChange={(e) => setNewTag(e.target.value)} placeholder="القسم" className="w-32" />
-          <Button onClick={() => upload(paste)} disabled={progress !== null}>💾 احفظ</Button>
-          <label className="cursor-pointer rounded-md bg-secondary px-3 py-2 text-sm">📂 ملف txt/csv
-            <input type="file" accept=".txt,.csv,.tsv" hidden onChange={(e) => onFile(e.target.files?.[0])} />
+          <select value={newTag} onChange={(e) => setNewTag(e.target.value)} className="rounded-md border bg-background p-2 text-sm">
+            {[...new Set(["عام", ...sections])].map((s) => <option key={s}>{s}</option>)}
+          </select>
+          <Button onClick={() => upload(paste)} disabled={progress !== null}>💾 احفظ في القسم</Button>
+          <label className="cursor-pointer rounded-md bg-secondary px-3 py-2 text-sm">📂 ملف Excel/csv/txt
+            <input type="file" accept=".txt,.csv,.tsv,.xlsx,.xls" hidden onChange={(e) => onFile(e.target.files?.[0])} />
           </label>
         </div>
         {progress !== null && <Progress value={Math.min(progress, 100)} />}
@@ -198,9 +281,9 @@ function Library({ storeId }: { storeId?: string | undefined }) {
       <section className="rounded-2xl border bg-card p-4 shadow-soft space-y-3">
         <div className="flex flex-wrap gap-2">
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="🔍 ابحث في الردود" className="min-w-40 flex-1" />
-          <select value={tag} onChange={(e) => setTag(e.target.value)} className="rounded-md border bg-background p-2 text-sm">
+          <select value={tag} onChange={(e) => pick(e.target.value)} className="rounded-md border bg-background p-2 text-sm">
             <option value="">كل الأقسام</option>
-            {tags.map((t) => <option key={t}>{t}</option>)}
+            {sections.map((t) => <option key={t}>{t}</option>)}
           </select>
         </div>
         <ul className="divide-y text-sm">
