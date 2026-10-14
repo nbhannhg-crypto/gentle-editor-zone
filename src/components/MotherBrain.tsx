@@ -136,10 +136,16 @@ function BrainCard({ b, onChange }: { b: B; onChange: (p: Partial<B>) => void })
   );
 }
 
-function Library({ storeId }: { storeId?: string | undefined }) {
+function Library({ storeId, initialTag = "" }: { storeId?: string | undefined; initialTag?: string }) {
   const [rows, setRows] = useState<Row[]>([]); const [count, setCount] = useState(0);
-  const [search, setSearch] = useState(""); const [tag, setTag] = useState(""); const [tags, setTags] = useState<string[]>([]);
-  const [paste, setPaste] = useState(""); const [newTag, setNewTag] = useState("عام"); const [progress, setProgress] = useState<number | null>(null);
+  const [search, setSearch] = useState(""); const [tag, setTag] = useState(initialTag); const [tags, setTags] = useState<string[]>([]);
+  const [paste, setPaste] = useState(""); const [newTag, setNewTag] = useState(initialTag || "عام"); const [progress, setProgress] = useState<number | null>(null);
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [extra, setExtra] = useState<string[]>([]);
+  const [newSec, setNewSec] = useState("");
+  const secKey = `mb_sections_${storeId ?? ""}`;
+  useEffect(() => { try { setExtra(JSON.parse(localStorage.getItem(secKey) || "[]")); } catch { setExtra([]); } }, [secKey]);
+  const saveExtra = (l: string[]) => { setExtra(l); localStorage.setItem(secKey, JSON.stringify(l)); };
 
   const load = async () => {
     if (!storeId) return;
@@ -150,10 +156,46 @@ function Library({ storeId }: { storeId?: string | undefined }) {
     const { data, count: c } = await q;
     setRows((data ?? []) as Row[]);
     if (!s && !tag) setCount(c ?? 0);
-    const { data: t } = await supabase.from("reply_library").select("tag").eq("store_id", storeId).limit(1000);
-    setTags([...new Set((t ?? []).map((x) => x.tag))]);
+    const { data: t } = await supabase.from("reply_library").select("tag").eq("store_id", storeId).limit(20000);
+    const m: Record<string, number> = {};
+    (t ?? []).forEach((x) => { m[x.tag] = (m[x.tag] ?? 0) + 1; });
+    setCounts(m); setTags(Object.keys(m));
   };
   useEffect(() => { const h = setTimeout(load, 300); return () => clearTimeout(h); }, [storeId, search, tag]);
+
+  const sections = [...new Set([...tags, ...extra])];
+  const pick = (s: string) => { setTag(s); if (s) setNewTag(s); };
+  const addSection = () => {
+    const n = newSec.trim().slice(0, 40); if (!n) return;
+    if (sections.includes(n)) { toast.error("القسم موجود"); return; }
+    saveExtra([...extra, n]); setNewSec(""); pick(n); toast.success(`انضاف قسم «${n}» 📁`);
+  };
+  const renameSection = async (s: string) => {
+    const n = prompt("الاسم الجديد للقسم", s)?.trim().slice(0, 40);
+    if (!n || n === s || !storeId) return;
+    const { error } = await supabase.from("reply_library").update({ tag: n }).eq("store_id", storeId).eq("tag", s);
+    if (error) { toast.error(error.message); return; }
+    saveExtra(extra.map((x) => (x === s ? n : x))); pick(n); toast.success("تغيّر اسم القسم ✏️"); load();
+  };
+  const deleteSection = async (s: string) => {
+    if (!storeId || !confirm(`تحذف قسم «${s}» وكل ردوده (${counts[s] ?? 0})؟`)) return;
+    const { error } = await supabase.from("reply_library").delete().eq("store_id", storeId).eq("tag", s);
+    if (error) { toast.error(error.message); return; }
+    saveExtra(extra.filter((x) => x !== s)); pick(""); toast.success("انحذف القسم 🗑️"); load();
+  };
+  const exportSection = async (s: string) => {
+    if (!storeId) return;
+    const all: { trigger_text: string; reply_text: string }[] = [];
+    for (let from = 0; ; from += 1000) {
+      const { data } = await supabase.from("reply_library").select("trigger_text, reply_text").eq("store_id", storeId).eq("tag", s).range(from, from + 999);
+      all.push(...(data ?? [])); if (!data || data.length < 1000) break;
+    }
+    if (!all.length) { toast.error("القسم فاضي"); return; }
+    const XLSX = await import("xlsx");
+    const ws = XLSX.utils.aoa_to_sheet([["السؤال", "الرد"], ...all.map((r) => [r.trigger_text, r.reply_text])]);
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "ردود");
+    XLSX.writeFile(wb, `${s}-${all.length}.xlsx`);
+  };
 
   const parse = (text: string) => text.split(/\r?\n/).map((l) => {
     const m = l.split(/\s*(?:\||\t|=>|←|:)\s*/);
