@@ -223,16 +223,44 @@ function Library({ storeId, initialTag = "" }: { storeId?: string | undefined; i
     <div className="space-y-4">
       <section className="rounded-2xl border bg-card p-4 shadow-soft space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="font-display text-lg text-primary">📚 مكتبة الردود العملاقة</h3>
+          <h3 className="font-display text-lg text-primary">📁 أقسام العقل الأم ({sections.length} قسم)</h3>
+          <button onClick={() => pick("")} className={`rounded-full px-3 py-1 text-xs ${!tag ? "bg-gold font-semibold text-accent-foreground" : "bg-secondary"}`}>كل الردود</button>
+        </div>
+        <div className="flex gap-2">
+          <Input value={newSec} onChange={(e) => setNewSec(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addSection()} placeholder="اسم القسم: الترحيب، الأسعار والشحن، الاعتراضات…" className="flex-1" />
+          <Button onClick={addSection}>➕ أنشئ قسم</Button>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {sections.map((s) => (
+            <div key={s} className={`rounded-xl border p-3 ${tag === s ? "border-primary bg-secondary" : "bg-background"}`}>
+              <button onClick={() => pick(s)} className="w-full text-right">
+                <b>📁 {s}</b> <span className="text-xs opacity-70">— {(counts[s] ?? 0).toLocaleString()} رد</span>
+              </button>
+              <div className="mt-2 flex flex-wrap gap-1 text-xs">
+                <button onClick={() => pick(s)} className="rounded-full bg-secondary px-2 py-0.5">📚 الردود</button>
+                <button onClick={() => exportSection(s)} className="rounded-full bg-secondary px-2 py-0.5">📤 Excel</button>
+                <button onClick={() => renameSection(s)} className="rounded-full bg-secondary px-2 py-0.5">✏️</button>
+                <button onClick={() => deleteSection(s)} className="rounded-full bg-secondary px-2 py-0.5">🗑️</button>
+              </div>
+            </div>
+          ))}
+          {!sections.length && <p className="text-sm opacity-60">ما فيه أقسام — أنشئ أول قسم.</p>}
+        </div>
+      </section>
+      <section className="rounded-2xl border bg-card p-4 shadow-soft space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="font-display text-lg text-primary">📚 {tag ? `ردود قسم «${tag}»` : "مكتبة الردود العملاقة"}</h3>
           <span className="text-xs">{count.toLocaleString()} / {MAX_LIB.toLocaleString()}</span>
         </div>
         <Progress value={(count / MAX_LIB) * 100} />
         <Textarea value={paste} onChange={(e) => setPaste(e.target.value)} rows={5} placeholder={"كل سطر: السؤال | الرد\nكم السعر | السعر 99 ريال والتوصيل مجاني"} />
         <div className="flex flex-wrap gap-2">
-          <Input value={newTag} onChange={(e) => setNewTag(e.target.value)} placeholder="القسم" className="w-32" />
-          <Button onClick={() => upload(paste)} disabled={progress !== null}>💾 احفظ</Button>
-          <label className="cursor-pointer rounded-md bg-secondary px-3 py-2 text-sm">📂 ملف txt/csv
-            <input type="file" accept=".txt,.csv,.tsv" hidden onChange={(e) => onFile(e.target.files?.[0])} />
+          <select value={newTag} onChange={(e) => setNewTag(e.target.value)} className="rounded-md border bg-background p-2 text-sm">
+            {[...new Set(["عام", ...sections])].map((s) => <option key={s}>{s}</option>)}
+          </select>
+          <Button onClick={() => upload(paste)} disabled={progress !== null}>💾 احفظ في القسم</Button>
+          <label className="cursor-pointer rounded-md bg-secondary px-3 py-2 text-sm">📂 ملف Excel/csv/txt
+            <input type="file" accept=".txt,.csv,.tsv,.xlsx,.xls" hidden onChange={(e) => onFile(e.target.files?.[0])} />
           </label>
         </div>
         {progress !== null && <Progress value={Math.min(progress, 100)} />}
