@@ -6,8 +6,8 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 async function queen(ctx: { supabase: any; userId: string }) {
   const { data } = await ctx.supabase.from("user_roles").select("role").eq("user_id", ctx.userId).eq("role", "admin").limit(1);
   if (!data?.length) throw new Error("هذي الصلاحية للملكة فقط");
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  return supabaseAdmin as any;
+  // Admin RLS policies (has_role admin) grant the queen full access through her own session.
+  return ctx.supabase as any;
 }
 
 export const queenListBrains = createServerFn({ method: "POST" })
