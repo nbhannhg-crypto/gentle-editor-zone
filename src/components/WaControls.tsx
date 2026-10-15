@@ -79,16 +79,54 @@ export function WaControls({ instance, myNumber = "" }: { instance: string; myNu
       setRowId((data as any).id);
     }
   };
+  // Snapshot of the selected brains/sections replies so the WhatsApp engine can answer from them
+  const syncLib = async (sel: string[]) => {
+    const snap: Record<string, [string, string][]> = {};
+    for (const b of sel) {
+      if (b === "rules:off" || b === "__rules__") continue;
+      try {
+        let rows: any[] = [];
+        if (b.startsWith("lib:")) {
+          for (let from = 0; from < 20000; from += 1000) {
+            const { data } = await (supabase.from as any)("reply_library").select("trigger_text, reply_text").eq("tag", b.slice(4)).range(from, from + 999);
+            rows.push(...(data ?? []));
+            if (!data || data.length < 1000) break;
+          }
+        } else {
+          const { data } = await (supabase.rpc as any)("kingdom_replies", { _brain: b });
+          rows = data ?? [];
+        }
+        snap[b] = rows.filter((r) => r?.trigger_text && r?.reply_text).map((r) => [String(r.trigger_text), String(r.reply_text)]);
+      } catch { /* ignore */ }
+    }
+    const lk = CTRL_PREFIX + "lib:" + instance;
+    const body = JSON.stringify(snap);
+    const { data: ex } = await supabase.from("training_rules").select("id").eq("trigger_text", lk).maybeSingle();
+    if (ex) await supabase.from("training_rules").update({ response_text: body }).eq("id", (ex as any).id);
+    else await supabase.from("training_rules").insert({ trigger_text: lk, response_text: body, category: "settings", store_id: null } as any);
+    return Object.values(snap).reduce((n, v) => n + v.length, 0);
+  };
   const update = (patch: Partial<WaCtrl>, now = false) => {
     const next = { ...(c ?? defaultCtrl()), ...patch };
     setC(next); setState("⏳ جاري الحفظ…");
     clearTimeout(timer.current);
     timer.current = setTimeout(async () => {
-      try { await persist(next); setState("✅ انحفظ"); }
+      try {
+        await persist(next);
+        if (patch.brains) { const n = await syncLib(next.brains); setState(`✅ انحفظ — ${n} رد جاهز من الأزرار المحددة`); }
+        else setState("✅ انحفظ");
+      }
       catch (e) { setState(""); toast.error("ما انحفظ: " + (e as Error).message); }
     }, now ? 0 : 700);
   };
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const synced = useRef(false);
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  useEffect(() => {
+    if (c && !synced.current) { synced.current = true; if (c.brains.length) void syncLib(c.brains).catch(() => {}); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [c]);
   if (!c) return null;
   const pill = (on: boolean) => `shrink-0 rounded-full border px-3 py-1.5 text-xs ${on ? "bg-primary text-primary-foreground" : "bg-background"}`;
   const togglePause = (n: string) => {

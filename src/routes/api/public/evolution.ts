@@ -81,10 +81,14 @@ export const Route = createFileRoute("/api/public/evolution")({
               if (data.length < 1000) break;
             }
             // Control-panel settings row (not a reply rule) — defaults keep the current behaviour
-            const ctrlRows = raw.filter((r) => r.trigger_text.startsWith(CTRL_PREFIX));
+            const LIB = CTRL_PREFIX + "lib:";
+            const ctrlRows = raw.filter((r) => r.trigger_text.startsWith(CTRL_PREFIX) && !r.trigger_text.startsWith(LIB));
             const ctrlRow = ctrlRows.find((r) => r.trigger_text === CTRL_PREFIX + instance) ?? ctrlRows[0];
             const ctrl = parseCtrl(ctrlRow?.response_text);
             const all = raw.filter((r) => !r.trigger_text.startsWith(CTRL_PREFIX));
+            // Snapshot of the selected buttons' replies (saved by the control panel)
+            let libSnap: Record<string, [string, string][]> = {};
+            try { const lr = raw.find((r) => r.trigger_text === LIB + instance) ?? raw.find((r) => r.trigger_text.startsWith(LIB)); libSnap = lr ? JSON.parse(lr.response_text) : {}; } catch { libSnap = {}; }
             const sender = digits(number) || number;
             if (!ctrl.enabled) return ok();
             if (ctrl.paused.some((p) => sender === p || sender.endsWith(p) || p.endsWith(sender))) return ok();
@@ -110,10 +114,14 @@ export const Route = createFileRoute("/api/public/evolution")({
                 try {
                   if (b === "__rules__" || b === "rules:off") continue; // store rules are already searched above
                   // Merchant's own library sections are saved as "lib:<tag>"
-                  const { data: lib } = b.startsWith("lib:")
-                    ? await db.from("reply_library").select("trigger_text, reply_text").eq("tag", b.slice(4)).limit(2000)
-                    : await db.rpc("kingdom_replies", { _brain: b });
-                  const h = bestRule(text, ((lib ?? []) as any[]).map((x, i) => ({ id: String(i), trigger_text: x.trigger_text, response_text: x.reply_text, use_count: 0 })));
+                  let lib: any[] = Array.isArray(libSnap[b]) ? libSnap[b].map(([q, a]) => ({ trigger_text: q, reply_text: a })) : [];
+                  if (!lib.length) {
+                    const { data } = b.startsWith("lib:")
+                      ? await db.from("reply_library").select("trigger_text, reply_text").eq("tag", b.slice(4)).limit(2000)
+                      : await db.rpc("kingdom_replies", { _brain: b });
+                    lib = (data ?? []) as any[];
+                  }
+                  const h = bestRule(text, lib.map((x, i) => ({ id: String(i), trigger_text: x.trigger_text, response_text: x.reply_text, use_count: 0 })));
                   if (h && h.score >= 0.6) { reply = h.rule.response_text; break; }
                 } catch (e) { console.error("brain lib", e); }
               }
