@@ -228,7 +228,9 @@ export async function kingdomAutoReply(db: any, ownerId: string, text: string, p
   for (const b of brains as { id: string; store_id: string; library_tag: string }[]) {
     if (!on(b.id, "use:auto_reply", true) || !on(b.id, `platform:${platform}`, platform === "whatsapp")) continue;
     const [{ data: lib }, { data: ov }] = await Promise.all([
-      db.from("reply_library").select("id, trigger_text, reply_text").eq("store_id", b.store_id).eq("tag", b.library_tag).limit(2000),
+      b.library_tag === "__rules__"
+        ? db.from("training_rules").select("id, trigger_text, reply_text:response_text").eq("store_id", b.store_id).limit(5000)
+        : db.from("reply_library").select("id, trigger_text, reply_text").eq("store_id", b.store_id).eq("tag", b.library_tag).limit(2000),
       db.from("merchant_brain_overrides").select("type, content").eq("merchant_id", ownerId).eq("mother_brain_id", b.id).eq("type", "add_reply"),
     ]);
     const rows = [
