@@ -25,6 +25,7 @@ export function WaControls({ instance, myNumber = "" }: { instance: string; myNu
   const [c, setC] = useState<WaCtrl | null>(null);
   const [state, setState] = useState("");
   const [brains, setBrains] = useState<Brain[]>([]);
+  const [mySecs, setMySecs] = useState<string[]>([]);
   const [pop, setPop] = useState<Pop>(null);
   const [teach, setTeach] = useState<{ n: string; t: string; a?: string } | null>(null);
   const [ans, setAns] = useState("");
@@ -44,6 +45,23 @@ export function WaControls({ instance, myNumber = "" }: { instance: string; myNu
   useEffect(() => {
     void load();
     (supabase.rpc as any)("kingdom_brains").then((r: any) => setBrains(((r.data ?? []) as any[]).map((b) => ({ id: b.id, name: b.name })))).catch(() => {});
+    // Merchant's own library sections (saved locally + tags found in the reply library)
+    (async () => {
+      const set = new Set<string>();
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i) ?? "";
+          if (!k.startsWith("mb_sections_")) continue;
+          const v = JSON.parse(localStorage.getItem(k) || "[]");
+          (Array.isArray(v) ? v : []).forEach((s: any) => { const n = typeof s === "string" ? s : s?.name ?? s?.tag; if (n) set.add(String(n)); });
+        }
+      } catch { /* ignore */ }
+      try {
+        const { data } = await (supabase.from as any)("reply_library").select("tag").limit(1000);
+        ((data ?? []) as any[]).forEach((r) => r.tag && set.add(String(r.tag)));
+      } catch { /* ignore */ }
+      setMySecs([...set]);
+    })();
     const t = setInterval(() => void load(), 15000);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -165,6 +183,16 @@ export function WaControls({ instance, myNumber = "" }: { instance: string; myNu
             <button key={b.id} className={pill(c.brains.includes(b.id))}
               onClick={() => update({ brains: c.brains.includes(b.id) ? c.brains.filter((x) => x !== b.id) : [...c.brains, b.id] }, true)}>👑 {b.name}</button>
           ))}
+        </div>
+        <div className="flex gap-1.5 overflow-x-auto pb-1">
+          <span className={pill(true)}>📂 أقسامي وعقولي</span>
+          {mySecs.length === 0 && <span className="self-center text-[11px] text-muted-foreground">أنشئ قسماً في «مملكة العقول» يظهر هنا</span>}
+          {mySecs.map((t) => {
+            const id = "lib:" + t;
+            const on = c.brains.includes(id);
+            return <button key={id} className={pill(on)}
+              onClick={() => update({ brains: on ? c.brains.filter((x) => x !== id) : [...c.brains, id] }, true)}>🏷️ {t}</button>;
+          })}
         </div>
         <p className="text-[11px] text-muted-foreground">الواتساب يسمح بأقصى 25 ثانية تأخير.</p>
       </div>

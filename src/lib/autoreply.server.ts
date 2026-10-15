@@ -153,10 +153,23 @@ export async function fishTts(text: string): Promise<string> {
   return Buffer.from(await r.arrayBuffer()).toString("base64");
 }
 
+/** Marks the customer's message as read (blue ticks) and shows the store as online (best effort). */
+export async function markSeen(instance: string, remoteJid: string, id: string) {
+  if (!instance || !remoteJid || !id) return;
+  const url = "http://wa.nbhansmm.com:8085";
+  const key = process.env["EVO_LIVE_KEY"] || process.env["EVO2_API_KEY"] || process.env["EVOLUTION_API_KEY"] || "";
+  const h = { apikey: key, "Content-Type": "application/json" };
+  const inst = encodeURIComponent(instance);
+  await Promise.all([
+    fetch(`${url}/instance/setPresence/${inst}`, { method: "POST", headers: h, body: JSON.stringify({ presence: "available" }) }).catch(() => null),
+    fetch(`${url}/chat/markMessageAsRead/${inst}`, { method: "POST", headers: h, body: JSON.stringify({ readMessages: [{ remoteJid, fromMe: false, id }] }) }).catch(() => null),
+  ]);
+}
+
 /** Waits the merchant-chosen delay while showing "typing…" (best effort, never blocks the reply). */
 export async function typingDelay(number: string, seconds: number, instance = "", presence: "composing" | "recording" = "composing") {
-  const sec = Math.min(Math.max(Math.round(seconds || 0), 0), 25);
-  if (!sec) return;
+  // Even "instant" shows a short real typing/recording indicator
+  const sec = Math.min(Math.max(Math.round(seconds || 0), 1), 25);
   const url = "http://wa.nbhansmm.com:8085".replace(/\/$/, "");
   const key = process.env["EVO_LIVE_KEY"] || process.env["EVO2_API_KEY"] || process.env["EVOLUTION_API_KEY"] || "";
   const raw = String(number);
