@@ -114,10 +114,14 @@ export const Route = createFileRoute("/api/public/evolution")({
                 try {
                   if (b === "__rules__" || b === "rules:off") continue; // store rules are already searched above
                   // Merchant's own library sections are saved as "lib:<tag>"
-                  const { data: lib } = b.startsWith("lib:")
-                    ? await db.from("reply_library").select("trigger_text, reply_text").eq("tag", b.slice(4)).limit(2000)
-                    : await db.rpc("kingdom_replies", { _brain: b });
-                  const h = bestRule(text, ((lib ?? []) as any[]).map((x, i) => ({ id: String(i), trigger_text: x.trigger_text, response_text: x.reply_text, use_count: 0 })));
+                  let lib: any[] = Array.isArray(libSnap[b]) ? libSnap[b].map(([q, a]) => ({ trigger_text: q, reply_text: a })) : [];
+                  if (!lib.length) {
+                    const { data } = b.startsWith("lib:")
+                      ? await db.from("reply_library").select("trigger_text, reply_text").eq("tag", b.slice(4)).limit(2000)
+                      : await db.rpc("kingdom_replies", { _brain: b });
+                    lib = (data ?? []) as any[];
+                  }
+                  const h = bestRule(text, lib.map((x, i) => ({ id: String(i), trigger_text: x.trigger_text, response_text: x.reply_text, use_count: 0 })));
                   if (h && h.score >= 0.6) { reply = h.rule.response_text; break; }
                 } catch (e) { console.error("brain lib", e); }
               }
