@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { timingSafeEqual } from "crypto";
-import { aiReplyWith, bestRule, evoSend, fishTts, kingdomAutoReply, kingdomWelcome, mediaToText, numberAllowed, typingDelay, type AiOpts } from "@/lib/autoreply.server";
+import { aiReplyWith, bestRule, evoSend, fishTts, kingdomAutoReply, kingdomWelcome, markSeen, mediaToText, numberAllowed, typingDelay, type AiOpts } from "@/lib/autoreply.server";
 import { replyDelay } from "@/lib/wa-learn";
 import { CTRL_PREFIX, cleanReply, ctrlPrompt, digits, listHas, parseCtrl } from "@/lib/wa-controls";
 
@@ -47,6 +47,8 @@ export const Route = createFileRoute("/api/public/evolution")({
         if (!text.trim()) return ok();
         // For WAHA reply to the exact chat id (works for @lid); Evolution uses plain number
         const number = wahaChat && wahaChat.endsWith("@lid") ? wahaChat : jid.split("@")[0]!;
+        // Blue ticks + "online" like a real person (never blocks the reply)
+        void markSeen(instance, jid, msgId).catch(() => {});
 
         // Admin client when the server key exists; otherwise fall back to the public key (rules table is readable)
         let db: any;
@@ -107,7 +109,11 @@ export const Route = createFileRoute("/api/public/evolution")({
             if (!reply && ctrl.source !== "ai" && ctrl.brains.length) {
               for (const b of ctrl.brains) {
                 try {
-                  const { data: lib } = await db.rpc("kingdom_replies", { _brain: b });
+                  if (b === "__rules__") continue; // store rules are already searched above
+                  // Merchant's own library sections are saved as "lib:<tag>"
+                  const { data: lib } = b.startsWith("lib:")
+                    ? await db.from("reply_library").select("trigger_text, reply_text").eq("tag", b.slice(4)).limit(2000)
+                    : await db.rpc("kingdom_replies", { _brain: b });
                   const h = bestRule(text, ((lib ?? []) as any[]).map((x, i) => ({ id: String(i), trigger_text: x.trigger_text, response_text: x.reply_text, use_count: 0 })));
                   if (h && h.score >= 0.6) { reply = h.rule.response_text; break; }
                 } catch (e) { console.error("brain lib", e); }
