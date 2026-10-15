@@ -29,6 +29,25 @@ export function MotherBrain({ storeId }: { storeId?: string | undefined }) {
     setBrains((data ?? []) as B[]);
   };
   useEffect(() => { load(); }, [storeId]);
+  const [secCounts, setSecCounts] = useState<Record<string, number>>({});
+  const [secs, setSecs] = useState<string[]>([]);
+  const [rulesCount, setRulesCount] = useState(0);
+  useEffect(() => {
+    if (!storeId || view !== "brains") return;
+    (async () => {
+      const m: Record<string, number> = {};
+      for (let from = 0; ; from += 1000) {
+        const { data } = await supabase.from("reply_library").select("tag").eq("store_id", storeId).range(from, from + 999);
+        (data ?? []).forEach((x) => { m[x.tag] = (m[x.tag] ?? 0) + 1; });
+        if (!data || data.length < 1000) break;
+      }
+      let extra: string[] = [];
+      try { extra = JSON.parse(localStorage.getItem(`mb_sections_${storeId}`) || "[]"); } catch { /* ignore */ }
+      setSecCounts(m); setSecs([...new Set([...Object.keys(m), ...extra])]);
+      const { count } = await supabase.from("training_rules").select("id", { count: "exact", head: true }).eq("store_id", storeId);
+      setRulesCount(count ?? 0);
+    })();
+  }, [storeId, view]);
   const inner = brains.filter((b) => b.in_mother);
 
   const addBrain = async (name: string, emoji: string) => {
@@ -64,7 +83,7 @@ export function MotherBrain({ storeId }: { storeId?: string | undefined }) {
         <>
           <AddBrain onAdd={addBrain} existing={brains.filter((b) => !b.in_mother)} onAttach={(id) => inner.length >= MAX_BRAINS ? toast.error("الحد 10 عقول") : update(id, { in_mother: true })} />
           <div className="grid gap-3 md:grid-cols-2">
-            {inner.map((b) => <BrainCard key={b.id} b={b} onChange={(p) => update(b.id, p)} onOpenLib={(t) => { setLibTag(t); setView("library"); }} />)}
+            {inner.map((b) => <BrainCard key={b.id} b={b} sections={secs} counts={secCounts} rulesCount={rulesCount} onChange={(p) => update(b.id, p)} onOpenLib={(t) => { setLibTag(t); setView("library"); }} />)}
           </div>
           {!inner.length && <p className="rounded-xl bg-secondary p-4 text-center text-sm">ما فيه عقول داخل العقل الأم — أضف أول عقل (مبيعات، ردود، تصميم…)</p>}
         </>
@@ -92,7 +111,7 @@ function AddBrain({ onAdd, existing, onAttach }: { onAdd: (n: string, e: string)
   );
 }
 
-function BrainCard({ b, onChange, onOpenLib }: { b: B; onChange: (p: Partial<B>) => void; onOpenLib: (tag: string) => void }) {
+function BrainCard({ b, onChange, onOpenLib, sections, counts, rulesCount }: { b: B; onChange: (p: Partial<B>) => void; onOpenLib: (tag: string) => void; sections: string[]; counts: Record<string, number>; rulesCount: number }) {
   const chat = useServerFn(brainChat);
   const [q, setQ] = useState(""); const [ans, setAns] = useState(""); const [busy, setBusy] = useState(false);
   const toggle = (s: string) => {
@@ -113,11 +132,17 @@ function BrainCard({ b, onChange, onOpenLib }: { b: B; onChange: (p: Partial<B>)
         <button onClick={() => onChange({ in_mother: false })} className="text-xs opacity-60">إخراج</button>
       </div>
       <div className="rounded-xl bg-secondary/60 p-2 text-xs">
-        <div className="flex items-center justify-between gap-2">
-          <span>📁 قسم هذا العقل: <b>{b.library_tag || "ما تحدد"}</b></span>
-          <button onClick={() => { if (!b.library_tag) onChange({ library_tag: b.name.slice(0, 40) }); onOpenLib(b.library_tag || b.name.slice(0, 40)); }} className="rounded-full bg-gold px-3 py-1 font-semibold text-accent-foreground">{b.library_tag ? "📚 افتح ردوده" : "➕ أنشئ قسمه"}</button>
+        <label className="block">📁 اربط العقل بقسم:
+          <select value={b.library_tag} onChange={(e) => { onChange({ library_tag: e.target.value }); toast.success(e.target.value ? "✅ انربط العقل بالقسم" : "انفك الربط"); }} className="mt-1 w-full rounded-md border bg-background p-2 text-sm">
+            <option value="">— ما تحدد —</option>
+            <option value="__rules__">📘 قواعد المتجر (علّم الموظفة) — {rulesCount.toLocaleString()} رد</option>
+            {[...new Set([...sections, ...(b.library_tag && b.library_tag !== "__rules__" ? [b.library_tag] : [])])].map((s) => <option key={s} value={s}>📁 {s} — {(counts[s] ?? 0).toLocaleString()} رد</option>)}
+          </select>
+        </label>
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <span>{b.library_tag ? <>مربوط بـ <b>{b.library_tag === "__rules__" ? "قواعد المتجر" : b.library_tag}</b> · {(b.library_tag === "__rules__" ? rulesCount : counts[b.library_tag] ?? 0).toLocaleString()} رد</> : "غير مربوط"}</span>
+          {b.library_tag !== "__rules__" && <button onClick={() => { const t = b.library_tag || b.name.slice(0, 40); if (!b.library_tag) onChange({ library_tag: t }); onOpenLib(t); }} className="rounded-full bg-gold px-3 py-1 font-semibold text-accent-foreground">{b.library_tag ? "📚 افتح ردوده" : "➕ أنشئ قسمه"}</button>}
         </div>
-        <Input className="mt-2" value={b.library_tag} onChange={(e) => onChange({ library_tag: e.target.value.slice(0, 40) })} placeholder="أو اكتب اسم قسم موجود" />
       </div>
       <label className="block text-xs">🎙️ الصوت
         <select value={b.voice_name} onChange={(e) => onChange({ voice_name: e.target.value })} className="mt-1 w-full rounded-md border bg-background p-2 text-sm">
