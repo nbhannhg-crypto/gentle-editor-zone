@@ -47,8 +47,7 @@ export const Route = createFileRoute("/api/public/evolution")({
         if (!text.trim()) return ok();
         // For WAHA reply to the exact chat id (works for @lid); Evolution uses plain number
         const number = wahaChat && wahaChat.endsWith("@lid") ? wahaChat : jid.split("@")[0]!;
-        // Blue ticks + "online" like a real person (never blocks the reply)
-        void markSeen(instance, jid, msgId).catch(() => {});
+        // Blue ticks + "online" only right before an actual reply to an allowed number (see below)
 
         // Admin client when the server key exists; otherwise fall back to the public key (rules table is readable)
         let db: any;
@@ -141,6 +140,7 @@ export const Route = createFileRoute("/api/public/evolution")({
               return ok();
             }
             if (reply) {
+              await markSeen(instance, jid, msgId).catch(() => {});
               await typingDelay(number, ctrlRow ? ctrl.delay : 3, instance, ctrl.voice ? "recording" : "composing");
               if (ctrl.voice) await evoSend(`/message/sendWhatsAppAudio/${encodeURIComponent(instance)}`, { number, audio: await fishTts(reply), encoding: true, ptt: true }).catch(() => evoSend(`/message/sendText/${encodeURIComponent(instance)}`, { number, text: reply }));
               else await evoSend(`/message/sendText/${encodeURIComponent(instance)}`, { number, text: reply });
@@ -247,6 +247,7 @@ export const Route = createFileRoute("/api/public/evolution")({
             reply = await aiReplyWith(text, ctx, cfg);
           }
           if (!reply) throw new Error("empty reply");
+          await markSeen(instance, jid, msgId).catch(() => {});
           await typingDelay(number, replyDelay(cfg.system_prompt), instance, useVoice ? "recording" : "composing");
           const path = `/message/${useVoice ? "sendWhatsAppAudio" : "sendText"}/${encodeURIComponent(instance)}`;
           if (useVoice) await evoSend(path, { number, audio: libAudio ?? (await fishTts(reply)), encoding: true, ptt: true });
