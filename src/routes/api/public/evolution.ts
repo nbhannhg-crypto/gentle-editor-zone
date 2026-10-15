@@ -109,7 +109,7 @@ export const Route = createFileRoute("/api/public/evolution")({
             if (!reply && ctrl.source !== "ai" && ctrl.brains.length) {
               for (const b of ctrl.brains) {
                 try {
-                  if (b === "__rules__") continue; // store rules are already searched above
+                  if (b === "__rules__" || b === "rules:off") continue; // store rules are already searched above
                   // Merchant's own library sections are saved as "lib:<tag>"
                   const { data: lib } = b.startsWith("lib:")
                     ? await db.from("reply_library").select("trigger_text, reply_text").eq("tag", b.slice(4)).limit(2000)
