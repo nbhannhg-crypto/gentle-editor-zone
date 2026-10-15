@@ -92,9 +92,17 @@ export const brainChat = createServerFn({ method: "POST" })
       if (tag) {
         const lastQ = data.history[data.history.length - 1]?.content.slice(0, 40) ?? "";
         const word = lastQ.split(/\s+/).find((w) => w.length > 2) ?? "";
-        let q = sb.from("reply_library").select("trigger_text, reply_text").eq("store_id", st.id).eq("tag", tag).limit(50);
-        if (word) q = q.ilike("trigger_text", `%${word.replace(/[%_,()]/g, "")}%`);
-        const { data: lib } = await q;
+        const w = word.replace(/[%_,()]/g, "");
+        let lib: { trigger_text: string; reply_text: string }[] | null;
+        if (tag === "__rules__") {
+          let q = sb.from("training_rules").select("trigger_text, response_text").eq("store_id", st.id).limit(50);
+          if (w) q = q.ilike("trigger_text", `%${w}%`);
+          lib = ((await q).data ?? []).map((r) => ({ trigger_text: r.trigger_text, reply_text: r.response_text }));
+        } else {
+          let q = sb.from("reply_library").select("trigger_text, reply_text").eq("store_id", st.id).eq("tag", tag).limit(50);
+          if (w) q = q.ilike("trigger_text", `%${w}%`);
+          lib = (await q).data;
+        }
         if (lib?.length) active = { ...active0, knowledge: `${active0.knowledge}\nمكتبة الردود (${tag}): ${lib.map((r) => `[${r.trigger_text} ← ${r.reply_text}]`).join(" ")}` };
       }
     }
