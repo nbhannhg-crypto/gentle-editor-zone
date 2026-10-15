@@ -81,10 +81,14 @@ export const Route = createFileRoute("/api/public/evolution")({
               if (data.length < 1000) break;
             }
             // Control-panel settings row (not a reply rule) — defaults keep the current behaviour
-            const ctrlRows = raw.filter((r) => r.trigger_text.startsWith(CTRL_PREFIX));
+            const LIB = CTRL_PREFIX + "lib:";
+            const ctrlRows = raw.filter((r) => r.trigger_text.startsWith(CTRL_PREFIX) && !r.trigger_text.startsWith(LIB));
             const ctrlRow = ctrlRows.find((r) => r.trigger_text === CTRL_PREFIX + instance) ?? ctrlRows[0];
             const ctrl = parseCtrl(ctrlRow?.response_text);
             const all = raw.filter((r) => !r.trigger_text.startsWith(CTRL_PREFIX));
+            // Snapshot of the selected buttons' replies (saved by the control panel)
+            let libSnap: Record<string, [string, string][]> = {};
+            try { const lr = raw.find((r) => r.trigger_text === LIB + instance) ?? raw.find((r) => r.trigger_text.startsWith(LIB)); libSnap = lr ? JSON.parse(lr.response_text) : {}; } catch { libSnap = {}; }
             const sender = digits(number) || number;
             if (!ctrl.enabled) return ok();
             if (ctrl.paused.some((p) => sender === p || sender.endsWith(p) || p.endsWith(sender))) return ok();
