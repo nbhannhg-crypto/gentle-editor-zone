@@ -329,6 +329,8 @@ export const waSendVoice = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     if (!(await canManage(context as Ctx, data.name))) throw new Error("غير مسموح");
     const { b64 } = await audioBase64(context as Ctx, data.audioId);
+    // Real "recording…" on the customer's phone before the voice note arrives
+    try { const { typingDelay } = await import("@/lib/autoreply.server"); await typingDelay(data.number.replace(/^\+/, ""), 3, data.name, "recording"); } catch { /* best effort */ }
     await evo().call(`/message/sendWhatsAppAudio/${encodeURIComponent(data.name)}`, "POST", {
       number: data.number.replace(/^\+/, ""), audio: b64, encoding: true, ptt: true,
     });
