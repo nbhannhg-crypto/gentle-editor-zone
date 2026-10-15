@@ -120,6 +120,13 @@ export function WaControls({ instance, myNumber = "" }: { instance: string; myNu
     }, now ? 0 : 700);
   };
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const synced = useRef(false);
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  useEffect(() => {
+    if (c && !synced.current) { synced.current = true; if (c.brains.length) void syncLib(c.brains).catch(() => {}); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [c]);
   if (!c) return null;
   const pill = (on: boolean) => `shrink-0 rounded-full border px-3 py-1.5 text-xs ${on ? "bg-primary text-primary-foreground" : "bg-background"}`;
   const togglePause = (n: string) => {
