@@ -103,7 +103,7 @@ export const Route = createFileRoute("/api/public/evolution")({
               const entry = { n: number, t: text.slice(0, 500), at: Date.now(), ...(r ? { r: r.slice(0, 1000) } : {}) };
               return dup ? [...ctrl.log.slice(0, -1), { ...last, ...entry }] : [...ctrl.log, entry].slice(-300);
             };
-            const hit = ctrl.source === "ai" ? null : bestRule(text, all);
+            const hit = ctrl.source === "ai" || ctrl.brains.includes("rules:off") ? null : bestRule(text, all);
             let reply = hit && hit.score >= 0.6 ? hit.rule.response_text : "";
             // Enabled brains/libraries (after the merchant's own rules)
             if (!reply && ctrl.source !== "ai" && ctrl.brains.length) {

@@ -186,6 +186,8 @@ export function WaControls({ instance, myNumber = "" }: { instance: string; myNu
         </div>
         <div className="flex gap-1.5 overflow-x-auto pb-1">
           <span className={pill(true)}>📂 أقسامي وعقولي</span>
+          <button className={pill(!c.brains.includes("rules:off"))}
+            onClick={() => update({ brains: c.brains.includes("rules:off") ? c.brains.filter((x) => x !== "rules:off") : [...c.brains, "rules:off"] }, true)}>📘 قواعد المتجر</button>
           {mySecs.length === 0 && <span className="self-center text-[11px] text-muted-foreground">أنشئ قسماً في «مملكة العقول» يظهر هنا</span>}
           {mySecs.map((t) => {
             const id = "lib:" + t;

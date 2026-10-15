@@ -53,7 +53,7 @@ export function MotherBrain({ storeId }: { storeId?: string | undefined }) {
   const addBrain = async (name: string, emoji: string) => {
     if (!storeId || !name.trim()) return;
     if (inner.length >= MAX_BRAINS) { toast.error("الحد 10 عقول داخل العقل الأم"); return; }
-    const { error } = await supabase.from("brains").insert({ store_id: storeId, name: name.slice(0, 60), emoji: emoji || "🧠", specialty: "عقل داخلي", source: "both", instructions: `أنت ${name}، ترد باللهجة السعودية باحتراف.`, knowledge: "", in_mother: true, scopes: ["sender"], voice_name: VOICES[0]! });
+    const { error } = await supabase.from("brains").insert({ store_id: storeId, name: name.slice(0, 60), emoji: emoji || "🧠", specialty: "عقل داخلي", source: "both", instructions: `أنت ${name}، ترد باللهجة السعودية باحتراف.`, knowledge: "", in_mother: true, scopes: ["sender"], voice_name: VOICES[0]!, library_tag: name.trim().slice(0, 40) } as any);
     if (error) { toast.error(error.message); return; }
     toast.success("انضاف العقل 🧠"); load();
   };
@@ -88,6 +88,34 @@ export function MotherBrain({ storeId }: { storeId?: string | undefined }) {
           {!inner.length && <p className="rounded-xl bg-secondary p-4 text-center text-sm">ما فيه عقول داخل العقل الأم — أضف أول عقل (مبيعات، ردود، تصميم…)</p>}
         </>
       ) : <Library key={libTag} storeId={storeId} initialTag={libTag} />}
+    </div>
+  );
+}
+
+function QuickAdd({ b, onChange, onOpenLib }: { b: B; onChange: (p: Partial<B>) => void; onOpenLib: (tag: string) => void }) {
+  const [open, setOpen] = useState(false); const [k, setK] = useState(""); const [r, setR] = useState(""); const [busy, setBusy] = useState(false);
+  const tag = b.library_tag || b.name.slice(0, 40);
+  const save = async () => {
+    if (!k.trim() || !r.trim()) { toast.error("اكتب السؤال والرد"); return; }
+    setBusy(true);
+    const { data: br } = await supabase.from("brains").select("store_id").eq("id", b.id).single();
+    const { error } = await supabase.from("reply_library").insert({ store_id: (br as any)?.store_id, tag, trigger_text: k.trim().slice(0, 500), reply_text: r.trim().slice(0, 2000) } as any);
+    setBusy(false);
+    if (error) { toast.error(error.message); return; }
+    if (!b.library_tag) onChange({ library_tag: tag });
+    toast.success("✅ انضاف الرد للعقل"); setK(""); setR("");
+  };
+  return (
+    <div className="mt-2 space-y-2">
+      <div className="flex gap-2">
+        <button onClick={() => setOpen(!open)} className="rounded-full bg-secondary px-3 py-1">➕ أضف رد لهذا العقل</button>
+        <button onClick={() => { if (!b.library_tag) onChange({ library_tag: tag }); onOpenLib(tag); }} className="rounded-full bg-secondary px-3 py-1">📥 استيراد إكسل لهذا العقل</button>
+      </div>
+      {open && <div className="space-y-1">
+        <Input value={k} onChange={(e) => setK(e.target.value)} placeholder="سؤال الزبون" />
+        <Input value={r} onChange={(e) => setR(e.target.value)} placeholder="الرد" />
+        <Button size="sm" disabled={busy} onClick={save}>حفظ</Button>
+      </div>}
     </div>
   );
 }
@@ -143,6 +171,7 @@ function BrainCard({ b, onChange, onOpenLib, sections, counts, rulesCount }: { b
           <span>{b.library_tag ? <>مربوط بـ <b>{b.library_tag === "__rules__" ? "قواعد المتجر" : b.library_tag}</b> · {(b.library_tag === "__rules__" ? rulesCount : counts[b.library_tag] ?? 0).toLocaleString()} رد</> : "غير مربوط"}</span>
           {b.library_tag !== "__rules__" && <button onClick={() => { const t = b.library_tag || b.name.slice(0, 40); if (!b.library_tag) onChange({ library_tag: t }); onOpenLib(t); }} className="rounded-full bg-gold px-3 py-1 font-semibold text-accent-foreground">{b.library_tag ? "📚 افتح ردوده" : "➕ أنشئ قسمه"}</button>}
         </div>
+        {b.library_tag !== "__rules__" && <QuickAdd b={b} onChange={onChange} onOpenLib={onOpenLib} />}
       </div>
       <label className="block text-xs">🎙️ الصوت
         <select value={b.voice_name} onChange={(e) => onChange({ voice_name: e.target.value })} className="mt-1 w-full rounded-md border bg-background p-2 text-sm">
