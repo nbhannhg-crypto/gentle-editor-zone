@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { kingdomTest } from "@/lib/kingdom-brains.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { QueenMerchantBrains } from "@/components/QueenMerchantBrains";
 
 type KB = { id: string; name: string; emoji: string; short_desc: string; reply_count: number };
 type Ov = { id: string; mother_brain_id: string; type: string; content: string };
@@ -83,6 +84,7 @@ export function KingdomBrains({ admin, storeId }: { admin: boolean; storeId?: st
         })}
       </div>
       {admin && <AdminAll storeId={storeId} onDone={load} />}
+      {admin && <QueenMerchantBrains storeId={storeId} />}
     </div>
   );
 }
