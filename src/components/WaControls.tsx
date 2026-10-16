@@ -111,7 +111,13 @@ export function WaControls({ instance, myNumber = "" }: { instance: string; myNu
     for (let i = 0; i < chunks.length; i += 20) {
       await supabase.from("training_rules").insert(chunks.slice(i, i + 20).map((ch, j) => ({ trigger_text: `${lk}#${i + j + 1}`, response_text: JSON.stringify(ch), category: "settings", store_id: null })) as any);
     }
-    return Object.values(snap).reduce((n, v) => n + v.length, 0);
+    let total = Object.values(snap).reduce((n, v) => n + v.length, 0);
+    // Store rules count too when their button is on (read live)
+    if (!sel.includes("rules:off")) {
+      const { count } = await supabase.from("training_rules").select("id", { count: "exact", head: true }).not("trigger_text", "like", "__wa_%");
+      total += count ?? 0;
+    }
+    return total;
   };
   const update = (patch: Partial<WaCtrl>, now = false) => {
     const next = { ...(c ?? defaultCtrl()), ...patch };

@@ -123,13 +123,21 @@ export const Route = createFileRoute("/api/public/evolution")({
                 try {
                   if (b === "__rules__" || b === "rules:off") continue; // store rules are already searched above
                   // Merchant's own library sections are saved as "lib:<tag>"
-                  let lib: any[] = Array.isArray(libSnap[b]) ? libSnap[b].map(([q, a]) => ({ trigger_text: q, reply_text: a })) : [];
-                  if (!lib.length) {
-                    const { data } = b.startsWith("lib:")
-                      ? await db.from("reply_library").select("trigger_text, reply_text").eq("tag", b.slice(4)).limit(100000)
-                      : await db.rpc("kingdom_replies", { _brain: b });
+                  // Live first: always read the newest replies (anything just added is used immediately)
+                  let lib: any[] = [];
+                  if (b.startsWith("lib:")) {
+                    for (let from = 0; ; from += 1000) {
+                      const { data, error } = await db.from("reply_library").select("trigger_text, reply_text").eq("tag", b.slice(4)).order("created_at", { ascending: false }).range(from, from + 999);
+                      if (error || !data) break;
+                      lib.push(...data);
+                      if (data.length < 1000) break;
+                    }
+                  } else {
+                    const { data } = await db.rpc("kingdom_replies", { _brain: b });
                     lib = (data ?? []) as any[];
                   }
+                  // Fallback to the saved copy only if the live read returned nothing
+                  if (!lib.length && Array.isArray(libSnap[b])) lib = libSnap[b].map(([q, a]) => ({ trigger_text: q, reply_text: a }));
                   const h = bestRule(text, lib.map((x, i) => ({ id: String(i), trigger_text: x.trigger_text, response_text: x.reply_text, use_count: 0 })));
                   if (h && h.score >= TH) { reply = h.rule.response_text; break; }
                 } catch (e) { console.error("brain lib", e); }
