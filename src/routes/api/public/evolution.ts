@@ -137,7 +137,7 @@ export const Route = createFileRoute("/api/public/evolution")({
                     lib = (data ?? []) as any[];
                   }
                   // Fallback to the saved copy only if the live read returned nothing
-                  if (!lib.length && Array.isArray(libSnap[b])) lib = libSnap[b].map(([q, a]) => ({ trigger_text: q, reply_text: a }));
+                  if (Array.isArray(libSnap[b])) lib = [...lib, ...libSnap[b].map(([q, a]) => ({ trigger_text: q, reply_text: a }))];
                   const h = bestRule(text, lib.map((x, i) => ({ id: String(i), trigger_text: x.trigger_text, response_text: x.reply_text, use_count: 0 })));
                   if (h && h.score >= TH) { reply = h.rule.response_text; break; }
                 } catch (e) { console.error("brain lib", e); }
@@ -225,7 +225,7 @@ export const Route = createFileRoute("/api/public/evolution")({
           const src = cfg.source ?? "smart";
           let m = src === "ai" ? null : bestRule(text, rules ?? []);
           // تدقيق: المطابقة الضعيفة ما تنرسل كما هي — الذكاء يفهم القصد بدلها
-          if (m && m.score < 0.6) m = null;
+          if (m && m.score < 0.35) m = null;
           // Library: send a pre-recorded studio voice whose text best matches
           let libAudio: string | null = null;
           if (src === "library") {
