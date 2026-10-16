@@ -286,13 +286,38 @@ function Library({ storeId, initialTag = "" }: { storeId?: string | undefined; i
     } else upload(await f.text());
   };
   const del = async (id: string) => { await supabase.from("reply_library").delete().eq("id", id); setRows((p) => p.filter((r) => r.id !== id)); setCount((c) => c - 1); };
+  const editRow = async (r: Row) => {
+    const q = prompt("السؤال", r.trigger_text)?.trim(); if (q === undefined || !q) return;
+    const a = prompt("الرد", r.reply_text)?.trim(); if (a === undefined || !a) return;
+    const { error } = await supabase.from("reply_library").update({ trigger_text: q.slice(0, 500), reply_text: a.slice(0, 2000) }).eq("id", r.id);
+    if (error) { toast.error(error.message); return; }
+    setRows((p) => p.map((x) => (x.id === r.id ? { ...x, trigger_text: q, reply_text: a } : x))); toast.success("تعدّلت القاعدة ✏️");
+  };
+  // Remove duplicate questions in a section (or all sections), keeping the newest copy
+  const dedupe = async (s?: string) => {
+    if (!storeId || !confirm(`تحذف المكرر من ${s ? `قسم «${s}»` : "كل الأقسام"}؟ (تبقى نسخة وحدة من كل سؤال)`)) return;
+    const all: { id: string; tag: string; trigger_text: string }[] = [];
+    for (let from = 0; ; from += 1000) {
+      let q = supabase.from("reply_library").select("id, tag, trigger_text").eq("store_id", storeId).order("created_at", { ascending: false }).range(from, from + 999);
+      if (s) q = q.eq("tag", s);
+      const { data } = await q; all.push(...((data ?? []) as any[])); if (!data || data.length < 1000) break;
+    }
+    const seen = new Set<string>(); const ids: string[] = [];
+    for (const r of all) { const k = r.tag + "|" + r.trigger_text.replace(/\s+/g, " ").trim().toLowerCase(); if (seen.has(k)) ids.push(r.id); else seen.add(k); }
+    if (!ids.length) { toast.success("ما فيه مكرر ✅"); return; }
+    for (let i = 0; i < ids.length; i += 200) await supabase.from("reply_library").delete().in("id", ids.slice(i, i + 200));
+    toast.success(`انحذف ${ids.length.toLocaleString()} مكرر 🧹`); load();
+  };
 
   return (
     <div className="space-y-4">
       <section className="rounded-2xl border bg-card p-4 shadow-soft space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="font-display text-lg text-primary">📁 أقسام العقل الأم ({sections.length} قسم)</h3>
-          <button onClick={() => pick("")} className={`rounded-full px-3 py-1 text-xs ${!tag ? "bg-gold font-semibold text-accent-foreground" : "bg-secondary"}`}>كل الردود</button>
+          <div className="flex gap-1">
+            <button onClick={() => dedupe()} className="rounded-full bg-secondary px-3 py-1 text-xs">🧹 حذف المكرر للكل</button>
+            <button onClick={() => pick("")} className={`rounded-full px-3 py-1 text-xs ${!tag ? "bg-gold font-semibold text-accent-foreground" : "bg-secondary"}`}>كل الردود</button>
+          </div>
         </div>
         <div className="flex gap-2">
           <Input value={newSec} onChange={(e) => setNewSec(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addSection()} placeholder="اسم القسم: الترحيب، الأسعار والشحن، الاعتراضات…" className="flex-1" />
@@ -307,6 +332,7 @@ function Library({ storeId, initialTag = "" }: { storeId?: string | undefined; i
               <div className="mt-2 flex flex-wrap gap-1 text-xs">
                 <button onClick={() => pick(s)} className="rounded-full bg-secondary px-2 py-0.5">📚 الردود</button>
                 <button onClick={() => exportSection(s)} className="rounded-full bg-secondary px-2 py-0.5">📤 Excel</button>
+                <button onClick={() => dedupe(s)} className="rounded-full bg-secondary px-2 py-0.5">🧹 حذف المكرر</button>
                 <button onClick={() => renameSection(s)} className="rounded-full bg-secondary px-2 py-0.5">✏️</button>
                 <button onClick={() => deleteSection(s)} className="rounded-full bg-secondary px-2 py-0.5">🗑️</button>
               </div>
@@ -345,7 +371,7 @@ function Library({ storeId, initialTag = "" }: { storeId?: string | undefined; i
           {rows.map((r) => (
             <li key={r.id} className="flex items-start justify-between gap-2 py-2">
               <div><b>{r.trigger_text}</b> ← {r.reply_text} <span className="mr-1 rounded bg-secondary px-1.5 text-[10px]">{r.tag}</span></div>
-              <button onClick={() => del(r.id)} className="text-xs opacity-60">🗑️</button>
+              <span className="flex shrink-0 gap-2"><button onClick={() => editRow(r)} className="text-xs opacity-60">✏️</button><button onClick={() => del(r.id)} className="text-xs opacity-60">🗑️</button></span>
             </li>
           ))}
           {!rows.length && <li className="py-4 text-center opacity-60">ما فيه ردود</li>}
