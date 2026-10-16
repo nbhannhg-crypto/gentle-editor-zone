@@ -10,6 +10,7 @@ import { CTRL_PREFIX, defaultCtrl, digits, parseCtrl, type WaCtrl, type WaLog } 
 import { guessCategory } from "@/lib/rules";
 import { waCtrlSend, waOutreach, waVoicePreview } from "@/lib/wa-ctrl.functions";
 import { WaExtras } from "@/components/WaExtras";
+import { loadMySections } from "@/lib/sections-cloud";
 
 type Brain = { id: string; name: string };
 type Pop = "persona" | "facts" | "banned" | "fixes" | "numbers" | "model" | "more" | null;
@@ -48,14 +49,7 @@ export function WaControls({ instance, myNumber = "" }: { instance: string; myNu
     // Merchant's own library sections (saved locally + tags found in the reply library)
     (async () => {
       const set = new Set<string>();
-      try {
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i) ?? "";
-          if (!k.startsWith("mb_sections_")) continue;
-          const v = JSON.parse(localStorage.getItem(k) || "[]");
-          (Array.isArray(v) ? v : []).forEach((s: any) => { const n = typeof s === "string" ? s : s?.name ?? s?.tag; if (n) set.add(String(n)); });
-        }
-      } catch { /* ignore */ }
+      try { (await loadMySections()).forEach((s) => s && set.add(String(s))); } catch { /* ignore */ }
       try {
         const { data } = await (supabase.from as any)("reply_library").select("tag").limit(1000);
         ((data ?? []) as any[]).forEach((r) => r.tag && set.add(String(r.tag)));

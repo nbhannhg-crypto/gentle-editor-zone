@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { loadSections, saveSections } from "@/lib/sections-cloud";
 import { brainChat } from "@/lib/brains.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,7 +43,7 @@ export function MotherBrain({ storeId }: { storeId?: string | undefined }) {
         if (!data || data.length < 1000) break;
       }
       let extra: string[] = [];
-      try { extra = JSON.parse(localStorage.getItem(`mb_sections_${storeId}`) || "[]"); } catch { /* ignore */ }
+      try { extra = await loadSections(storeId); } catch { /* ignore */ }
       setSecCounts(m); setSecs([...new Set([...Object.keys(m), ...extra])]);
       const { count } = await supabase.from("training_rules").select("id", { count: "exact", head: true }).eq("store_id", storeId);
       setRulesCount(count ?? 0);
@@ -55,6 +56,7 @@ export function MotherBrain({ storeId }: { storeId?: string | undefined }) {
     if (inner.length >= MAX_BRAINS) { toast.error("الحد 10 عقول داخل العقل الأم"); return; }
     const { error } = await supabase.from("brains").insert({ store_id: storeId, name: name.slice(0, 60), emoji: emoji || "🧠", specialty: "عقل داخلي", source: "both", instructions: `أنت ${name}، ترد باللهجة السعودية باحتراف.`, knowledge: "", in_mother: true, scopes: ["sender"], voice_name: VOICES[0]!, library_tag: name.trim().slice(0, 40) } as any);
     if (error) { toast.error(error.message); return; }
+    try { const l = await loadSections(storeId); await saveSections(storeId, [...l, name.trim().slice(0, 40)]); } catch { /* ignore */ }
     toast.success("انضاف العقل 🧠"); load();
   };
   const update = async (id: string, patch: Partial<B>) => {
@@ -202,9 +204,8 @@ function Library({ storeId, initialTag = "" }: { storeId?: string | undefined; i
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [extra, setExtra] = useState<string[]>([]);
   const [newSec, setNewSec] = useState("");
-  const secKey = `mb_sections_${storeId ?? ""}`;
-  useEffect(() => { try { setExtra(JSON.parse(localStorage.getItem(secKey) || "[]")); } catch { setExtra([]); } }, [secKey]);
-  const saveExtra = (l: string[]) => { setExtra(l); localStorage.setItem(secKey, JSON.stringify(l)); };
+  useEffect(() => { setExtra([]); if (storeId) loadSections(storeId).then(setExtra).catch(() => {}); }, [storeId]);
+  const saveExtra = (l: string[]) => { setExtra(l); if (storeId) saveSections(storeId, l).catch((e) => toast.error("ما انحفظ القسم: " + (e as Error).message)); };
 
   const load = async () => {
     if (!storeId) return;
