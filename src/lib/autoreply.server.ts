@@ -1,5 +1,6 @@
 import Fuse from "fuse.js";
 import { composePrompt } from "./wa-learn";
+import { GENERAL_OR } from "./wa-controls";
 
 const norm = (s: string) =>
   s.toLowerCase().replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim();
@@ -242,7 +243,7 @@ export async function kingdomAutoReply(db: any, ownerId: string, text: string, p
     if (!on(b.id, "use:auto_reply", true) || !on(b.id, `platform:${platform}`, platform === "whatsapp")) continue;
     const [{ data: lib }, { data: ov }] = await Promise.all([
       b.library_tag === "__rules__"
-        ? pageAll((f, t) => db.from("training_rules").select("id, trigger_text, reply_text:response_text").eq("store_id", b.store_id).range(f, t))
+        ? pageAll((f, t) => db.from("training_rules").select("id, trigger_text, reply_text:response_text").eq("store_id", b.store_id).or(GENERAL_OR).range(f, t))
         : pageAll((f, t) => db.from("reply_library").select("id, trigger_text, reply_text").eq("store_id", b.store_id).eq("tag", b.library_tag).range(f, t)),
       db.from("merchant_brain_overrides").select("type, content").eq("merchant_id", ownerId).eq("mother_brain_id", b.id).eq("type", "add_reply"),
     ]);
