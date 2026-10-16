@@ -2,13 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { timingSafeEqual } from "crypto";
 import { aiReplyWith, bestRule, evoSend, fishTts, kingdomAutoReply, kingdomWelcome, markSeen, mediaToText, numberAllowed, typingDelay, type AiOpts } from "@/lib/autoreply.server";
 import { replyDelay } from "@/lib/wa-learn";
-import { CTRL_PREFIX, cleanReply, ctrlPrompt, digits, listHas, parseCtrl } from "@/lib/wa-controls";
+import { CTRL_PREFIX, GENERAL_OR, cleanReply, ctrlPrompt, digits, listHas, parseCtrl } from "@/lib/wa-controls";
 
 const ok = (s = 200, t = "ok") => new Response(t, { status: s });
-
-// Store rules are only the general taught rules; section overflow rows (category = section name)
-// belong to their own button and must not leak into the store-rules search/count.
-const GENERAL_OR = 'category.is.null,category.in.(عام,السعر,التوصيل,الجودة,التأجيل)';
 
 // Fast search: ask the database only for rows whose question shares words with the message
 // (instead of downloading every reply on each WhatsApp message).

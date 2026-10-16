@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CTRL_PREFIX, defaultCtrl, digits, parseCtrl, type WaCtrl, type WaLog } from "@/lib/wa-controls";
+import { CTRL_PREFIX, GENERAL_OR, defaultCtrl, digits, parseCtrl, type WaCtrl, type WaLog } from "@/lib/wa-controls";
 import { guessCategory } from "@/lib/rules";
 import { waCtrlSend, waOutreach, waVoicePreview } from "@/lib/wa-ctrl.functions";
 import { WaExtras } from "@/components/WaExtras";
