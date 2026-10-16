@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { timingSafeEqual } from "crypto";
 import { aiReplyWith, bestRule, evoSend, fishTts, kingdomAutoReply, kingdomWelcome, markSeen, mediaToText, numberAllowed, typingDelay, type AiOpts } from "@/lib/autoreply.server";
 import { replyDelay } from "@/lib/wa-learn";
-import { CTRL_PREFIX, cleanReply, ctrlPrompt, digits, listHas, parseCtrl } from "@/lib/wa-controls";
+import { CTRL_PREFIX, GENERAL_OR, cleanReply, ctrlPrompt, digits, listHas, parseCtrl } from "@/lib/wa-controls";
 
 const ok = (s = 200, t = "ok") => new Response(t, { status: s });
 
@@ -102,7 +102,7 @@ export const Route = createFileRoute("/api/public/evolution")({
             const ctrlRow = ctrlRows.find((r) => r.trigger_text === CTRL_PREFIX + instance) ?? ctrlRows[0];
             const ctrl = parseCtrl(ctrlRow?.response_text);
             // Store rules: only the rows that share words with the message (database does the search)
-            const all = ctrl.source === "ai" ? [] : await findCandidates(db, "training_rules", "response_text", text, (q) => q);
+            const all = ctrl.source === "ai" ? [] : await findCandidates(db, "training_rules", "response_text", text, (q) => q.or(GENERAL_OR));
             // Snapshot of the selected buttons' replies (saved by the control panel)
             let libSnap: Record<string, [string, string][]> = {};
             try {

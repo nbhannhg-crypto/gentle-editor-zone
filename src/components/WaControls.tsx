@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CTRL_PREFIX, defaultCtrl, digits, parseCtrl, type WaCtrl, type WaLog } from "@/lib/wa-controls";
+import { CTRL_PREFIX, GENERAL_OR, defaultCtrl, digits, parseCtrl, type WaCtrl, type WaLog } from "@/lib/wa-controls";
 import { guessCategory } from "@/lib/rules";
 import { waCtrlSend, waOutreach, waVoicePreview } from "@/lib/wa-ctrl.functions";
 import { WaExtras } from "@/components/WaExtras";
@@ -120,7 +120,8 @@ export function WaControls({ instance, myNumber = "" }: { instance: string; myNu
     let total = Object.values(snap).reduce((n, v) => n + v.length, 0);
     // Store rules count too when their button is on (read live)
     if (!sel.includes("rules:off")) {
-      const { count } = await supabase.from("training_rules").select("id", { count: "exact", head: true }).not("trigger_text", "like", "__wa_%");
+      // Store rules button counts only the general taught rules (section overflow keeps its own button)
+      const { count } = await supabase.from("training_rules").select("id", { count: "exact", head: true }).not("trigger_text", "like", "__wa_%").or(GENERAL_OR);
       total += count ?? 0;
     }
     return total;
