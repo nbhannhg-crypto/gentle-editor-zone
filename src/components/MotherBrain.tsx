@@ -282,11 +282,20 @@ function Library({ storeId, initialTag = "" }: { storeId?: string | undefined; i
     if (!items.length) { toast.error("اكتب كل سطر: السؤال | الرد"); return; }
     const t = newTag.trim().slice(0, 40) || "عام";
     setProgress(0);
+    let overflow = false; let moved = 0;
     for (let i = 0; i < items.length; i += 500) {
-      const { error } = await supabase.from("reply_library").insert(items.slice(i, i + 500).map((r) => ({ ...r, store_id: storeId, tag: t })));
+      const chunk = items.slice(i, i + 500);
+      let error = overflow ? { message: "library full" } as { message: string } : (await supabase.from("reply_library").insert(chunk.map((r) => ({ ...r, store_id: storeId, tag: t })))).error;
+      // When the old DB cap blocks the library, save the rest into store rules (no cap there)
+      if (error && /library full/i.test(error.message)) {
+        overflow = true;
+        ({ error } = await supabase.from("training_rules").insert(chunk.map((r) => ({ trigger_text: r.trigger_text, response_text: r.reply_text, category: t, store_id: storeId }))));
+        if (!error) moved += chunk.length;
+      }
       if (error) { setProgress(null); toast.error(`ما انرفع (انحفظ ${i.toLocaleString()} من ${items.length.toLocaleString()}): ${error.message}`); load(); return; }
       setProgress(Math.round(((i + 500) / items.length) * 100));
     }
+    if (moved) toast.success(`${moved.toLocaleString()} رد انحفظ في قواعد المتجر (المكتبة وصلت سقفها القديم)`);
     setProgress(null); setPaste(""); toast.success(`انحفظ ${items.length.toLocaleString()} رد 📚`); load();
   };
   const onFile = async (f?: File) => {
