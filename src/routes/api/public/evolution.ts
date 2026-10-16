@@ -88,7 +88,16 @@ export const Route = createFileRoute("/api/public/evolution")({
             const all = raw.filter((r) => !r.trigger_text.startsWith(CTRL_PREFIX));
             // Snapshot of the selected buttons' replies (saved by the control panel)
             let libSnap: Record<string, [string, string][]> = {};
-            try { const lr = raw.find((r) => r.trigger_text === LIB + instance) ?? raw.find((r) => r.trigger_text.startsWith(LIB)); libSnap = lr ? JSON.parse(lr.response_text) : {}; } catch { libSnap = {}; }
+            try {
+              const lr = raw.find((r) => r.trigger_text === LIB + instance) ?? raw.find((r) => r.trigger_text.startsWith(LIB) && !r.trigger_text.includes("#"));
+              libSnap = lr ? JSON.parse(lr.response_text) : {};
+              // Extra chunk rows for big sections ("<key>#1", "#2"…)
+              if (lr) for (const cr of raw.filter((r) => r.trigger_text.startsWith(lr.trigger_text + "#"))) {
+                try { for (const [k, v] of Object.entries(JSON.parse(cr.response_text) as Record<string, [string, string][]>)) libSnap[k] = [...(libSnap[k] ?? []), ...v]; } catch { /* skip bad chunk */ }
+              }
+            } catch { libSnap = {}; }
+            // Match strictness chosen in the panel (50/60/80/100%)
+            const TH = Math.min(1, Math.max(0.5, (Number(ctrl.match) || 60) / 100));
             const sender = digits(number) || number;
             if (!ctrl.enabled) return ok();
             if (ctrl.paused.some((p) => sender === p || sender.endsWith(p) || p.endsWith(sender))) return ok();

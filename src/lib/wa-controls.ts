@@ -20,10 +20,12 @@ export type WaCtrl = {
   model: string;
   pending: { n: string; t: string; s: string; at: number }[];
   log: WaLog[];
+  /** Match strictness in percent (50, 60, 80, 100). */
+  match: number;
 };
 export const defaultCtrl = (): WaCtrl => ({
   enabled: true, source: "smart", allowed: "", prompt: "", delay: 3, paused: [], brains: [], misses: [],
-  mode: "auto", voice: false, facts: "", banned: "", fixes: "", blocked: "", model: "", pending: [], log: [],
+  mode: "auto", voice: false, facts: "", banned: "", fixes: "", blocked: "", model: "", pending: [], log: [], match: 60,
 });
 export const parseCtrl = (s: string | null | undefined): WaCtrl => {
   try { return { ...defaultCtrl(), ...(JSON.parse(s || "{}") as Partial<WaCtrl>) }; } catch { return defaultCtrl(); }
