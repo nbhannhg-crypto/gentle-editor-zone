@@ -6,6 +6,26 @@ import { CTRL_PREFIX, cleanReply, ctrlPrompt, digits, listHas, parseCtrl } from 
 
 const ok = (s = 200, t = "ok") => new Response(t, { status: s });
 
+// Fast search: ask the database only for rows whose question shares words with the message
+// (instead of downloading every reply on each WhatsApp message).
+const searchWords = (text: string) => {
+  const ws = text.replace(/[,()%*\\"'.:؟?!،]/g, " ").split(/\s+/).map((w) => w.trim()).filter((w) => w.length > 1);
+  return [...new Set(ws)].sort((a, b) => b.length - a.length).slice(0, 8);
+};
+async function findCandidates(
+  db: any, table: "training_rules" | "reply_library", replyCol: "response_text" | "reply_text",
+  text: string, filter: (q: any) => any, limit = 400,
+): Promise<{ id: string; trigger_text: string; response_text: string; use_count: number }[]> {
+  const sel = `trigger_text, ${replyCol === "response_text" ? "response_text" : "response_text:reply_text"}`;
+  const t = text.trim().slice(0, 300);
+  if (!t) return [];
+  const ws = searchWords(t);
+  const ors = [`trigger_text.ilike.${t.replace(/[,()%*\\]/g, " ")}`, ...ws.map((w) => `trigger_text.ilike.*${w}*`)].join(",");
+  const { data, error } = await filter(db.from(table).select(sel)).or(ors).not("trigger_text", "like", CTRL_PREFIX + "%").limit(limit);
+  if (error) { console.error("findCandidates", table, error.message); return []; }
+  return (data ?? []).map((r: any, i: number) => ({ id: String(i), trigger_text: String(r.trigger_text ?? ""), response_text: String(r.response_text ?? ""), use_count: 0 }));
+}
+
 export const Route = createFileRoute("/api/public/evolution")({
   server: {
     handlers: {
@@ -73,19 +93,16 @@ export const Route = createFileRoute("/api/public/evolution")({
           // Settings locked (no server key): still answer from saved rules exactly like the in-app test
           // No store config for this session: still answer from saved rules (same as in-app test)
           try {
-            const raw: { id: string; trigger_text: string; response_text: string; use_count: number }[] = [];
-            for (let from = 0; ; from += 1000) {
-              const { data, error } = await db.from("training_rules").select("id, trigger_text, response_text, use_count").order("id").range(from, from + 999);
-              if (error || !data) break;
-              raw.push(...data);
-              if (data.length < 1000) break;
-            }
+            // Settings rows only (one quick query) — no full-table download
+            const { data: rawCtrl } = await db.from("training_rules").select("id, trigger_text, response_text, use_count").like("trigger_text", CTRL_PREFIX + "%").limit(500);
+            const raw = (rawCtrl ?? []) as { id: string; trigger_text: string; response_text: string; use_count: number }[];
             // Control-panel settings row (not a reply rule) — defaults keep the current behaviour
             const LIB = CTRL_PREFIX + "lib:";
             const ctrlRows = raw.filter((r) => r.trigger_text.startsWith(CTRL_PREFIX) && !r.trigger_text.startsWith(LIB));
             const ctrlRow = ctrlRows.find((r) => r.trigger_text === CTRL_PREFIX + instance) ?? ctrlRows[0];
             const ctrl = parseCtrl(ctrlRow?.response_text);
-            const all = raw.filter((r) => !r.trigger_text.startsWith(CTRL_PREFIX));
+            // Store rules: only the rows that share words with the message (database does the search)
+            const all = ctrl.source === "ai" ? [] : await findCandidates(db, "training_rules", "response_text", text, (q) => q);
             // Snapshot of the selected buttons' replies (saved by the control panel)
             let libSnap: Record<string, [string, string][]> = {};
             try {
@@ -126,19 +143,13 @@ export const Route = createFileRoute("/api/public/evolution")({
                   // Live first: always read the newest replies (anything just added is used immediately)
                   let lib: any[] = [];
                   if (b.startsWith("lib:")) {
-                    for (let from = 0; ; from += 1000) {
-                      const { data, error } = await db.from("reply_library").select("trigger_text, reply_text").eq("tag", b.slice(4)).order("created_at", { ascending: false }).range(from, from + 999);
-                      if (error || !data) break;
-                      lib.push(...data);
-                      if (data.length < 1000) break;
-                    }
-                    // Replies of this section that overflowed into store rules (category = section name)
-                    for (let from = 0; ; from += 1000) {
-                      const { data, error } = await db.from("training_rules").select("trigger_text, reply_text:response_text").eq("category", b.slice(4)).order("created_at", { ascending: false }).range(from, from + 999);
-                      if (error || !data) break;
-                      lib.push(...data);
-                      if (data.length < 1000) break;
-                    }
+                    // Database searches the section directly (library + overflow in store rules) — instant
+                    const tag = b.slice(4);
+                    const [a1, a2] = await Promise.all([
+                      findCandidates(db, "reply_library", "reply_text", text, (q) => q.eq("tag", tag)),
+                      findCandidates(db, "training_rules", "response_text", text, (q) => q.eq("category", tag)),
+                    ]);
+                    lib = [...a1, ...a2].map((r) => ({ trigger_text: r.trigger_text, reply_text: r.response_text }));
                   } else {
                     const { data } = await db.rpc("kingdom_replies", { _brain: b });
                     lib = (data ?? []) as any[];
@@ -207,26 +218,18 @@ export const Route = createFileRoute("/api/public/evolution")({
               if (w) await evoSend(`/message/sendText/${encodeURIComponent(instance)}`, { number, text: w }).catch((e) => console.error("welcome", e));
             }
           }
-          // Load ALL store rules (newest first, paged) — same as the library test, no 500 cap
+          // Store rules: the database returns only rows sharing words with the message (instant, any size)
           const loadAllRules = async () => {
-            const all: { id: string; trigger_text: string; response_text: string; use_count: number }[] = [];
-            // No cap: stable id ordering + retry each page so every rule (even millions) is read
-            for (let from = 0; ; from += 1000) {
-              let page: typeof all | null = null;
-              for (let attempt = 0; attempt < 3 && !page; attempt++) {
-                const { data, error } = await db.from("training_rules").select("id, trigger_text, response_text, use_count")
-                  .eq("store_id", cfg.store_id).order("id").range(from, from + 999);
-                if (!error && data) page = data;
-                else console.error("loadAllRules page", from, error?.message);
-              }
-              if (!page) break;
-              all.push(...page);
-              if (page.length < 1000) break;
-            }
-            return all;
+            const t = text.trim().slice(0, 300);
+            if (!t) return [];
+            const ors = [`trigger_text.ilike.${t.replace(/[,()%*\\]/g, " ")}`, ...searchWords(t).map((w) => `trigger_text.ilike.*${w}*`)].join(",");
+            const { data, error } = await db.from("training_rules").select("id, trigger_text, response_text, use_count")
+              .eq("store_id", cfg.store_id).or(ors).not("trigger_text", "like", CTRL_PREFIX + "%").limit(400);
+            if (error) console.error("loadAllRules", error.message);
+            return (data ?? []) as { id: string; trigger_text: string; response_text: string; use_count: number }[];
           };
           const [rules, { data: products }] = await Promise.all([
-            loadAllRules().then((r) => ({ data: r })).then((x) => x.data),
+            loadAllRules(),
             db.from("products").select("name, price, description").eq("store_id", cfg.store_id).limit(50),
           ]);
           const src = cfg.source ?? "smart";
