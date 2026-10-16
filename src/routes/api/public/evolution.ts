@@ -6,6 +6,26 @@ import { CTRL_PREFIX, cleanReply, ctrlPrompt, digits, listHas, parseCtrl } from 
 
 const ok = (s = 200, t = "ok") => new Response(t, { status: s });
 
+// Fast search: ask the database only for rows whose question shares words with the message
+// (instead of downloading every reply on each WhatsApp message).
+const searchWords = (text: string) => {
+  const ws = text.replace(/[,()%*\\"'.:؟?!،]/g, " ").split(/\s+/).map((w) => w.trim()).filter((w) => w.length > 1);
+  return [...new Set(ws)].sort((a, b) => b.length - a.length).slice(0, 8);
+};
+async function findCandidates(
+  db: any, table: "training_rules" | "reply_library", replyCol: "response_text" | "reply_text",
+  text: string, filter: (q: any) => any, limit = 400,
+): Promise<{ id: string; trigger_text: string; response_text: string; use_count: number }[]> {
+  const sel = `trigger_text, ${replyCol === "response_text" ? "response_text" : "response_text:reply_text"}`;
+  const t = text.trim().slice(0, 300);
+  if (!t) return [];
+  const ws = searchWords(t);
+  const ors = [`trigger_text.ilike.${t.replace(/[,()%*\\]/g, " ")}`, ...ws.map((w) => `trigger_text.ilike.*${w}*`)].join(",");
+  const { data, error } = await filter(db.from(table).select(sel)).or(ors).not("trigger_text", "like", CTRL_PREFIX + "%").limit(limit);
+  if (error) { console.error("findCandidates", table, error.message); return []; }
+  return (data ?? []).map((r: any, i: number) => ({ id: String(i), trigger_text: String(r.trigger_text ?? ""), response_text: String(r.response_text ?? ""), use_count: 0 }));
+}
+
 export const Route = createFileRoute("/api/public/evolution")({
   server: {
     handlers: {
