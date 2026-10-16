@@ -143,19 +143,13 @@ export const Route = createFileRoute("/api/public/evolution")({
                   // Live first: always read the newest replies (anything just added is used immediately)
                   let lib: any[] = [];
                   if (b.startsWith("lib:")) {
-                    for (let from = 0; ; from += 1000) {
-                      const { data, error } = await db.from("reply_library").select("trigger_text, reply_text").eq("tag", b.slice(4)).order("created_at", { ascending: false }).range(from, from + 999);
-                      if (error || !data) break;
-                      lib.push(...data);
-                      if (data.length < 1000) break;
-                    }
-                    // Replies of this section that overflowed into store rules (category = section name)
-                    for (let from = 0; ; from += 1000) {
-                      const { data, error } = await db.from("training_rules").select("trigger_text, reply_text:response_text").eq("category", b.slice(4)).order("created_at", { ascending: false }).range(from, from + 999);
-                      if (error || !data) break;
-                      lib.push(...data);
-                      if (data.length < 1000) break;
-                    }
+                    // Database searches the section directly (library + overflow in store rules) — instant
+                    const tag = b.slice(4);
+                    const [a1, a2] = await Promise.all([
+                      findCandidates(db, "reply_library", "reply_text", text, (q) => q.eq("tag", tag)),
+                      findCandidates(db, "training_rules", "response_text", text, (q) => q.eq("category", tag)),
+                    ]);
+                    lib = [...a1, ...a2].map((r) => ({ trigger_text: r.trigger_text, reply_text: r.response_text }));
                   } else {
                     const { data } = await db.rpc("kingdom_replies", { _brain: b });
                     lib = (data ?? []) as any[];
