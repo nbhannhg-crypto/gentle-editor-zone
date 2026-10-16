@@ -87,6 +87,12 @@ export function WaControls({ instance, myNumber = "" }: { instance: string; myNu
             rows.push(...(data ?? []));
             if (!data || data.length < 1000) break;
           }
+          // Plus replies of this section saved in store rules (category = section name)
+          for (let from = 0; ; from += 1000) {
+            const { data } = await (supabase.from as any)("training_rules").select("trigger_text, reply_text:response_text").eq("category", b.slice(4)).range(from, from + 999);
+            rows.push(...(data ?? []));
+            if (!data || data.length < 1000) break;
+          }
         } else {
           const { data } = await (supabase.rpc as any)("kingdom_replies", { _brain: b });
           rows = data ?? [];

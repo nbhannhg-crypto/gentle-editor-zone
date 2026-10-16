@@ -214,11 +214,34 @@ function Library({ storeId, initialTag = "" }: { storeId?: string | undefined; i
     const s = search.trim().replace(/[%_,()]/g, "");
     if (s) q = q.or(`trigger_text.ilike.%${s}%,reply_text.ilike.%${s}%`);
     const { data, count: c } = await q;
-    setRows((data ?? []) as Row[]);
+    let shown = (data ?? []) as Row[];
+    // Also show replies of the chosen section saved in store rules (category = section name)
+    if (tag) {
+      let q2 = supabase.from("training_rules").select("id, category, trigger_text, response_text").eq("store_id", storeId).eq("category", tag).order("created_at", { ascending: false }).limit(100);
+      if (s) q2 = q2.or(`trigger_text.ilike.%${s}%,response_text.ilike.%${s}%`);
+      const { data: d2 } = await q2;
+      shown = [...shown, ...((d2 ?? []) as any[]).map((r) => ({ id: r.id, tag: r.category, trigger_text: r.trigger_text, reply_text: r.response_text, _rule: true } as any))];
+    }
+    setRows(shown);
     if (!s && !tag) setCount(c ?? 0);
     const { data: t } = await supabase.from("reply_library").select("tag").eq("store_id", storeId).limit(20000);
     const m: Record<string, number> = {};
     (t ?? []).forEach((x) => { m[x.tag] = (m[x.tag] ?? 0) + 1; });
+    // Exact library counts per section (no 20k cap) + replies saved in store rules under the section name
+    try {
+      const secs = [...new Set([...Object.keys(m), ...extra, ...(tag ? [tag] : [])])];
+      let ruleTotal = 0;
+      await Promise.all(secs.map(async (sec) => {
+        const [{ count: lc }, { count: rc }] = await Promise.all([
+          supabase.from("reply_library").select("id", { count: "exact", head: true }).eq("store_id", storeId).eq("tag", sec),
+          supabase.from("training_rules").select("id", { count: "exact", head: true }).eq("store_id", storeId).eq("category", sec),
+        ]);
+        ruleTotal += rc ?? 0;
+        const n = (lc ?? 0) + (rc ?? 0);
+        if (n) m[sec] = n;
+      }));
+      if (!s && !tag) setCount((c ?? 0) + ruleTotal);
+    } catch { /* keep library counts */ }
     // Also count replies saved in the WhatsApp cloud copies of this store's sections (read-only)
     try {
       const pre = "k" + storeId.replace(/-/g, "").slice(0, 10);
