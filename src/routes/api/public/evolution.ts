@@ -218,26 +218,18 @@ export const Route = createFileRoute("/api/public/evolution")({
               if (w) await evoSend(`/message/sendText/${encodeURIComponent(instance)}`, { number, text: w }).catch((e) => console.error("welcome", e));
             }
           }
-          // Load ALL store rules (newest first, paged) — same as the library test, no 500 cap
+          // Store rules: the database returns only rows sharing words with the message (instant, any size)
           const loadAllRules = async () => {
-            const all: { id: string; trigger_text: string; response_text: string; use_count: number }[] = [];
-            // No cap: stable id ordering + retry each page so every rule (even millions) is read
-            for (let from = 0; ; from += 1000) {
-              let page: typeof all | null = null;
-              for (let attempt = 0; attempt < 3 && !page; attempt++) {
-                const { data, error } = await db.from("training_rules").select("id, trigger_text, response_text, use_count")
-                  .eq("store_id", cfg.store_id).order("id").range(from, from + 999);
-                if (!error && data) page = data;
-                else console.error("loadAllRules page", from, error?.message);
-              }
-              if (!page) break;
-              all.push(...page);
-              if (page.length < 1000) break;
-            }
-            return all;
+            const t = text.trim().slice(0, 300);
+            if (!t) return [];
+            const ors = [`trigger_text.ilike.${t.replace(/[,()%*\\]/g, " ")}`, ...searchWords(t).map((w) => `trigger_text.ilike.*${w}*`)].join(",");
+            const { data, error } = await db.from("training_rules").select("id, trigger_text, response_text, use_count")
+              .eq("store_id", cfg.store_id).or(ors).not("trigger_text", "like", CTRL_PREFIX + "%").limit(400);
+            if (error) console.error("loadAllRules", error.message);
+            return (data ?? []) as { id: string; trigger_text: string; response_text: string; use_count: number }[];
           };
           const [rules, { data: products }] = await Promise.all([
-            loadAllRules().then((r) => ({ data: r })).then((x) => x.data),
+            loadAllRules(),
             db.from("products").select("name, price, description").eq("store_id", cfg.store_id).limit(50),
           ]);
           const src = cfg.source ?? "smart";
