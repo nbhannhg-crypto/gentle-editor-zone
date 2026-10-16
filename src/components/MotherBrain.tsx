@@ -357,9 +357,9 @@ function Library({ storeId, initialTag = "" }: { storeId?: string | undefined; i
       <section className="rounded-2xl border bg-card p-4 shadow-soft space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="font-display text-lg text-primary">📚 {tag ? `ردود قسم «${tag}»` : "مكتبة الردود العملاقة"}</h3>
-          <span className="text-xs">{count.toLocaleString()} / {MAX_LIB.toLocaleString()}</span>
+          <span className="text-xs">{count.toLocaleString()} رد · بدون حد</span>
         </div>
-        <Progress value={(count / MAX_LIB) * 100} />
+        <Progress value={100} />
         <Textarea value={paste} onChange={(e) => setPaste(e.target.value)} rows={5} placeholder={"كل سطر: السؤال | الرد\nكم السعر | السعر 99 ريال والتوصيل مجاني"} />
         <div className="flex flex-wrap gap-2">
           <select value={newTag} onChange={(e) => setNewTag(e.target.value)} className="rounded-md border bg-background p-2 text-sm">
