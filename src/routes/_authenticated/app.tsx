@@ -163,7 +163,7 @@ export function useReplyEngine(rules: Rule[], mode: Mode, product: string) {
   return async (text: string) => {
     const matches = findMatches(text, rules);
     const best = matches[0];
-    if (best && (best.score >= 0.55 || mode === "learn")) {
+    if (best && (best.score >= 0.35 || mode === "learn")) {
       return { answer: best.rule.response_text, rule: best.rule, matches, source: "rule" as const };
     }
     if (mode === "smart") {

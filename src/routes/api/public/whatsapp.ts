@@ -76,8 +76,17 @@ export const Route = createFileRoute("/api/public/whatsapp")({
 
 async function craftReply(text: string): Promise<string> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data: rules } = await supabaseAdmin.from("training_rules").select("*").order("created_at", { ascending: false }).limit(200);
-  const list = (rules ?? []) as { trigger_text: string; response_text: string }[];
+  const { pageAll, bestRule } = await import("@/lib/autoreply.server");
+  const [{ data: rules }, { data: libRows }] = await Promise.all([
+    pageAll((f, t) => supabaseAdmin.from("training_rules").select("id, trigger_text, response_text").not("trigger_text", "like", "__wa_%").order("created_at", { ascending: false }).range(f, t)),
+    pageAll((f, t) => supabaseAdmin.from("reply_library").select("id, trigger_text, response_text:reply_text").order("created_at", { ascending: false }).range(f, t)),
+  ]);
+  const allRules = [...rules, ...libRows] as { id: string; trigger_text: string; response_text: string }[];
+  const direct = bestRule(text, allRules.map((r) => ({ ...r, use_count: 0 })));
+  if (direct && direct.score >= 0.35) return direct.rule.response_text;
+  const qw = text.split(/\s+/).filter((w) => w.length > 2);
+  const related = allRules.filter((r) => qw.some((w) => r.trigger_text?.includes(w)));
+  const list = [...related, ...allRules.filter((r) => !related.includes(r))].slice(0, 200);
 
   const { quickGreeting, getAIResponse } = await import("@/lib/ai-keys.server");
   const greet = quickGreeting(text);

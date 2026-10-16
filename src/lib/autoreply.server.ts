@@ -242,8 +242,8 @@ export async function kingdomAutoReply(db: any, ownerId: string, text: string, p
     if (!on(b.id, "use:auto_reply", true) || !on(b.id, `platform:${platform}`, platform === "whatsapp")) continue;
     const [{ data: lib }, { data: ov }] = await Promise.all([
       b.library_tag === "__rules__"
-        ? db.from("training_rules").select("id, trigger_text, reply_text:response_text").eq("store_id", b.store_id).limit(5000)
-        : db.from("reply_library").select("id, trigger_text, reply_text").eq("store_id", b.store_id).eq("tag", b.library_tag).limit(2000),
+        ? pageAll((f, t) => db.from("training_rules").select("id, trigger_text, reply_text:response_text").eq("store_id", b.store_id).range(f, t))
+        : pageAll((f, t) => db.from("reply_library").select("id, trigger_text, reply_text").eq("store_id", b.store_id).eq("tag", b.library_tag).range(f, t)),
       db.from("merchant_brain_overrides").select("type, content").eq("merchant_id", ownerId).eq("mother_brain_id", b.id).eq("type", "add_reply"),
     ]);
     const rows = [
@@ -251,7 +251,7 @@ export async function kingdomAutoReply(db: any, ownerId: string, text: string, p
       ...(lib ?? []).map((r: { id: string; trigger_text: string; reply_text: string }) => ({ id: r.id, trigger_text: r.trigger_text, response_text: r.reply_text, use_count: 0 })),
     ];
     const hit = bestRule(text, rows);
-    if (hit && hit.score >= 0.55 && (!best || hit.score > best.s)) best = { s: hit.score, reply: hit.rule.response_text, brain: b.id };
+    if (hit && hit.score >= 0.35 && (!best || hit.score > best.s)) best = { s: hit.score, reply: hit.rule.response_text, brain: b.id };
   }
   if (!best) return null;
   const { data: ov } = await db.from("merchant_brain_overrides").select("type, content").eq("merchant_id", ownerId).eq("mother_brain_id", best.brain).order("created_at");
@@ -322,4 +322,17 @@ export async function mediaToText(url: string, mime: string): Promise<string> {
     }
   } catch (e) { console.error("mediaToText", e); }
   return "";
+}
+
+/** Reads every row in pages of 1000 (no hidden cap). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function pageAll(q: (from: number, to: number) => any): Promise<{ data: any[] }> {
+  const out: any[] = [];
+  for (let f = 0; ; f += 1000) {
+    const { data, error } = await q(f, f + 999);
+    if (error || !data) break;
+    out.push(...data);
+    if (data.length < 1000) break;
+  }
+  return { data: out };
 }
