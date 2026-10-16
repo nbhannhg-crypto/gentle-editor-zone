@@ -32,6 +32,9 @@ export const parseCtrl = (s: string | null | undefined): WaCtrl => {
 };
 export const digits = (s: string) => s.replace(/\D/g, "");
 
+/** Store rules are only the general taught rules; section overflow rows (category = section name) belong to their own button. */
+export const GENERAL_OR = 'category.is.null,category.in.(عام,السعر,التوصيل,الجودة,التأجيل)';
+
 /** Full instructions for the AI built from the panel fields. */
 export const ctrlPrompt = (c: WaCtrl) => [
   c.prompt && `الشخصية والأسلوب: ${c.prompt}`,
