@@ -93,19 +93,16 @@ export const Route = createFileRoute("/api/public/evolution")({
           // Settings locked (no server key): still answer from saved rules exactly like the in-app test
           // No store config for this session: still answer from saved rules (same as in-app test)
           try {
-            const raw: { id: string; trigger_text: string; response_text: string; use_count: number }[] = [];
-            for (let from = 0; ; from += 1000) {
-              const { data, error } = await db.from("training_rules").select("id, trigger_text, response_text, use_count").order("id").range(from, from + 999);
-              if (error || !data) break;
-              raw.push(...data);
-              if (data.length < 1000) break;
-            }
+            // Settings rows only (one quick query) — no full-table download
+            const { data: rawCtrl } = await db.from("training_rules").select("id, trigger_text, response_text, use_count").like("trigger_text", CTRL_PREFIX + "%").limit(500);
+            const raw = (rawCtrl ?? []) as { id: string; trigger_text: string; response_text: string; use_count: number }[];
             // Control-panel settings row (not a reply rule) — defaults keep the current behaviour
             const LIB = CTRL_PREFIX + "lib:";
             const ctrlRows = raw.filter((r) => r.trigger_text.startsWith(CTRL_PREFIX) && !r.trigger_text.startsWith(LIB));
             const ctrlRow = ctrlRows.find((r) => r.trigger_text === CTRL_PREFIX + instance) ?? ctrlRows[0];
             const ctrl = parseCtrl(ctrlRow?.response_text);
-            const all = raw.filter((r) => !r.trigger_text.startsWith(CTRL_PREFIX));
+            // Store rules: only the rows that share words with the message (database does the search)
+            const all = ctrl.source === "ai" ? [] : await findCandidates(db, "training_rules", "response_text", text, (q) => q);
             // Snapshot of the selected buttons' replies (saved by the control panel)
             let libSnap: Record<string, [string, string][]> = {};
             try {
