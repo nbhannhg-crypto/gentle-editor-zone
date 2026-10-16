@@ -88,7 +88,16 @@ export const Route = createFileRoute("/api/public/evolution")({
             const all = raw.filter((r) => !r.trigger_text.startsWith(CTRL_PREFIX));
             // Snapshot of the selected buttons' replies (saved by the control panel)
             let libSnap: Record<string, [string, string][]> = {};
-            try { const lr = raw.find((r) => r.trigger_text === LIB + instance) ?? raw.find((r) => r.trigger_text.startsWith(LIB)); libSnap = lr ? JSON.parse(lr.response_text) : {}; } catch { libSnap = {}; }
+            try {
+              const lr = raw.find((r) => r.trigger_text === LIB + instance) ?? raw.find((r) => r.trigger_text.startsWith(LIB) && !r.trigger_text.includes("#"));
+              libSnap = lr ? JSON.parse(lr.response_text) : {};
+              // Extra chunk rows for big sections ("<key>#1", "#2"…)
+              if (lr) for (const cr of raw.filter((r) => r.trigger_text.startsWith(lr.trigger_text + "#"))) {
+                try { for (const [k, v] of Object.entries(JSON.parse(cr.response_text) as Record<string, [string, string][]>)) libSnap[k] = [...(libSnap[k] ?? []), ...v]; } catch { /* skip bad chunk */ }
+              }
+            } catch { libSnap = {}; }
+            // Match strictness chosen in the panel (50/60/80/100%)
+            const TH = Math.min(1, Math.max(0.5, (Number(ctrl.match) || 60) / 100));
             const sender = digits(number) || number;
             if (!ctrl.enabled) return ok();
             if (ctrl.paused.some((p) => sender === p || sender.endsWith(p) || p.endsWith(sender))) return ok();
@@ -107,7 +116,7 @@ export const Route = createFileRoute("/api/public/evolution")({
               return dup ? [...ctrl.log.slice(0, -1), { ...last, ...entry }] : [...ctrl.log, entry].slice(-300);
             };
             const hit = ctrl.source === "ai" || ctrl.brains.includes("rules:off") ? null : bestRule(text, all);
-            let reply = hit && hit.score >= 0.6 ? hit.rule.response_text : "";
+            let reply = hit && hit.score >= TH ? hit.rule.response_text : "";
             // Enabled brains/libraries (after the merchant's own rules)
             if (!reply && ctrl.source !== "ai" && ctrl.brains.length) {
               for (const b of ctrl.brains) {
@@ -117,12 +126,12 @@ export const Route = createFileRoute("/api/public/evolution")({
                   let lib: any[] = Array.isArray(libSnap[b]) ? libSnap[b].map(([q, a]) => ({ trigger_text: q, reply_text: a })) : [];
                   if (!lib.length) {
                     const { data } = b.startsWith("lib:")
-                      ? await db.from("reply_library").select("trigger_text, reply_text").eq("tag", b.slice(4)).limit(2000)
+                      ? await db.from("reply_library").select("trigger_text, reply_text").eq("tag", b.slice(4)).limit(100000)
                       : await db.rpc("kingdom_replies", { _brain: b });
                     lib = (data ?? []) as any[];
                   }
                   const h = bestRule(text, lib.map((x, i) => ({ id: String(i), trigger_text: x.trigger_text, response_text: x.reply_text, use_count: 0 })));
-                  if (h && h.score >= 0.6) { reply = h.rule.response_text; break; }
+                  if (h && h.score >= TH) { reply = h.rule.response_text; break; }
                 } catch (e) { console.error("brain lib", e); }
               }
             }

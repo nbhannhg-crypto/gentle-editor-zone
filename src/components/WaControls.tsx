@@ -81,7 +81,8 @@ export function WaControls({ instance, myNumber = "" }: { instance: string; myNu
       try {
         let rows: any[] = [];
         if (b.startsWith("lib:")) {
-          for (let from = 0; from < 20000; from += 1000) {
+          // No cap: read every reply in the section (80k+ supported)
+          for (let from = 0; ; from += 1000) {
             const { data } = await (supabase.from as any)("reply_library").select("trigger_text, reply_text").eq("tag", b.slice(4)).range(from, from + 999);
             rows.push(...(data ?? []));
             if (!data || data.length < 1000) break;
@@ -94,10 +95,22 @@ export function WaControls({ instance, myNumber = "" }: { instance: string; myNu
       } catch { /* ignore */ }
     }
     const lk = CTRL_PREFIX + "lib:" + instance;
-    const body = JSON.stringify(snap);
+    // Big sections are split into chunk rows ("<key>#1", "#2"…) so no single row gets too large
+    const CH = 3000;
+    const first: Record<string, [string, string][]> = {};
+    const chunks: Record<string, [string, string][]>[] = [];
+    for (const [k, v] of Object.entries(snap)) {
+      first[k] = v.slice(0, CH);
+      for (let i = CH, n = 0; i < v.length; i += CH, n++) { (chunks[n] ??= {})[k] = v.slice(i, i + CH); }
+    }
+    const body = JSON.stringify(first);
     const { data: ex } = await supabase.from("training_rules").select("id").eq("trigger_text", lk).maybeSingle();
     if (ex) await supabase.from("training_rules").update({ response_text: body }).eq("id", (ex as any).id);
     else await supabase.from("training_rules").insert({ trigger_text: lk, response_text: body, category: "settings", store_id: null } as any);
+    await supabase.from("training_rules").delete().like("trigger_text", lk + "#%");
+    for (let i = 0; i < chunks.length; i += 20) {
+      await supabase.from("training_rules").insert(chunks.slice(i, i + 20).map((ch, j) => ({ trigger_text: `${lk}#${i + j + 1}`, response_text: JSON.stringify(ch), category: "settings", store_id: null })) as any);
+    }
     return Object.values(snap).reduce((n, v) => n + v.length, 0);
   };
   const update = (patch: Partial<WaCtrl>, now = false) => {
@@ -193,6 +206,12 @@ export function WaControls({ instance, myNumber = "" }: { instance: string; myNu
 
       {/* 1) Quick pills */}
       <div className="space-y-2">
+        <div className="flex gap-1.5 overflow-x-auto pb-1">
+          <span className="shrink-0 self-center text-xs">🎯 دقة المطابقة:</span>
+          {[50, 60, 80, 100].map((p) => (
+            <button key={p} className={pill((c.match ?? 60) === p)} onClick={() => update({ match: p }, true)}>{p === 100 ? "🔒 100% بالحرف" : `${p}%`}</button>
+          ))}
+        </div>
         <div className="flex gap-1.5 overflow-x-auto pb-1">
           <button className={pill(c.enabled)} onClick={() => update({ enabled: !c.enabled }, true)}>{c.enabled ? "🟢 شغال" : "🔴 متوقف"}</button>
           <button className={pill(c.mode === "auto")} onClick={() => update({ mode: "auto" }, true)}>⚡ رد آلي مباشر</button>
