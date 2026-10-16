@@ -330,11 +330,11 @@ function Library({ storeId, initialTag = "" }: { storeId?: string | undefined; i
       upload(rows.filter((r) => r[0] && r[1] && !/^(السؤال|سؤال|question)$/i.test(String(r[0]).trim())).map((r) => `${String(r[0]).replace(/\|/g, " ")} | ${String(r[1])}`).join("\n"));
     } else upload(await f.text());
   };
-  const del = async (id: string) => { await supabase.from("reply_library").delete().eq("id", id); setRows((p) => p.filter((r) => r.id !== id)); setCount((c) => c - 1); };
+  const del = async (id: string) => { const isRule = (rows.find((x) => x.id === id) as any)?._rule; await (isRule ? supabase.from("training_rules").delete().eq("id", id) : supabase.from("reply_library").delete().eq("id", id)); setRows((p) => p.filter((r) => r.id !== id)); setCount((c) => c - 1); };
   const editRow = async (r: Row) => {
     const q = prompt("السؤال", r.trigger_text)?.trim(); if (q === undefined || !q) return;
     const a = prompt("الرد", r.reply_text)?.trim(); if (a === undefined || !a) return;
-    const { error } = await supabase.from("reply_library").update({ trigger_text: q.slice(0, 500), reply_text: a.slice(0, 2000) }).eq("id", r.id);
+    const { error } = (r as any)._rule ? await supabase.from("training_rules").update({ trigger_text: q.slice(0, 500), response_text: a.slice(0, 2000) }).eq("id", r.id) : await supabase.from("reply_library").update({ trigger_text: q.slice(0, 500), reply_text: a.slice(0, 2000) }).eq("id", r.id);
     if (error) { toast.error(error.message); return; }
     setRows((p) => p.map((x) => (x.id === r.id ? { ...x, trigger_text: q, reply_text: a } : x))); toast.success("تعدّلت القاعدة ✏️");
   };
