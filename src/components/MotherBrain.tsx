@@ -45,7 +45,7 @@ export function MotherBrain({ storeId }: { storeId?: string | undefined }) {
       let extra: string[] = [];
       try { extra = await loadSections(storeId); } catch { /* ignore */ }
       setSecCounts(m); setSecs([...new Set([...Object.keys(m), ...extra])]);
-      const { count } = await supabase.from("training_rules").select("id", { count: "exact", head: true }).eq("store_id", storeId);
+      const { count } = await supabase.from("training_rules").select("id", { count: "exact", head: true }).eq("store_id", storeId).or(GENERAL_OR);
       setRulesCount(count ?? 0);
     })();
   }, [storeId, view]);

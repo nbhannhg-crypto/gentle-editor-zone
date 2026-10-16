@@ -120,7 +120,8 @@ export function WaControls({ instance, myNumber = "" }: { instance: string; myNu
     let total = Object.values(snap).reduce((n, v) => n + v.length, 0);
     // Store rules count too when their button is on (read live)
     if (!sel.includes("rules:off")) {
-      const { count } = await supabase.from("training_rules").select("id", { count: "exact", head: true }).not("trigger_text", "like", "__wa_%");
+      // Store rules button counts only the general taught rules (section overflow keeps its own button)
+      const { count } = await supabase.from("training_rules").select("id", { count: "exact", head: true }).not("trigger_text", "like", "__wa_%").or(GENERAL_OR);
       total += count ?? 0;
     }
     return total;

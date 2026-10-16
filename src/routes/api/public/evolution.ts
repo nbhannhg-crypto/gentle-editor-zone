@@ -6,6 +6,10 @@ import { CTRL_PREFIX, cleanReply, ctrlPrompt, digits, listHas, parseCtrl } from 
 
 const ok = (s = 200, t = "ok") => new Response(t, { status: s });
 
+// Store rules are only the general taught rules; section overflow rows (category = section name)
+// belong to their own button and must not leak into the store-rules search/count.
+const GENERAL_OR = 'category.is.null,category.in.(عام,السعر,التوصيل,الجودة,التأجيل)';
+
 // Fast search: ask the database only for rows whose question shares words with the message
 // (instead of downloading every reply on each WhatsApp message).
 const searchWords = (text: string) => {
@@ -102,7 +106,7 @@ export const Route = createFileRoute("/api/public/evolution")({
             const ctrlRow = ctrlRows.find((r) => r.trigger_text === CTRL_PREFIX + instance) ?? ctrlRows[0];
             const ctrl = parseCtrl(ctrlRow?.response_text);
             // Store rules: only the rows that share words with the message (database does the search)
-            const all = ctrl.source === "ai" ? [] : await findCandidates(db, "training_rules", "response_text", text, (q) => q);
+            const all = ctrl.source === "ai" ? [] : await findCandidates(db, "training_rules", "response_text", text, (q) => q.or(GENERAL_OR));
             // Snapshot of the selected buttons' replies (saved by the control panel)
             let libSnap: Record<string, [string, string][]> = {};
             try {
