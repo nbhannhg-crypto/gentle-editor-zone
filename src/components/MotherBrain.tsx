@@ -214,11 +214,34 @@ function Library({ storeId, initialTag = "" }: { storeId?: string | undefined; i
     const s = search.trim().replace(/[%_,()]/g, "");
     if (s) q = q.or(`trigger_text.ilike.%${s}%,reply_text.ilike.%${s}%`);
     const { data, count: c } = await q;
-    setRows((data ?? []) as Row[]);
+    let shown = (data ?? []) as Row[];
+    // Also show replies of the chosen section saved in store rules (category = section name)
+    if (tag) {
+      let q2 = supabase.from("training_rules").select("id, category, trigger_text, response_text").eq("store_id", storeId).eq("category", tag).order("created_at", { ascending: false }).limit(100);
+      if (s) q2 = q2.or(`trigger_text.ilike.%${s}%,response_text.ilike.%${s}%`);
+      const { data: d2 } = await q2;
+      shown = [...shown, ...((d2 ?? []) as any[]).map((r) => ({ id: r.id, tag: r.category, trigger_text: r.trigger_text, reply_text: r.response_text, _rule: true } as any))];
+    }
+    setRows(shown);
     if (!s && !tag) setCount(c ?? 0);
     const { data: t } = await supabase.from("reply_library").select("tag").eq("store_id", storeId).limit(20000);
     const m: Record<string, number> = {};
     (t ?? []).forEach((x) => { m[x.tag] = (m[x.tag] ?? 0) + 1; });
+    // Exact library counts per section (no 20k cap) + replies saved in store rules under the section name
+    try {
+      const secs = [...new Set([...Object.keys(m), ...extra, ...(tag ? [tag] : [])])];
+      let ruleTotal = 0;
+      await Promise.all(secs.map(async (sec) => {
+        const [{ count: lc }, { count: rc }] = await Promise.all([
+          supabase.from("reply_library").select("id", { count: "exact", head: true }).eq("store_id", storeId).eq("tag", sec),
+          supabase.from("training_rules").select("id", { count: "exact", head: true }).eq("store_id", storeId).eq("category", sec),
+        ]);
+        ruleTotal += rc ?? 0;
+        const n = (lc ?? 0) + (rc ?? 0);
+        if (n) m[sec] = n;
+      }));
+      if (!s && !tag) setCount((c ?? 0) + ruleTotal);
+    } catch { /* keep library counts */ }
     // Also count replies saved in the WhatsApp cloud copies of this store's sections (read-only)
     try {
       const pre = "k" + storeId.replace(/-/g, "").slice(0, 10);
@@ -307,11 +330,11 @@ function Library({ storeId, initialTag = "" }: { storeId?: string | undefined; i
       upload(rows.filter((r) => r[0] && r[1] && !/^(السؤال|سؤال|question)$/i.test(String(r[0]).trim())).map((r) => `${String(r[0]).replace(/\|/g, " ")} | ${String(r[1])}`).join("\n"));
     } else upload(await f.text());
   };
-  const del = async (id: string) => { await supabase.from("reply_library").delete().eq("id", id); setRows((p) => p.filter((r) => r.id !== id)); setCount((c) => c - 1); };
+  const del = async (id: string) => { const isRule = (rows.find((x) => x.id === id) as any)?._rule; await (isRule ? supabase.from("training_rules").delete().eq("id", id) : supabase.from("reply_library").delete().eq("id", id)); setRows((p) => p.filter((r) => r.id !== id)); setCount((c) => c - 1); };
   const editRow = async (r: Row) => {
     const q = prompt("السؤال", r.trigger_text)?.trim(); if (q === undefined || !q) return;
     const a = prompt("الرد", r.reply_text)?.trim(); if (a === undefined || !a) return;
-    const { error } = await supabase.from("reply_library").update({ trigger_text: q.slice(0, 500), reply_text: a.slice(0, 2000) }).eq("id", r.id);
+    const { error } = (r as any)._rule ? await supabase.from("training_rules").update({ trigger_text: q.slice(0, 500), response_text: a.slice(0, 2000) }).eq("id", r.id) : await supabase.from("reply_library").update({ trigger_text: q.slice(0, 500), reply_text: a.slice(0, 2000) }).eq("id", r.id);
     if (error) { toast.error(error.message); return; }
     setRows((p) => p.map((x) => (x.id === r.id ? { ...x, trigger_text: q, reply_text: a } : x))); toast.success("تعدّلت القاعدة ✏️");
   };

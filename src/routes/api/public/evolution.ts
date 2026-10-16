@@ -132,6 +132,13 @@ export const Route = createFileRoute("/api/public/evolution")({
                       lib.push(...data);
                       if (data.length < 1000) break;
                     }
+                    // Replies of this section that overflowed into store rules (category = section name)
+                    for (let from = 0; ; from += 1000) {
+                      const { data, error } = await db.from("training_rules").select("trigger_text, reply_text:response_text").eq("category", b.slice(4)).order("created_at", { ascending: false }).range(from, from + 999);
+                      if (error || !data) break;
+                      lib.push(...data);
+                      if (data.length < 1000) break;
+                    }
                   } else {
                     const { data } = await db.rpc("kingdom_replies", { _brain: b });
                     lib = (data ?? []) as any[];
