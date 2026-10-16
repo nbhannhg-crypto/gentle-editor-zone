@@ -219,6 +219,20 @@ function Library({ storeId, initialTag = "" }: { storeId?: string | undefined; i
     const { data: t } = await supabase.from("reply_library").select("tag").eq("store_id", storeId).limit(20000);
     const m: Record<string, number> = {};
     (t ?? []).forEach((x) => { m[x.tag] = (m[x.tag] ?? 0) + 1; });
+    // Also count replies saved in the WhatsApp cloud copies of this store's sections (read-only)
+    try {
+      const pre = "k" + storeId.replace(/-/g, "").slice(0, 10);
+      const snap: Record<string, Record<string, number>> = {};
+      for (let from = 0; ; from += 50) {
+        const { data: sr } = await supabase.from("training_rules").select("trigger_text, response_text").like("trigger_text", `__wa_settings__:lib:${pre}%`).range(from, from + 49);
+        (sr ?? []).forEach((r: any) => {
+          const inst = String(r.trigger_text).split("#")[0]!;
+          try { const o = JSON.parse(r.response_text || "{}"); for (const [k, v] of Object.entries(o)) { if (!k.startsWith("lib:") || !Array.isArray(v)) continue; const s = k.slice(4); (snap[inst] ??= {})[s] = (snap[inst][s] ?? 0) + v.length; } } catch { /* skip */ }
+        });
+        if (!sr || sr.length < 50) break;
+      }
+      for (const per of Object.values(snap)) for (const [s, n] of Object.entries(per)) if ((m[s] ?? 0) < n) m[s] = n;
+    } catch { /* keep library counts */ }
     setCounts(m); setTags(Object.keys(m));
   };
   useEffect(() => { const h = setTimeout(load, 300); return () => clearTimeout(h); }, [storeId, search, tag]);
@@ -266,12 +280,11 @@ function Library({ storeId, initialTag = "" }: { storeId?: string | undefined; i
     if (!storeId) return;
     const items = parse(text);
     if (!items.length) { toast.error("اكتب كل سطر: السؤال | الرد"); return; }
-    if (count + items.length > MAX_LIB) { toast.error(`الحد ${MAX_LIB.toLocaleString()} سطر`); return; }
     const t = newTag.trim().slice(0, 40) || "عام";
     setProgress(0);
     for (let i = 0; i < items.length; i += 500) {
       const { error } = await supabase.from("reply_library").insert(items.slice(i, i + 500).map((r) => ({ ...r, store_id: storeId, tag: t })));
-      if (error) { setProgress(null); toast.error(error.message.includes("full") ? "المكتبة ممتلئة" : error.message); return; }
+      if (error) { setProgress(null); toast.error(`ما انرفع (انحفظ ${i.toLocaleString()} من ${items.length.toLocaleString()}): ${error.message}`); load(); return; }
       setProgress(Math.round(((i + 500) / items.length) * 100));
     }
     setProgress(null); setPaste(""); toast.success(`انحفظ ${items.length.toLocaleString()} رد 📚`); load();
@@ -344,9 +357,9 @@ function Library({ storeId, initialTag = "" }: { storeId?: string | undefined; i
       <section className="rounded-2xl border bg-card p-4 shadow-soft space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="font-display text-lg text-primary">📚 {tag ? `ردود قسم «${tag}»` : "مكتبة الردود العملاقة"}</h3>
-          <span className="text-xs">{count.toLocaleString()} / {MAX_LIB.toLocaleString()}</span>
+          <span className="text-xs">{count.toLocaleString()} رد · بدون حد</span>
         </div>
-        <Progress value={(count / MAX_LIB) * 100} />
+        <Progress value={100} />
         <Textarea value={paste} onChange={(e) => setPaste(e.target.value)} rows={5} placeholder={"كل سطر: السؤال | الرد\nكم السعر | السعر 99 ريال والتوصيل مجاني"} />
         <div className="flex flex-wrap gap-2">
           <select value={newTag} onChange={(e) => setNewTag(e.target.value)} className="rounded-md border bg-background p-2 text-sm">
