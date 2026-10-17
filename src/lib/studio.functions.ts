@@ -194,19 +194,8 @@ export const studioWrite = createServerFn({ method: "POST" })
       const ext = await getAIResponse("أنت كاتبة نصوص صوتية سعودية محترفة. اكتبي نصاً واحداً باللهجة السعودية البيضاء، قصيراً (2-4 جمل)، دافئاً ومقنعاً، جاهزاً للقراءة بصوت. بدون إيموجي وبدون عناوين أو شرح.", `النوع: ${styles[data.style]}\nالفكرة: ${data.idea}`);
       if (ext) return { text: ext.slice(0, 2000) };
     }
-    const key = process.env["LOVABLE_API_KEY"];
-    if (!key) throw new Error("خدمة الكتابة غير متاحة");
-    const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: "أنت كاتبة نصوص صوتية سعودية محترفة. اكتبي نصاً واحداً باللهجة السعودية البيضاء، قصيراً (2-4 جمل)، دافئاً ومقنعاً، جاهزاً للقراءة بصوت. بدون إيموجي وبدون عناوين أو شرح." },
-          { role: "user", content: `النوع: ${styles[data.style]}\nالفكرة: ${data.idea}` },
-        ],
-      }),
-    });
+    throw new Error("المفاتيح المجانية مشغولة الحين، انتظر دقيقة وجرّب مرة ثانية");
+  });
     if (r.status === 429) throw new Error("ضغط عالي، جرب بعد شوي");
     if (r.status === 402) throw new Error("رصيد الذكاء خلص");
     if (!r.ok) throw new Error(`تعذرت الكتابة (${r.status})`);
@@ -382,19 +371,8 @@ export const campaignPolish = createServerFn({ method: "POST" })
       const ext = await getAIResponse("أنت كاتبة إعلانات سعودية محترفة. حسّني رسالة الحملة: باللهجة السعودية البيضاء، قصيرة (2-4 جمل)، جذابة ومقنعة مع دعوة واضحة للتواصل. أرجعي النص المحسّن فقط بدون شرح.", data.text);
       if (ext) return { text: ext.slice(0, 1000) };
     }
-    const key = process.env["LOVABLE_API_KEY"];
-    if (!key) throw new Error("خدمة الذكاء غير متاحة");
-    const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: "أنت كاتبة إعلانات سعودية محترفة. حسّني رسالة الحملة: باللهجة السعودية البيضاء، قصيرة (2-4 جمل)، جذابة ومقنعة مع دعوة واضحة للتواصل. أرجعي النص المحسّن فقط بدون شرح." },
-          { role: "user", content: data.text },
-        ],
-      }),
-    });
+    throw new Error("المفاتيح المجانية مشغولة الحين، انتظر دقيقة وجرّب مرة ثانية");
+  });
     if (!r.ok) throw new Error(`تعذر التحسين (${r.status})`);
     const j = await r.json();
     return { text: String(j.choices?.[0]?.message?.content ?? data.text).trim().slice(0, 1000) };
