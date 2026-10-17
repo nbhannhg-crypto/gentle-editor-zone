@@ -20,7 +20,9 @@ export function quickGreeting(text: string): string | null {
 let cursor = 0;
 
 function geminiKeys(): string[] {
-  return (process.env["GEMINI_KEYS"] ?? "").split(",").map((k) => k.trim()).filter(Boolean);
+  const keys = (process.env["GEMINI_KEYS"] ?? "").split(",").map((k) => k.trim()).filter(Boolean);
+  if (!keys.length) console.error("[ai-keys] GEMINI_KEYS is empty or missing in server secrets — 0 free keys loaded");
+  return keys;
 }
 
 async function callGemini(key: string, system: string, prompt: string): Promise<{ ok: true; text: string } | { ok: false; quota: boolean }> {
@@ -34,6 +36,7 @@ async function callGemini(key: string, system: string, prompt: string): Promise<
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
+    console.error(`[ai-keys] Gemini rejected: ${res.status} ${body.slice(0, 300)}`);
     const quota = res.status === 429 || /quota|exhausted|rate/i.test(body) || res.status === 403 || res.status === 400;
     return { ok: false, quota };
   }
@@ -89,7 +92,7 @@ export async function geminiJson(system: string, contents: GContent[]): Promise<
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents, generationConfig: { responseMimeType: "application/json" } }),
       });
-      if (!res.ok) continue;
+      if (!res.ok) { console.error(`[ai-keys] Gemini key #${i + 1} rejected: ${res.status} ${(await res.text().catch(() => "")).slice(0, 300)}`); continue; }
       const j = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
       const text = (j.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? "").join("").trim();
       if (text) { try { JSON.parse(text); return text; } catch { /* next key */ } }
@@ -109,7 +112,7 @@ export async function geminiMedia(instruction: string, mimeType: string, base64:
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: instruction }, { inlineData: { mimeType, data: base64 } }] }] }),
       });
-      if (!res.ok) continue;
+      if (!res.ok) { console.error(`[ai-keys] Gemini key #${i + 1} rejected: ${res.status} ${(await res.text().catch(() => "")).slice(0, 300)}`); continue; }
       const j = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
       const text = (j.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? "").join("").trim();
       if (text) return text;
