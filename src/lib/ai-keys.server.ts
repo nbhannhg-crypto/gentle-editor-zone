@@ -19,6 +19,20 @@ export function quickGreeting(text: string): string | null {
 
 let cursor = 0;
 
+// Model fallback: if Google is busy (503/429/404) on one model, try the next — all free keys.
+const GEMINI_MODELS = ["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-flash-lite-latest", "gemini-flash-latest"];
+
+async function gemFetch(key: string, init: RequestInit): Promise<Response> {
+  let last: Response | null = null;
+  for (const m of GEMINI_MODELS) {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${encodeURIComponent(key)}`, init);
+    if (res.ok) return res;
+    last = res;
+    if (res.status === 401 || res.status === 403) break; // bad key → next key
+  }
+  return last!;
+}
+
 function geminiKeys(): string[] {
   const keys = (process.env["GEMINI_KEYS"] ?? "").split(/[,،;\s]+/).map((k) => k.trim()).filter(Boolean);
   if (!keys.length) console.error("[ai-keys] GEMINI_KEYS is empty or missing in server secrets — 0 free keys loaded");
@@ -26,7 +40,7 @@ function geminiKeys(): string[] {
 }
 
 async function callGemini(key: string, system: string, prompt: string): Promise<{ ok: true; text: string } | { ok: false; quota: boolean }> {
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${encodeURIComponent(key)}`, {
+  const res = await gemFetch(key, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -87,7 +101,7 @@ export async function geminiJson(system: string, contents: GContent[]): Promise<
   for (let i = 0; i < keys.length; i++) {
     const key = keys[cursor++ % keys.length]!;
     try {
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${encodeURIComponent(key)}`, {
+      const res = await gemFetch(key, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents, generationConfig: { responseMimeType: "application/json" } }),
@@ -107,7 +121,7 @@ export async function geminiMedia(instruction: string, mimeType: string, base64:
   for (let i = 0; i < keys.length; i++) {
     const key = keys[cursor++ % keys.length]!;
     try {
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${encodeURIComponent(key)}`, {
+      const res = await gemFetch(key, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: instruction }, { inlineData: { mimeType, data: base64 } }] }] }),
