@@ -281,46 +281,24 @@ export async function kingdomWelcome(db: any, ownerId: string, storeName: string
 
 /** Customer voice note -> text, or customer photo -> short business-oriented description. Returns "" on any failure. */
 export async function mediaToText(url: string, mime: string): Promise<string> {
+  // Free only: uses the GEMINI_KEYS rotation — never the platform AI credits.
   try {
-    const gw = process.env["LOVABLE_API_KEY"];
-    if (!gw) return "";
     const base = (process.env["EVOLUTION_API_URL"] ?? "").replace(/\/$/, "");
     const path = new URL(url, base || "http://x").pathname;
     const res = await fetch(base ? base + path : url, { headers: { "X-Api-Key": process.env["EVOLUTION_API_KEY"] ?? "" } });
     if (!res.ok) return "";
     const buf = new Uint8Array(await res.arrayBuffer());
     if (!buf.length || buf.length > 8 * 1024 * 1024) return "";
-    const type = mime || res.headers.get("content-type") || "";
+    const type = (mime || res.headers.get("content-type") || "").split(";")[0]!.trim();
+    if (!type.startsWith("audio/") && !type.startsWith("image/")) return "";
+    let bin = ""; for (let i = 0; i < buf.length; i += 8192) bin += String.fromCharCode(...buf.subarray(i, i + 8192));
+    const { geminiMedia } = await import("./ai-keys.server");
     if (type.startsWith("audio/")) {
-      const form = new FormData();
-      form.append("model", "openai/gpt-transcribe");
-      form.append("file", new File([buf], "voice.ogg", { type: type.split(";")[0] ?? "audio/ogg" }));
-      form.append("response_format", "json");
-      form.append("language", "ar");
-      const r = await fetch("https://ai.gateway.lovable.dev/v1/audio/transcriptions", { method: "POST", headers: { Authorization: `Bearer ${gw}` }, body: form });
-      if (!r.ok) return "";
-      return String(((await r.json()) as { text?: string }).text ?? "").trim().slice(0, 1000);
+      const t = await geminiMedia("فرّغ هذا التسجيل الصوتي إلى نص عربي كما قيل حرفياً، بدون أي مقدمات أو تعليق.", type, btoa(bin));
+      return t.slice(0, 1000);
     }
-    if (type.startsWith("image/")) {
-      let bin = ""; for (let i = 0; i < buf.length; i += 8192) bin += String.fromCharCode(...buf.subarray(i, i + 8192));
-      const r = await fetch("https://ai.gateway.lovable.dev/v1/responses", {
-        method: "POST",
-        headers: { "Lovable-API-Key": gw, Authorization: `Bearer ${gw}`, "Content-Type": "application/json", "X-Lovable-AIG-SDK": "fetch" },
-        body: JSON.stringify({
-          model: "openai/gpt-6-astra", stream: true, store: false, reasoning: { effort: "low" },
-          instructions: "صف الصورة التي أرسلها زبون المتجر بجملة أو جملتين بالعربية (منتج، مقاس، عيب، إيصال دفع، إلخ) بدون مقدمات.",
-          input: [{ role: "user", content: [{ type: "input_text", text: "ماذا في هذه الصورة؟" }, { type: "input_image", image_url: `data:${type.split(";")[0]};base64,${btoa(bin)}` }] }],
-        }),
-      });
-      if (!r.ok || !r.body) return "";
-      const reader = r.body.getReader(); const dec = new TextDecoder(); let b = "", out = "";
-      for (;;) {
-        const { done, value } = await reader.read(); if (done) break;
-        b += dec.decode(value, { stream: true }); const ls = b.split("\n"); b = ls.pop() ?? "";
-        for (const l of ls) { if (!l.startsWith("data:")) continue; try { const j = JSON.parse(l.slice(5)); if (j.type === "response.output_text.delta") out += j.delta ?? ""; } catch { /* skip */ } }
-      }
-      return out.trim().slice(0, 500);
-    }
+    const t = await geminiMedia("صف الصورة التي أرسلها زبون المتجر بجملة أو جملتين بالعربية (منتج، مقاس، عيب، إيصال دفع، إلخ) بدون مقدمات.", type, btoa(bin));
+    return t.slice(0, 500);
   } catch (e) { console.error("mediaToText", e); }
   return "";
 }
