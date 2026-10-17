@@ -97,3 +97,23 @@ export async function geminiJson(system: string, contents: GContent[]): Promise<
   }
   return null;
 }
+
+/** Free Gemini (key rotation) for image/audio -> Arabic text. Returns "" when no key works. */
+export async function geminiMedia(instruction: string, mimeType: string, base64: string): Promise<string> {
+  const keys = geminiKeys();
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[cursor++ % keys.length]!;
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(key)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: instruction }, { inlineData: { mimeType, data: base64 } }] }] }),
+      });
+      if (!res.ok) continue;
+      const j = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+      const text = (j.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? "").join("").trim();
+      if (text) return text;
+    } catch { /* next key */ }
+  }
+  return "";
+}
