@@ -54,6 +54,34 @@ export function WaControls({ instance, myNumber = "" }: { instance: string; myNu
         const { data } = await (supabase.from as any)("reply_library").select("tag").limit(1000);
         ((data ?? []) as any[]).forEach((r) => r.tag && set.add(String(r.tag)));
       } catch { /* ignore */ }
+      // Cloud-saved section lists (any new empty section shows a button immediately)
+      try {
+        const { data } = await supabase.from("training_rules").select("response_text").like("trigger_text", "mb_sections:%");
+        ((data ?? []) as any[]).forEach((r) => { try { (JSON.parse(r.response_text || "[]") as any[]).forEach((s) => s && set.add(String(s))); } catch { /* ignore */ } });
+      } catch { /* ignore */ }
+      // Sections linked to brains
+      try {
+        const { data } = await supabase.from("brains").select("library_tag");
+        ((data ?? []) as any[]).forEach((b) => { if (b.library_tag && b.library_tag !== "__rules__") set.add(String(b.library_tag)); });
+      } catch { /* ignore */ }
+      // Section names found in store rules (overflow replies) and the full reply library, without one big section hiding the rest
+      const GEN = new Set(["settings", "عام", "السعر", "التوصيل", "الجودة", "الضمان", "التأجيل"]);
+      const scanTags = async (table: string, col: string) => {
+        let from = 0;
+        for (let guard = 0; guard < 200; guard++) {
+          const { data } = await (supabase.from as any)(table).select(col).order(col).range(from, from + 999);
+          const rows = (data ?? []) as any[];
+          if (!rows.length) break;
+          const last = rows[rows.length - 1][col];
+          rows.forEach((r) => { const v = r[col]; if (v && !GEN.has(String(v))) set.add(String(v)); });
+          if (rows.length < 1000 || last == null) break;
+          // Jump past every row of the last value so a giant section is skipped in one step
+          const { count } = await (supabase.from as any)(table).select("id", { count: "exact", head: true }).lte(col, last);
+          from = Math.max(from + 1000, count ?? from + 1000);
+        }
+      };
+      try { await scanTags("training_rules", "category"); } catch { /* ignore */ }
+      try { await scanTags("reply_library", "tag"); } catch { /* ignore */ }
       setMySecs([...set]);
     })();
     const t = setInterval(() => void load(), 15000);
