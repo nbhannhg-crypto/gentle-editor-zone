@@ -74,3 +74,26 @@ export async function getAIResponse(system: string, prompt: string): Promise<str
   }
   try { return await callOpenRouter(system, prompt); } catch { return null; }
 }
+
+type GPart = { text: string } | { inlineData: { mimeType: string; data: string } };
+type GContent = { role: "user" | "model"; parts: GPart[] };
+
+/** JSON-mode Gemini call with key rotation (supports images). Returns null when no key works. */
+export async function geminiJson(system: string, contents: GContent[]): Promise<string | null> {
+  const keys = geminiKeys();
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[cursor++ % keys.length]!;
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(key)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents, generationConfig: { responseMimeType: "application/json" } }),
+      });
+      if (!res.ok) continue;
+      const j = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+      const text = (j.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? "").join("").trim();
+      if (text) { try { JSON.parse(text); return text; } catch { /* next key */ } }
+    } catch { /* next key */ }
+  }
+  return null;
+}

@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { SPECIALISTS } from "@/lib/brains";
+import { geminiJson } from "@/lib/ai-keys.server";
 
 const SCHEMA = {
   type: "object",
@@ -131,7 +132,14 @@ ${active ? `\n⚠️ التاجر الآن يكلم عقله الخاص "${activ
       if (m.role === "assistant") return { role: "assistant", content: [{ type: "output_text", text: m.content }] };
       return { role: "user", content: last ? [{ type: "input_text", text: m.content || "اقرأ المحادثة وكمّلها" }, { type: "input_image", image_url: data.image }] : [{ type: "input_text", text: m.content }] };
     });
-    const raw = await streamJson(instructions, input);
+    const gContents = data.history.map((m, i) => {
+      const last = i === data.history.length - 1 && m.role === "user" && data.image;
+      const parts: ({ text: string } | { inlineData: { mimeType: string; data: string } })[] = [{ text: m.content || "اقرأ المحادثة وكمّلها" }];
+      if (last && data.image) { const mm = /^data:([^;]+);base64,(.*)$/.exec(data.image); if (mm) parts.push({ inlineData: { mimeType: mm[1]!, data: mm[2]! } }); }
+      return { role: m.role === "assistant" ? "model" as const : "user" as const, parts };
+    });
+    const jsonHint = `\n\nأخرج JSON فقط بهذا الشكل: {"specialist": واحد من [${SPECIALISTS.map((s) => s.id).join(", ")}], "reply": نص, "tab": نص, "voice_text": نص, "create_brain": null أو {"name","emoji","specialty","source": "ai"|"library"|"both","instructions","knowledge"}}`;
+    const raw = (await geminiJson(instructions + jsonHint, gContents)) ?? (await streamJson(instructions, input));
     type Out = { specialist: string; reply: string; tab: string; voice_text: string; create_brain: null | { name: string; emoji: string; specialty: string; source: string; instructions: string; knowledge: string } };
     let j: Out;
     try { j = JSON.parse(raw) as Out; } catch { throw new Error("ما وصل رد واضح، جرّب مرة ثانية"); }
