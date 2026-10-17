@@ -139,7 +139,7 @@ ${active ? `\n⚠️ التاجر الآن يكلم عقله الخاص "${activ
       return { role: m.role === "assistant" ? "model" as const : "user" as const, parts };
     });
     const jsonHint = `\n\nأخرج JSON فقط بهذا الشكل: {"specialist": واحد من [${SPECIALISTS.map((s) => s.id).join(", ")}], "reply": نص, "tab": نص, "voice_text": نص, "create_brain": null أو {"name","emoji","specialty","source": "ai"|"library"|"both","instructions","knowledge"}}`;
-    const raw = (await geminiJson(instructions + jsonHint, gContents)) ?? (await streamJson(instructions, input));
+    const raw = (await geminiJson(instructions + jsonHint, gContents)) ?? (() => { void input; throw new Error("المفاتيح المجانية مشغولة الحين، انتظر دقيقة وجرّب مرة ثانية"); })();
     type Out = { specialist: string; reply: string; tab: string; voice_text: string; create_brain: null | { name: string; emoji: string; specialty: string; source: string; instructions: string; knowledge: string } };
     let j: Out;
     try { j = JSON.parse(raw) as Out; } catch { throw new Error("ما وصل رد واضح، جرّب مرة ثانية"); }
