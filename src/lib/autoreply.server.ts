@@ -108,8 +108,9 @@ export async function aiText(instructions: string, userText: string, maxLen = 40
   const { getAIResponse } = await import("./ai-keys.server");
   const ext = await getAIResponse(instructions, userText);
   if (ext) return ext.slice(0, maxLen);
-  const key = process.env["LOVABLE_API_KEY"];
-  if (!key) throw new Error("AI key missing");
+  // Free keys only — never fall back to platform credits.
+  const key = "" as string;
+  if (!key) throw new Error("free AI keys busy");
   const res = await fetch("https://ai.gateway.lovable.dev/v1/responses", {
     method: "POST",
     headers: { "Lovable-API-Key": key, Authorization: `Bearer ${key}`, "Content-Type": "application/json", "X-Lovable-AIG-SDK": "fetch" },

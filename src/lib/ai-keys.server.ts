@@ -84,7 +84,7 @@ export async function geminiJson(system: string, contents: GContent[]): Promise<
   for (let i = 0; i < keys.length; i++) {
     const key = keys[cursor++ % keys.length]!;
     try {
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(key)}`, {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${encodeURIComponent(key)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents, generationConfig: { responseMimeType: "application/json" } }),
@@ -104,7 +104,7 @@ export async function geminiMedia(instruction: string, mimeType: string, base64:
   for (let i = 0; i < keys.length; i++) {
     const key = keys[cursor++ % keys.length]!;
     try {
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(key)}`, {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${encodeURIComponent(key)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: instruction }, { inlineData: { mimeType, data: base64 } }] }] }),

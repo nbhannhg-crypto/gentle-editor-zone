@@ -96,8 +96,8 @@ async function craftReply(text: string): Promise<string> {
   const ext = await getAIResponse(`أنتِ موظفة مبيعات سعودية تردين على زبائن واتساب. التزمي بتعليمات صاحب المتجر أولاً، وردي بجملة أو جملتين باللهجة السعودية البيضاء.\n\nتعليمات صاحب المتجر:\n${rulesText || "لا يوجد"}`, text);
   if (ext) return ext;
 
-  const key = process.env["LOVABLE_API_KEY"];
-  if (!key) return list[0]?.response_text ?? "";
+  const key = "" as string; // free keys only — no platform credits
+  if (!key) return direct && direct.score >= 0.2 ? direct.rule.response_text : "";
   const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
