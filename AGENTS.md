@@ -13,4 +13,4 @@
 
 - Direct server-fn calls from components (not via useServerFn) must wrap the payload: `myFn({ data: payload })` — plain `myFn(payload)` reaches inputValidator as undefined and fails with "expected object, received undefined".
 
-- External AI keys (GEMINI_KEYS rotation, then OPENROUTER_KEY) live in src/lib/ai-keys.server.ts and are tried first; brain factory, WhatsApp AI replies and customer media never fall back to the built-in gateway (show a busy message / stay silent instead) — why: the owner forbids platform-credit spend there.
+- External AI keys (GEMINI_KEYS rotation, then OPENROUTER_KEY) live in src/lib/ai-keys.server.ts; all text/vision/transcription AI (queen brain, suggestions, reports, studio, brain factory, WhatsApp, media) never falls back to the built-in gateway (show a busy message / stay silent instead) — why: the owner forbids platform-credit spend. Only the `speak` TTS still uses the gateway.
