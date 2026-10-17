@@ -52,8 +52,12 @@ export async function fetchRules(storeId?: string): Promise<Rule[]> {
   const PAGE = 1000;
   const all: Rule[] = [];
   for (let from = 0; ; from += PAGE) {
-    let q = supabase.from("training_rules").select("*").order("created_at", { ascending: false }).order("id").range(from, from + PAGE - 1);
-    if (storeId) q = q.eq("store_id", storeId);
+    let q = supabase.from("training_rules").select("*")
+      .not("trigger_text", "like", "__wa_%")
+      .or("category.is.null,category.in.(عام,السعر,التوصيل,الجودة,التأجيل)")
+      .order("created_at", { ascending: false }).order("id").range(from, from + PAGE - 1);
+    // Old rules were saved with store_id NULL — include them with the store's own rules.
+    if (storeId) q = q.or(`store_id.eq.${storeId},store_id.is.null`);
     const { data, error } = await q;
     if (error) return cachedRules();
     all.push(...(data as Rule[]));

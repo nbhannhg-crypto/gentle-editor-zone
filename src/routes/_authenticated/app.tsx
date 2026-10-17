@@ -211,6 +211,12 @@ function Training({ rules, reload, setRules, mode, product, setProduct, storeId 
   }, []);
   const goal = 50;
   const progress = Math.min(100, (rules.length / goal) * 100);
+  const [listQ, setListQ] = useState("");
+  const shown = (() => {
+    const q = normalize(listQ);
+    if (!q) return rules;
+    return rules.filter((r) => normalize(r.trigger_text).includes(q) || normalize(r.response_text).includes(q));
+  })();
 
   const save = async () => {
     if (!trigger.trim() || !response.trim()) { toast.error("اكتب كلام الزبون وردك"); return; }
@@ -346,9 +352,11 @@ function Training({ rules, reload, setRules, mode, product, setProduct, storeId 
           <Button size="sm" variant="secondary" onClick={exportRules}>تصدير Excel</Button>
           <Button size="sm" variant="outline" onClick={removeDuplicates}>حذف المكرر</Button>
         </div>
+        <Input value={listQ} onChange={(e) => setListQ(e.target.value)} placeholder="🔍 ابحث في القواعد المحفوظة بكلمة…" className="mb-3" />
+        {listQ.trim() && <p className="mb-2 text-xs text-muted-foreground">النتائج: {shown.length}</p>}
         {!rules.length && <p className="text-sm text-muted-foreground">ما علمتها شي للحين. ابدأ بأول قاعدة!</p>}
         <ul className="max-h-[70vh] space-y-3 overflow-auto pl-1">
-          {rules.map((r) => (
+          {shown.slice(0, 500).map((r) => (
             <li key={r.id} className="rounded-xl border bg-background p-3">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
