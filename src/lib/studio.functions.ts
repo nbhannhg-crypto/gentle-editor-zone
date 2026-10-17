@@ -196,12 +196,6 @@ export const studioWrite = createServerFn({ method: "POST" })
     }
     throw new Error("المفاتيح المجانية مشغولة الحين، انتظر دقيقة وجرّب مرة ثانية");
   });
-    if (r.status === 429) throw new Error("ضغط عالي، جرب بعد شوي");
-    if (r.status === 402) throw new Error("رصيد الذكاء خلص");
-    if (!r.ok) throw new Error(`تعذرت الكتابة (${r.status})`);
-    const j = await r.json();
-    return { text: String(j.choices?.[0]?.message?.content ?? "").trim().slice(0, 2000) };
-  });
 
 
 // ---------- WhatsApp (QR linking + blue voice notes) ----------
@@ -372,10 +366,6 @@ export const campaignPolish = createServerFn({ method: "POST" })
       if (ext) return { text: ext.slice(0, 1000) };
     }
     throw new Error("المفاتيح المجانية مشغولة الحين، انتظر دقيقة وجرّب مرة ثانية");
-  });
-    if (!r.ok) throw new Error(`تعذر التحسين (${r.status})`);
-    const j = await r.json();
-    return { text: String(j.choices?.[0]?.message?.content ?? data.text).trim().slice(0, 1000) };
   });
 
 export const campaignSend = createServerFn({ method: "POST" })
