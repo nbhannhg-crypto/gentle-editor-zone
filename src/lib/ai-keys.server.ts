@@ -20,7 +20,7 @@ export function quickGreeting(text: string): string | null {
 let cursor = 0;
 
 function geminiKeys(): string[] {
-  const keys = (process.env["GEMINI_KEYS"] ?? "").split(",").map((k) => k.trim()).filter(Boolean);
+  const keys = (process.env["GEMINI_KEYS"] ?? "").split(/[,،;\s]+/).map((k) => k.trim()).filter(Boolean);
   if (!keys.length) console.error("[ai-keys] GEMINI_KEYS is empty or missing in server secrets — 0 free keys loaded");
   return keys;
 }
