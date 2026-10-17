@@ -43,24 +43,10 @@ export function normalizeAr(s: string): string[] {
 }
 
 export async function scoreAudio(buf: Buffer, text: string): Promise<{ score: number; heard: string }> {
-  const key = process.env["LOVABLE_API_KEY"];
-  if (!key) throw new Error("مفتاح القياس غير مهيأ");
-  const form = new FormData();
-  form.append("model", "openai/gpt-transcribe");
-  form.append("file", new Blob([new Uint8Array(buf)], { type: "audio/mpeg" }), "clip.mp3");
-  form.append("response_format", "json");
-  form.append("language", "ar");
-  const res = await fetch(`${GATEWAY}/v1/audio/transcriptions`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${key}` },
-    body: form,
-  });
-  if (!res.ok) {
-    const err: any = new Error(`تعذر قياس النطق (${res.status})`);
-    if (res.status === 402 || res.status === 403) err.pause = true;
-    throw err;
-  }
-  const j: any = await res.json().catch(() => ({}));
+  const { geminiMedia } = await import("./ai-keys.server");
+  const out = await geminiMedia("فرّغ هذا المقطع الصوتي حرفياً بالعربية. اكتب النص فقط.", "audio/mpeg", buf.toString("base64"));
+  if (!out) { const err: any = new Error("المفاتيح المجانية مشغولة الحين"); err.pause = true; throw err; }
+  const j = { text: out };
   const heard = String(j.text ?? "");
   const want = new Set(normalizeAr(text));
   if (!want.size) return { score: 0, heard };

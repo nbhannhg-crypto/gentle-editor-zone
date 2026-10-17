@@ -11,30 +11,7 @@ async function askModel(system: string, prompt: string) {
   const { getAIResponse } = await import("./ai-keys.server");
   const ext = await getAIResponse(system, prompt);
   if (ext) return ext;
-  const key = process.env['LOVABLE_API_KEY'];
-  if (!key) throw new Error("مفتاح الذكاء غير مهيأ");
-  const openai = createOpenAI({
-    baseURL: `${GATEWAY}/v1`,
-    apiKey: key,
-    headers: { "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "vercel-ai-sdk" },
-  });
-  const result = streamText({
-    model: openai.responses("openai/gpt-6-astra"),
-    system,
-    prompt,
-    providerOptions: {
-      openai: {
-        forceReasoning: true,
-        reasoningEffort: "high",
-        reasoningSummary: "auto",
-        store: false,
-        include: ["reasoning.encrypted_content"],
-      },
-    },
-  });
-  let text = "";
-  for await (const part of result.textStream) text += part;
-  return text.trim();
+  throw new Error("المفاتيح المجانية مشغولة الحين، انتظر دقيقة وجرّب مرة ثانية");
 }
 
 function rulesBlock(rules: { trigger: string; response: string }[]) {
