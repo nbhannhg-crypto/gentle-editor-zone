@@ -78,6 +78,9 @@ export function LiveCallPlus(p: {
   const [rec, setRec] = useState<MediaRecorder | null>(null);
   const [busyId, setBusyId] = useState("");
   const [reports, setReports] = useState<{ at: string; phone: string; text: string }[]>([]);
+  const [opts, setOpts] = useState<ClipOpts>({ link: false, triggers: false });
+  useEffect(() => { setOpts(loadClipOpts()); }, []);
+  const saveOpts = (o: ClipOpts) => { setOpts(o); localStorage.setItem(CLIP_OPTS_KEY, JSON.stringify(o)); };
 
   useEffect(() => {
     setClips(load("live_clips", DEFAULT_CLIPS));
@@ -206,6 +209,10 @@ export function LiveCallPlus(p: {
         </div>
         {vaultTab === "official" ? (
           <>
+            <div className="mb-3 space-y-1 rounded-xl border bg-background p-3 text-sm">
+              <label className="flex items-center gap-2"><input type="checkbox" checked={opts.link} onChange={(e) => saveOpts({ ...opts, link: e.target.checked })} />🔗 تفعيل الربط التلقائي بمكتبة الردود (يشغّل التسجيل الجاهز بدل توليد صوت)</label>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={opts.triggers} onChange={(e) => saveOpts({ ...opts, triggers: e.target.checked })} />🎯 تفعيل كلمات التشغيل المباشرة للمقاطع</label>
+            </div>
             <div className="mb-3 flex flex-wrap gap-1">
               {CATS.map(([k, l]) => <Button key={k} size="sm" variant={cat === k ? "default" : "outline"} onClick={() => setCat(k)}>{l}</Button>)}
             </div>
@@ -226,6 +233,8 @@ export function LiveCallPlus(p: {
               {clips.filter((c) => c.cat === cat).map((c) => (
                 <div key={c.id} className="rounded-xl border bg-background p-3">
                   <p className="text-sm">{c.text}</p>
+                  <Input defaultValue={c.triggers ?? ""} placeholder="🎯 كلمات تشغيل الزبون (Triggers) — مثال: مساء الخير, مساء النور" className="mt-2 h-8 text-xs"
+                    onBlur={(e) => saveClips(clips.map((x) => (x.id === c.id ? { ...x, triggers: e.target.value.trim() } : x)))} />
                   <div className="mt-2 flex flex-wrap gap-1">
                     <Button size="sm" variant="secondary" disabled={busyId === c.id} onClick={() => preview(c)}>{busyId === c.id ? "…" : "▶️ استماع فوري"}</Button>
                     <Button size="sm" disabled={!p.live || busyId === c.id} onClick={() => launch(c)}>🗣️ أطلق في المكالمة</Button>
