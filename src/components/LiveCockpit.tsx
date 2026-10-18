@@ -1,4 +1,42 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { loadCallBrains, loadCallSections } from "@/lib/call-brains";
+
+function CallBrainsBar({ cfg, set, pill }: { cfg: Cockpit; set: (o: Partial<Cockpit>) => void; pill: (on: boolean) => string }) {
+  const [secs, setSecs] = useState<string[]>([]);
+  const [brains, setBrains] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => { void loadCallSections().then(setSecs); void loadCallBrains().then(setBrains); }, []);
+  const match = cfg.match ?? 0.6;
+  const on = cfg.secs ?? [];
+  const kb = cfg.kbrains ?? [];
+  const src = cfg.brains.mine && cfg.brains.ai ? "both" : cfg.brains.ai ? "ai" : "mine";
+  const setSrc = (s: string) => set({ brains: { ...cfg.brains, mine: s !== "ai", ai: s !== "mine" } });
+  return (
+    <div className="mb-4 space-y-2 rounded-xl bg-secondary p-3">
+      <p className="text-xs text-muted-foreground">🎯 دقة مطابقة كلام الزبون:</p>
+      <div className="flex flex-wrap gap-2">
+        {([[0.5, "50%"], [0.6, "60%"], [0.8, "80%"], [1, "🔒 100% بالحرف"]] as const).map(([v, l]) => (
+          <button key={v} className={pill(match === v)} onClick={() => set({ match: v })}>{l}</button>
+        ))}
+      </div>
+      <p className="text-xs text-muted-foreground">🧠 مصدر الرد:</p>
+      <div className="flex flex-wrap gap-2">
+        {([["mine", "📘 ردودي بس"], ["both", "🧠 ردودي + الذكاء"], ["ai", "✨ الذكاء فقط"]] as const).map(([k, l]) => (
+          <button key={k} className={pill(src === k)} onClick={() => setSrc(k)}>{l}</button>
+        ))}
+      </div>
+      <p className="text-xs text-muted-foreground">📂 أقسام مكتبتي في المكالمة:</p>
+      <div className="flex flex-wrap gap-2">
+        {secs.map((s) => { const a = on.includes(s); return <button key={s} className={pill(a)} onClick={() => set({ secs: a ? on.filter((x) => x !== s) : [...on, s] })}>{a ? "✓ " : ""}{s}</button>; })}
+        {!secs.length && <span className="text-xs text-muted-foreground">ما فيه أقسام للحين.</span>}
+      </div>
+      <p className="text-xs text-muted-foreground">👑 عقول المملكة في المكالمة:</p>
+      <div className="flex flex-wrap gap-2">
+        {brains.map((b) => { const a = kb.includes(b.id); return <button key={b.id} className={pill(a)} onClick={() => set({ kbrains: a ? kb.filter((x) => x !== b.id) : [...kb, b.id] })}>{a ? "✓ " : ""}{b.name}</button>; })}
+        {!brains.length && <span className="text-xs text-muted-foreground">ما فيه عقول منشورة.</span>}
+      </div>
+    </div>
+  );
+}
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,11 +48,12 @@ export type Cockpit = {
   fast: boolean; route: Route;
   brains: { mine: boolean; queen: boolean; clips: boolean; ai: boolean };
   extra: string[]; persona: string; banned: string[]; fixes: { from: string; to: string }[]; blocked: string[];
+  match?: number; secs?: string[]; kbrains?: string[];
 };
 export const COCKPIT_KEY = "live_cockpit";
 export const DEFAULT_COCKPIT: Cockpit = {
   fast: false, route: "speaker", brains: { mine: true, queen: false, clips: true, ai: true },
-  extra: [], persona: "", banned: [], fixes: [], blocked: [],
+  extra: [], persona: "", banned: [], fixes: [], blocked: [], match: 0.6, secs: [], kbrains: [],
 };
 export function loadCockpit(): Cockpit {
   try { const v = JSON.parse(localStorage.getItem(COCKPIT_KEY) ?? "{}"); return { ...DEFAULT_COCKPIT, ...v, brains: { ...DEFAULT_COCKPIT.brains, ...(v.brains ?? {}) } }; }
@@ -66,6 +105,7 @@ export function LiveCockpit(p: {
   return (
     <section className="rounded-2xl border bg-card p-4 shadow-soft lg:col-span-3">
       <h3 className="font-display mb-3 text-lg">🎛️ لوحة تحكم الموظفة اللحظية</h3>
+      <CallBrainsBar cfg={cfg} set={set} pill={pill} />
 
       <div className="flex flex-wrap gap-2">
         <button className={pill(p.live)} onClick={p.onToggle}>{p.live ? "🟢 المكالمة شغّالة" : "⚪ متوقفة — اضغط للتشغيل"}</button>
