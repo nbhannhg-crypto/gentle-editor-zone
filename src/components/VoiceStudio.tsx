@@ -1,3 +1,4 @@
+import { VoiceModelPicker } from "@/components/VoiceModelPicker";
 import { useEffect, useState } from "react";
 import { getVoiceModel } from "@/lib/voice-model";
 import { useServerFn } from "@tanstack/react-start";
@@ -102,6 +103,7 @@ export function VoiceStudio() {
           <div>
             <h2 className="font-display text-lg text-primary">🎙️ صوت الموظفة الحالي</h2>
             <p className="mt-1 text-sm">الصوت المدمج</p>
+            <VoiceModelPicker className="mt-2" />
           </div>
           <span className={`rounded-full px-3 py-1 text-xs ${connected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
             {connected === null ? "…" : connected ? `${brand.voice} مربوط ✓` : `${brand.voice} غير مربوط`}

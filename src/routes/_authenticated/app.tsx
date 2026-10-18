@@ -1,3 +1,4 @@
+import { VoiceModelPicker } from "@/components/VoiceModelPicker";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { BalanceBadge } from "@/components/BalanceBadge";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -801,6 +802,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
               {EMOTIONS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
             </select>
             <span className="text-xs text-muted-foreground">🎙️ {voiceName}</span>
+            <VoiceModelPicker />
             {live ? <Button variant="destructive" onClick={stop}>إنهاء المكالمة</Button> : <Button onClick={start}>📞 ابدأ المكالمة</Button>}
           </div>
           <div className="mt-4 flex gap-2">
