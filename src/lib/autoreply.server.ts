@@ -148,8 +148,8 @@ export async function fishTts(text: string): Promise<string> {
   if (!key) throw new Error("voice key missing");
   const r = await fetch("https://api.fish.audio/v1/tts", {
     method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", model: "s1" },
-    body: JSON.stringify({ text: `(friendly) ${text}`, reference_id: "ca005277ffeb4282961e5253b18c6280", format: "mp3", latency: "normal" }),
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", model: "s2.1-pro" },
+    body: JSON.stringify({ text: `(friendly) ${text}`, reference_id: "ca005277ffeb4282961e5253b18c6280", format: "mp3", latency: "balanced" }),
   });
   if (!r.ok) throw new Error(`voice ${r.status}`);
   return Buffer.from(await r.arrayBuffer()).toString("base64");
