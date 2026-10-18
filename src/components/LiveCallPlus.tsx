@@ -6,7 +6,34 @@ import { useSpeaker, EMOTIONS } from "@/components/VoiceStudio";
 
 /* إضافات لوحة المكالمة الحية — كلها إضافة، ما تلمس الموجود */
 
-type Clip = { id: string; cat: string; text: string; audio?: string | undefined; speed?: number; emotion?: string };
+type Clip = { id: string; cat: string; text: string; audio?: string | undefined; speed?: number; emotion?: string; triggers?: string };
+
+/* مطابقة المقاطع: كلمات التشغيل + الربط بمكتبة الردود (إضافة فقط) */
+export const CLIP_OPTS_KEY = "live_clip_opts";
+export type ClipOpts = { link: boolean; triggers: boolean };
+export function loadClipOpts(): ClipOpts {
+  try { return { link: false, triggers: false, ...JSON.parse(localStorage.getItem(CLIP_OPTS_KEY) ?? "{}") }; } catch { return { link: false, triggers: false }; }
+}
+const norm = (s: string) => s.replace(/[\u064B-\u0652\u0640]/g, "").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim().toLowerCase();
+const savedClips = (): Clip[] => { try { const v = JSON.parse(localStorage.getItem("live_clips") ?? "[]"); return Array.isArray(v) ? v : []; } catch { return []; } };
+/** كلام الزبون يطابق كلمة تشغيل مقطع مسجل؟ يرجع الصوت الجاهز */
+export function findTriggerClip(customer: string): { text: string; audio: string } | null {
+  if (!loadClipOpts().triggers) return null;
+  const q = ` ${norm(customer)} `;
+  for (const c of savedClips()) {
+    if (!c.audio || !c.triggers) continue;
+    const ts = c.triggers.split(/[,،\n]+/).map(norm).filter(Boolean);
+    if (ts.some((t) => q.includes(` ${t} `) || norm(customer) === t)) return { text: c.text, audio: c.audio };
+  }
+  return null;
+}
+/** نص الرد له تسجيل جاهز في البنك؟ */
+export function findLinkedClip(reply: string): string | null {
+  if (!loadClipOpts().link) return null;
+  const r = norm(reply);
+  if (!r) return null;
+  return savedClips().find((c) => c.audio && norm(c.text) === r)?.audio ?? null;
+}
 type Personal = { id: string; name: string; audio: string; vip?: string };
 export type Tuning = { voice: string; speed: number; pitch: number; emotion: string };
 
@@ -51,6 +78,9 @@ export function LiveCallPlus(p: {
   const [rec, setRec] = useState<MediaRecorder | null>(null);
   const [busyId, setBusyId] = useState("");
   const [reports, setReports] = useState<{ at: string; phone: string; text: string }[]>([]);
+  const [opts, setOpts] = useState<ClipOpts>({ link: false, triggers: false });
+  useEffect(() => { setOpts(loadClipOpts()); }, []);
+  const saveOpts = (o: ClipOpts) => { setOpts(o); localStorage.setItem(CLIP_OPTS_KEY, JSON.stringify(o)); };
 
   useEffect(() => {
     setClips(load("live_clips", DEFAULT_CLIPS));
@@ -179,6 +209,10 @@ export function LiveCallPlus(p: {
         </div>
         {vaultTab === "official" ? (
           <>
+            <div className="mb-3 space-y-1 rounded-xl border bg-background p-3 text-sm">
+              <label className="flex items-center gap-2"><input type="checkbox" checked={opts.link} onChange={(e) => saveOpts({ ...opts, link: e.target.checked })} />🔗 تفعيل الربط التلقائي بمكتبة الردود (يشغّل التسجيل الجاهز بدل توليد صوت)</label>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={opts.triggers} onChange={(e) => saveOpts({ ...opts, triggers: e.target.checked })} />🎯 تفعيل كلمات التشغيل المباشرة للمقاطع</label>
+            </div>
             <div className="mb-3 flex flex-wrap gap-1">
               {CATS.map(([k, l]) => <Button key={k} size="sm" variant={cat === k ? "default" : "outline"} onClick={() => setCat(k)}>{l}</Button>)}
             </div>
@@ -199,6 +233,8 @@ export function LiveCallPlus(p: {
               {clips.filter((c) => c.cat === cat).map((c) => (
                 <div key={c.id} className="rounded-xl border bg-background p-3">
                   <p className="text-sm">{c.text}</p>
+                  <Input defaultValue={c.triggers ?? ""} placeholder="🎯 كلمات تشغيل الزبون (Triggers) — مثال: مساء الخير, مساء النور" className="mt-2 h-8 text-xs"
+                    onBlur={(e) => saveClips(clips.map((x) => (x.id === c.id ? { ...x, triggers: e.target.value.trim() } : x)))} />
                   <div className="mt-2 flex flex-wrap gap-1">
                     <Button size="sm" variant="secondary" disabled={busyId === c.id} onClick={() => preview(c)}>{busyId === c.id ? "…" : "▶️ استماع فوري"}</Button>
                     <Button size="sm" disabled={!p.live || busyId === c.id} onClick={() => launch(c)}>🗣️ أطلق في المكالمة</Button>

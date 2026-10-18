@@ -16,7 +16,7 @@ import { waCtrlSend } from "@/lib/wa-ctrl.functions";
 import { waList } from "@/lib/studio.functions";
 import { getOrCreateMyStore, isAdmin, type Store } from "@/lib/stores";
 import { VoiceStudio, useSpeaker, EMOTIONS, loadVoice } from "@/components/VoiceStudio";
-import { LiveCallPlus, loadTuning } from "@/components/LiveCallPlus";
+import { LiveCallPlus, loadTuning, findTriggerClip, findLinkedClip } from "@/components/LiveCallPlus";
 import { LiveHybrid } from "@/components/LiveHybrid";
 import { LiveCockpit, loadCockpit, DEFAULT_COCKPIT, COCKPIT_KEY, EXTRA_HINT, applyFixes, hitBanned, isBlocked, type Cockpit } from "@/components/LiveCockpit";
 import { Channels } from "@/components/Channels";
@@ -590,6 +590,12 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
     cancelCountdown();
     setCustomer(text); setAiSugs([]); setBusy(true);
     setLog((l) => [...l, { who: "c", t: text }]);
+    const trig = findTriggerClip(text);
+    if (trig) {
+      setAnswer(trig.text); setLog((l) => [...l, { who: "a", t: trig.text }]);
+      if (liveRef.current) void playAudio(trig.audio);
+      setBusy(false); return;
+    }
     const c = cfgRef.current;
     try {
       let ans = "";
@@ -681,6 +687,8 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
       try { await sendPlus({ text: spoken, voice: true }); } finally { setSpeaking(false); }
       return;
     }
+    const ready = findLinkedClip(text) ?? findLinkedClip(spoken);
+    if (ready) { void playAudio(ready); return; }
     setSpeaking(true);
     try {
       const audio = await tts(spoken, { emotion });
