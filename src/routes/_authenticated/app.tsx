@@ -18,7 +18,6 @@ import { getOrCreateMyStore, isAdmin, type Store } from "@/lib/stores";
 import { VoiceStudio, useSpeaker, EMOTIONS, loadVoice } from "@/components/VoiceStudio";
 import { LiveCallPlus, loadTuning, findTriggerClip, findLinkedClip } from "@/components/LiveCallPlus";
 import { LiveHybrid } from "@/components/LiveHybrid";
-import { WaControls } from "@/components/WaControls";
 import { searchCallSources } from "@/lib/call-brains";
 import { LiveCockpit, loadCockpit, DEFAULT_COCKPIT, COCKPIT_KEY, EXTRA_HINT, applyFixes, hitBanned, isBlocked, type Cockpit } from "@/components/LiveCockpit";
 import { Channels } from "@/components/Channels";
