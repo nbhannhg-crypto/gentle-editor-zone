@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { getOrCreateMyStore, type Store } from "@/lib/stores";
 import { getBalance } from "@/lib/wallet";
+import { VOICE_MODELS, getVoiceModel, setVoiceModel, getStudioVoice, setStudioVoice, type VoiceModel } from "@/lib/voice-model";
 import { STUDIO_VOICES, STUDIO_PACKS, JEEB_NUMBER } from "@/lib/studio-voices";
 import { studioGenerate, studioWrite, waList, waSendVoice, placeCall } from "@/lib/studio.functions";
 import { WhatsApp, type Wa } from "@/components/WaAccounts";
@@ -94,7 +95,15 @@ const STYLES = [["offer", "🔥 عرض"], ["welcome", "👋 ترحيب"], ["foll
 function Generate({ onDone }: { onDone: () => Promise<void> }) {
   const gen = useServerFn(studioGenerate);
   const write = useServerFn(studioWrite);
-  const [voice, setVoice] = useState(STUDIO_VOICES[0]![0]);
+  const [voice, setVoiceRaw] = useState(STUDIO_VOICES[0]![0]);
+  const [model, setModelRaw] = useState<VoiceModel>("s2.1-pro");
+  useEffect(() => {
+    const sv = getStudioVoice();
+    if (sv && STUDIO_VOICES.some((v) => v[0] === sv)) setVoiceRaw(sv as typeof voice);
+    setModelRaw(getVoiceModel());
+  }, []);
+  const setVoice = (v: string) => { setVoiceRaw(v as typeof voice); setStudioVoice(v); };
+  const setModel = (m: VoiceModel) => { setModelRaw(m); setVoiceModel(m); };
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [audio, setAudio] = useState("");
@@ -115,7 +124,7 @@ function Generate({ onDone }: { onDone: () => Promise<void> }) {
     setBusy(true);
     try {
       const name = STUDIO_VOICES.find((v) => v[0] === voice)?.[1] ?? "";
-      const r = await gen({ data: { text, voiceId: voice, voiceName: name, emotion: mood, speed } });
+      const r = await gen({ data: { text, voiceId: voice, voiceName: name, emotion: mood, speed, model } });
       setAudio(r.audio); toast.success(`تم ✅ خُصم ${r.cost} نقطة وانحفظ في مكتبتك`);
       await onDone();
     } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
@@ -135,9 +144,14 @@ function Generate({ onDone }: { onDone: () => Promise<void> }) {
         </div>
       </div>
       <label className="block text-sm font-semibold">اختر الصوت ({STUDIO_VOICES.length} صوت)</label>
-      <select value={voice} onChange={(e) => setVoice(e.target.value)} className="w-full rounded-lg border bg-background p-2">
-        {STUDIO_VOICES.map(([id, n]) => <option key={id} value={id}>{n}</option>)}
-      </select>
+      <div className="flex gap-2">
+        <select value={voice} onChange={(e) => setVoice(e.target.value)} className="min-w-0 flex-1 rounded-lg border bg-background p-2">
+          {STUDIO_VOICES.map(([id, n]) => <option key={id} value={id}>{n}</option>)}
+        </select>
+        <select value={model} onChange={(e) => setModel(e.target.value as VoiceModel)} aria-label="الموديل" className="w-40 shrink-0 rounded-lg border bg-background p-2 text-sm">
+          {VOICE_MODELS.map(([id, n]) => <option key={id} value={id}>{n}</option>)}
+        </select>
+      </div>
       <div className="flex flex-wrap gap-1.5">
         {QUICK.map((q) => <button key={q} onClick={() => setText(q)} className="rounded-full border bg-background px-3 py-1 text-xs hover:bg-muted">{q.slice(0, 22)}…</button>)}
       </div>

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { getVoiceModel } from "@/lib/voice-model";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -86,7 +87,7 @@ export function VoiceStudioPlus() {
   const gen = async (voice: Voice | null, text = sample, keep = false) => {
     setBusy(voice?.id ?? "main");
     try {
-      const { audio } = await speak({ data: { text: addPauses(text, s.pauses), voiceId: voice?.id ?? "", custom: !!voice, speed: s.speed, volume: 0, emotion: s.mood } });
+      const { audio } = await speak({ data: { text: addPauses(text, s.pauses), voiceId: voice?.id ?? "", custom: !!voice, speed: s.speed, volume: 0, emotion: s.mood, model: getVoiceModel() } });
       const a = new Audio(audio);
       a.onloadedmetadata = () => {
         setLast({ text, audio, sec: Math.round(a.duration || 0) });
