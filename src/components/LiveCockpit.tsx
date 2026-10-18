@@ -10,11 +10,12 @@ export type Cockpit = {
   fast: boolean; route: Route;
   brains: { mine: boolean; queen: boolean; clips: boolean; ai: boolean };
   extra: string[]; persona: string; banned: string[]; fixes: { from: string; to: string }[]; blocked: string[];
+  match?: number; secs?: string[]; kbrains?: string[];
 };
 export const COCKPIT_KEY = "live_cockpit";
 export const DEFAULT_COCKPIT: Cockpit = {
   fast: false, route: "speaker", brains: { mine: true, queen: false, clips: true, ai: true },
-  extra: [], persona: "", banned: [], fixes: [], blocked: [],
+  extra: [], persona: "", banned: [], fixes: [], blocked: [], match: 0.6, secs: [], kbrains: [],
 };
 export function loadCockpit(): Cockpit {
   try { const v = JSON.parse(localStorage.getItem(COCKPIT_KEY) ?? "{}"); return { ...DEFAULT_COCKPIT, ...v, brains: { ...DEFAULT_COCKPIT.brains, ...(v.brains ?? {}) } }; }
