@@ -19,6 +19,7 @@ import { VoiceStudio, useSpeaker, EMOTIONS, loadVoice } from "@/components/Voice
 import { LiveCallPlus, loadTuning, findTriggerClip, findLinkedClip } from "@/components/LiveCallPlus";
 import { LiveHybrid } from "@/components/LiveHybrid";
 import { WaControls } from "@/components/WaControls";
+import { searchCallSources } from "@/lib/call-brains";
 import { LiveCockpit, loadCockpit, DEFAULT_COCKPIT, COCKPIT_KEY, EXTRA_HINT, applyFixes, hitBanned, isBlocked, type Cockpit } from "@/components/LiveCockpit";
 import { Channels } from "@/components/Channels";
 import { Customers } from "@/components/Customers";
@@ -601,12 +602,16 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
     try {
       let ans = "";
       let rule: Rule | undefined;
+      const th = c.match ?? 0.6;
       if (c.brains.mine) {
         const r = await engine(text);
         ans = r.answer; rule = r.rule;
+        const top = r.matches[0];
+        if (rule && top && (th >= 1 ? normalize(top.rule.trigger_text) !== normalize(text) : top.score < th)) { ans = ""; rule = undefined; }
         const others = r.matches.filter((m) => m.rule.response_text !== r.answer).map((m) => m.rule.response_text);
         const pool = [...others, ...rules.filter((x) => x.category === (r.rule?.category ?? "")).map((x) => x.response_text)];
         setAlts([...new Set(pool)].filter((x) => x !== r.answer).slice(0, 3));
+        if (!ans && ((c.secs?.length ?? 0) || (c.kbrains?.length ?? 0))) ans = await searchCallSources(text, c.secs ?? [], c.kbrains ?? [], th);
       } else setAlts([]);
       if (!ans && c.brains.clips) ans = clipMatch(text);
       if (!ans && (c.brains.ai || c.brains.queen)) {
@@ -902,18 +907,6 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
         <LiveHybrid live={live} speaking={speaking} customer={customer} log={log} say={say} send={sendPlus} persona={cfg.persona}
           onMode={(m) => { if (m === "auto") saveCfg({ ...cfg, fast: true }); if (m === "copilot") saveCfg({ ...cfg, fast: false }); if (m === "ptt") saveCfg({ ...cfg, route: "ptt" }); if (m === "line") saveCfg({ ...cfg, route: "speaker" }); }}
           stopAll={() => { audioRef.current?.pause(); setSpeaking(false); cancelCountdown(); }} />
-
-        {(() => {
-          const inst = waFrom || accounts.find((a) => a.status === "open")?.name || accounts[0]?.name;
-          const acc = accounts.find((a) => a.name === inst);
-          return (
-            <Card title="🎛️ لوحة تحكم الواتس — نفس أزرار الواتساب">
-              {inst ? <WaControls instance={inst} myNumber={acc?.number ?? ""} />
-                : <p className="text-sm text-muted-foreground">اربط رقم واتساب من القنوات وبتطلع هنا كل أزرار التحكم.</p>}
-              {accounts.length > 1 && <p className="mt-2 text-xs text-muted-foreground">لتغيير الرقم اختره من «أرسل من رقم» فوق.</p>}
-            </Card>
-          );
-        })()}
       </div>
 
       <Card title="📜 سجل المكالمة">
