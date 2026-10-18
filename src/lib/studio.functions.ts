@@ -141,13 +141,13 @@ function evo() {
 
 const prefix = (storeId: string) => `k${storeId.replace(/-/g, "").slice(0, 10)}_`;
 
-async function tts(text: string, voiceId: string, speed = 1): Promise<Buffer> {
+async function tts(text: string, voiceId: string, speed = 1, model = "s2.1-pro"): Promise<Buffer> {
   const key = process.env["FISH_AUDIO_API_KEY"];
   if (!key) throw new Error("خدمة الصوت غير مربوطة");
   const res = await fetch("https://api.fish.audio/v1/tts", {
     method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", model: "s1" },
-    body: JSON.stringify({ text, reference_id: voiceId, format: "mp3", latency: "normal", prosody: { speed, volume: 0 } }),
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", model },
+    body: JSON.stringify({ text, reference_id: voiceId, format: "mp3", latency: "balanced", prosody: { speed, volume: 0 } }),
   });
   if (!res.ok) throw new Error(res.status === 402 ? "رصيد الأصوات خلص" : `تعذر توليد الصوت (${res.status})`);
   return Buffer.from(await res.arrayBuffer());
@@ -162,6 +162,7 @@ export const studioGenerate = createServerFn({ method: "POST" })
     voiceName: z.string().max(80).default(""),
     emotion: z.enum(["", "happy", "excited", "friendly", "confident", "calm", "empathetic"]).default(""),
     speed: z.number().min(0.6).max(1.6).default(1),
+    model: z.enum(["s2.1-pro", "s2-pro", "fast", "s1"]).default("s2.1-pro"),
   }).parse(d))
   .handler(async ({ data, context }) => {
     const storeId = await myStore(context as Ctx);
@@ -169,7 +170,7 @@ export const studioGenerate = createServerFn({ method: "POST" })
     const { error: spendErr } = await context.supabase.rpc("spend_points", { _store: storeId, _amount: cost, _reason: "استوديو الأصوات" });
     if (spendErr) throw new Error(spendErr.message.includes("insufficient") ? "رصيدك ما يكفي — اشحن من المحفظة" : spendErr.message);
     const spoken = data.emotion ? `(${data.emotion}) ${data.text}` : data.text;
-    const buf = await tts(spoken, data.voiceId, data.speed);
+    const buf = await tts(spoken, data.voiceId, data.speed, data.model);
     const path = `${storeId}/${Date.now()}.mp3`;
     const up = await context.supabase.storage.from("studio-audio").upload(path, buf, { contentType: "audio/mpeg" });
     if (up.error) throw new Error(up.error.message);

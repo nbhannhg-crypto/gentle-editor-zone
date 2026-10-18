@@ -278,6 +278,7 @@ export const fishSpeak = createServerFn({ method: "POST" })
       volume: z.number().min(-10).max(10).default(0),
       emotion: z.string().max(30).default(""),
       custom: z.boolean().default(false),
+      model: z.enum(["s2.1-pro", "s2-pro", "fast", "s1"]).default("s2.1-pro"),
     }).parse(d),
   )
   .handler(async ({ data }) => {
@@ -288,12 +289,12 @@ export const fishSpeak = createServerFn({ method: "POST" })
     const voiceId = data.custom && data.voiceId ? data.voiceId : BUILTIN_FISH_VOICE_ID;
     const res = await fetch(`${FISH}/v1/tts`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", model: "s1" },
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", model: data.model },
       body: JSON.stringify({
         text: data.emotion ? `(${data.emotion}) ${data.text}` : data.text,
         reference_id: voiceId,
         format: "mp3",
-        latency: "normal",
+        latency: "balanced",
         prosody: { speed: data.speed, volume: data.volume },
       }),
     });

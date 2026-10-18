@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getVoiceModel } from "@/lib/voice-model";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -39,7 +40,7 @@ export function useSpeaker() {
   const fish = useServerFn(fishSpeak);
   return async (text: string, override?: Partial<VoiceSettings>) => {
     const v = { ...loadVoice(), ...override, provider: "fish" as const, voiceId: BUILTIN_VOICE_ID };
-    const { audio } = await fish({ data: { text, voiceId: v.voiceId, speed: v.speed, volume: v.volume, emotion: v.emotion } });
+    const { audio } = await fish({ data: { text, voiceId: v.voiceId, speed: v.speed, volume: v.volume, emotion: v.emotion, model: getVoiceModel() } });
     return audio;
   };
 }
