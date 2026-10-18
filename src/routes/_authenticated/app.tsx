@@ -590,6 +590,12 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
     cancelCountdown();
     setCustomer(text); setAiSugs([]); setBusy(true);
     setLog((l) => [...l, { who: "c", t: text }]);
+    const trig = findTriggerClip(text);
+    if (trig) {
+      setAnswer(trig.text); setLog((l) => [...l, { who: "a", t: trig.text }]);
+      if (liveRef.current) void playAudio(trig.audio);
+      setBusy(false); return;
+    }
     const c = cfgRef.current;
     try {
       let ans = "";
@@ -681,6 +687,8 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
       try { await sendPlus({ text: spoken, voice: true }); } finally { setSpeaking(false); }
       return;
     }
+    const ready = findLinkedClip(text) ?? findLinkedClip(spoken);
+    if (ready) { void playAudio(ready); return; }
     setSpeaking(true);
     try {
       const audio = await tts(spoken, { emotion });

@@ -6,7 +6,34 @@ import { useSpeaker, EMOTIONS } from "@/components/VoiceStudio";
 
 /* إضافات لوحة المكالمة الحية — كلها إضافة، ما تلمس الموجود */
 
-type Clip = { id: string; cat: string; text: string; audio?: string | undefined; speed?: number; emotion?: string };
+type Clip = { id: string; cat: string; text: string; audio?: string | undefined; speed?: number; emotion?: string; triggers?: string };
+
+/* مطابقة المقاطع: كلمات التشغيل + الربط بمكتبة الردود (إضافة فقط) */
+export const CLIP_OPTS_KEY = "live_clip_opts";
+export type ClipOpts = { link: boolean; triggers: boolean };
+export function loadClipOpts(): ClipOpts {
+  try { return { link: false, triggers: false, ...JSON.parse(localStorage.getItem(CLIP_OPTS_KEY) ?? "{}") }; } catch { return { link: false, triggers: false }; }
+}
+const norm = (s: string) => s.replace(/[\u064B-\u0652\u0640]/g, "").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim().toLowerCase();
+const savedClips = (): Clip[] => { try { const v = JSON.parse(localStorage.getItem("live_clips") ?? "[]"); return Array.isArray(v) ? v : []; } catch { return []; } };
+/** كلام الزبون يطابق كلمة تشغيل مقطع مسجل؟ يرجع الصوت الجاهز */
+export function findTriggerClip(customer: string): { text: string; audio: string } | null {
+  if (!loadClipOpts().triggers) return null;
+  const q = ` ${norm(customer)} `;
+  for (const c of savedClips()) {
+    if (!c.audio || !c.triggers) continue;
+    const ts = c.triggers.split(/[,،\n]+/).map(norm).filter(Boolean);
+    if (ts.some((t) => q.includes(` ${t} `) || norm(customer) === t)) return { text: c.text, audio: c.audio };
+  }
+  return null;
+}
+/** نص الرد له تسجيل جاهز في البنك؟ */
+export function findLinkedClip(reply: string): string | null {
+  if (!loadClipOpts().link) return null;
+  const r = norm(reply);
+  if (!r) return null;
+  return savedClips().find((c) => c.audio && norm(c.text) === r)?.audio ?? null;
+}
 type Personal = { id: string; name: string; audio: string; vip?: string };
 export type Tuning = { voice: string; speed: number; pitch: number; emotion: string };
 
