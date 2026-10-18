@@ -16,7 +16,7 @@ import { waCtrlSend } from "@/lib/wa-ctrl.functions";
 import { waList } from "@/lib/studio.functions";
 import { getOrCreateMyStore, isAdmin, type Store } from "@/lib/stores";
 import { VoiceStudio, useSpeaker, EMOTIONS, loadVoice } from "@/components/VoiceStudio";
-import { LiveCallPlus, loadTuning } from "@/components/LiveCallPlus";
+import { LiveCallPlus, loadTuning, findTriggerClip, findLinkedClip } from "@/components/LiveCallPlus";
 import { LiveHybrid } from "@/components/LiveHybrid";
 import { LiveCockpit, loadCockpit, DEFAULT_COCKPIT, COCKPIT_KEY, EXTRA_HINT, applyFixes, hitBanned, isBlocked, type Cockpit } from "@/components/LiveCockpit";
 import { Channels } from "@/components/Channels";
