@@ -18,6 +18,7 @@ import { getOrCreateMyStore, isAdmin, type Store } from "@/lib/stores";
 import { VoiceStudio, useSpeaker, EMOTIONS, loadVoice } from "@/components/VoiceStudio";
 import { LiveCallPlus, loadTuning, findTriggerClip, findLinkedClip } from "@/components/LiveCallPlus";
 import { LiveHybrid } from "@/components/LiveHybrid";
+import { WaControls } from "@/components/WaControls";
 import { LiveCockpit, loadCockpit, DEFAULT_COCKPIT, COCKPIT_KEY, EXTRA_HINT, applyFixes, hitBanned, isBlocked, type Cockpit } from "@/components/LiveCockpit";
 import { Channels } from "@/components/Channels";
 import { Customers } from "@/components/Customers";
@@ -901,6 +902,18 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
         <LiveHybrid live={live} speaking={speaking} customer={customer} log={log} say={say} send={sendPlus} persona={cfg.persona}
           onMode={(m) => { if (m === "auto") saveCfg({ ...cfg, fast: true }); if (m === "copilot") saveCfg({ ...cfg, fast: false }); if (m === "ptt") saveCfg({ ...cfg, route: "ptt" }); if (m === "line") saveCfg({ ...cfg, route: "speaker" }); }}
           stopAll={() => { audioRef.current?.pause(); setSpeaking(false); cancelCountdown(); }} />
+
+        {(() => {
+          const inst = waFrom || accounts.find((a) => a.status === "open")?.name || accounts[0]?.name;
+          const acc = accounts.find((a) => a.name === inst);
+          return (
+            <Card title="🎛️ لوحة تحكم الواتس — نفس أزرار الواتساب">
+              {inst ? <WaControls instance={inst} myNumber={acc?.number ?? ""} />
+                : <p className="text-sm text-muted-foreground">اربط رقم واتساب من القنوات وبتطلع هنا كل أزرار التحكم.</p>}
+              {accounts.length > 1 && <p className="mt-2 text-xs text-muted-foreground">لتغيير الرقم اختره من «أرسل من رقم» فوق.</p>}
+            </Card>
+          );
+        })()}
       </div>
 
       <Card title="📜 سجل المكالمة">
