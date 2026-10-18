@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { VoiceModelPicker } from "@/components/VoiceModelPicker";
+import { VoiceSmartVault } from "@/components/VoiceSmartVault";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -293,6 +294,10 @@ export function LiveCallPlus(p: {
           </>
         )}
       </section>
+
+      {/* 2.5 لوحة بنك الأصوات والمجلدات الذكية (إضافة) */}
+      <VoiceSmartVault clips={clips} saveClips={saveClips} opts={opts} saveOpts={saveOpts}
+        tts={(t, o) => tts(t, { emotion: o?.emotion || tuning.emotion })} playAudio={p.playAudio} send={p.send} live={p.live} />
 
       {/* 3. موازين الصوت */}
       <section className={box}>
