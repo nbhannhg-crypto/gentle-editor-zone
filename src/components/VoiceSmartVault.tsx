@@ -40,7 +40,7 @@ export function VoiceSmartVault(p: {
     const name = window.prompt("اسم المجلد الصوتي الجديد؟")?.trim();
     if (!name) return;
     const next: Folder[] = [...custom, [`f_${uid()}`, `📁 ${name}`]];
-    setCustom(next); localStorage.setItem(FOLDERS_KEY, JSON.stringify(next)); setCat(next[next.length - 1][0]);
+    setCustom(next); localStorage.setItem(FOLDERS_KEY, JSON.stringify(next)); setCat(next[next.length - 1]![0]);
   };
 
   const cached = text.trim() ? p.clips.find((c) => c.audio && norm(c.text) === norm(text)) : undefined;
@@ -87,7 +87,7 @@ export function VoiceSmartVault(p: {
   const audioOf = async (c: VaultClip) => {
     if (c.audio) return c.audio;
     setBusy(c.id);
-    try { const a = await p.tts(c.text, { emotion: c.emotion }); save(p.clips.map((x) => (x.id === c.id ? { ...x, audio: a } : x))); return a; }
+    try { const a = await p.tts(c.text, { emotion: c.emotion ?? "" }); save(p.clips.map((x) => (x.id === c.id ? { ...x, audio: a } : x))); return a; }
     finally { setBusy(""); }
   };
   const listen = async (c: VaultClip) => {
@@ -150,7 +150,7 @@ export function VoiceSmartVault(p: {
           <div key={c.id} className="rounded-xl border bg-background p-3">
             <div className="flex items-start justify-between gap-2">
               <p className="text-sm">"{c.text}"</p>
-              <span className="whitespace-nowrap text-[10px] text-muted-foreground">{c.audio ? `⚡ مخزن${dur[c.id] ? ` (${dur[c.id].toFixed(1)} ث)` : ""}` : "⏳ غير مولّد"}</span>
+              <span className="whitespace-nowrap text-[10px] text-muted-foreground">{c.audio ? `⚡ مخزن${dur[c.id] ? ` (${dur[c.id]!.toFixed(1)} ث)` : ""}` : "⏳ غير مولّد"}</span>
             </div>
             <Input defaultValue={c.triggers ?? ""} placeholder="🎯 كلمات الزبون: مرحبا, هلا, مساء الخير" className="mt-2 h-8 text-xs"
               onBlur={(e) => save(p.clips.map((x) => (x.id === c.id ? { ...x, triggers: e.target.value.trim() } : x)))} />
