@@ -1,3 +1,4 @@
+import { VoiceModelPicker } from "@/components/VoiceModelPicker";
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -179,6 +180,7 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
             </select>
           )}
           <h2 className="font-display mt-4 text-2xl">موظفة المملكة</h2>
+          <VoiceModelPicker className="mt-2" />
           <p className="mt-1 text-sm text-white/60">
             {live ? (speaking ? "🔊 تتكلم…" : muted ? "🎙️ المايك مكتوم" : "تسمع الزبون…") : "جاهزة للاتصال"}
           </p>

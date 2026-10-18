@@ -1,3 +1,4 @@
+import { VoiceModelPicker } from "@/components/VoiceModelPicker";
 import { useEffect, useRef, useState } from "react";
 import { getVoiceModel } from "@/lib/voice-model";
 import { useServerFn } from "@tanstack/react-start";
@@ -142,6 +143,7 @@ export function VoiceStudioPlus() {
     <div className="space-y-6">
       <section className={card}>
         <h2 className="font-display text-lg text-primary">🎚️ الموازين الواقعية</h2>
+        <VoiceModelPicker className="mt-2" />
         <p className="mt-1 text-sm">الصوت المعتمد: <b>{s.chosen?.title ?? "الصوت المدمج"}</b> {s.chosen && <span dir="ltr" className="text-xs text-muted-foreground">{s.chosen.id.slice(0, 10)}…</span>}</p>
         <label className="mt-3 block text-sm font-medium">جملة المعاينة</label>
         <Input value={sample} onChange={(e) => setSample(e.target.value.slice(0, 300))} />
