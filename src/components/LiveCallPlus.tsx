@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { VoiceModelPicker } from "@/components/VoiceModelPicker";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -299,6 +300,7 @@ export function LiveCallPlus(p: {
         <select value={tuning.voice} onChange={(e) => setTuning({ ...tuning, voice: e.target.value })} className="w-full rounded-md border bg-background px-2 py-2 text-sm">
           {VOICES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
         </select>
+        <VoiceModelPicker className="mt-2" />
         <label className="mt-3 block text-sm">السرعة: {tuning.speed.toFixed(2)}x
           <input type="range" min={0.7} max={1.3} step={0.05} value={tuning.speed} className="w-full" onChange={(e) => setTuning({ ...tuning, speed: +e.target.value })} />
         </label>
