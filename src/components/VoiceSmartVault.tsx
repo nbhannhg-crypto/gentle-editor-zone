@@ -130,6 +130,11 @@ export function VoiceSmartVault(p: {
     } catch (e) { toast.error((e as Error).message); }
   };
   const save = (c: VaultClip[]) => { try { p.saveClips(c); } catch { toast.error("المساحة ممتلئة — احذف مقاطع قديمة"); } syncCloud(c); };
+  const [q, setQ] = useState("");
+  const [sim, setSim] = useState("");
+  const [simRes, setSimRes] = useState<{ clip?: VaultClip | undefined; how: string; ms: number } | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const stopAll = useRef(false);
 
   const addFolder = () => {
     const name = window.prompt("اسم المجلد الصوتي الجديد؟")?.trim();
@@ -207,7 +212,54 @@ export function VoiceSmartVault(p: {
 
   const ready = p.clips.filter((c) => c.audio).length;
   const linked = p.clips.filter((c) => c.audio && c.triggers?.trim()).length;
-  const list = p.clips.filter((c) => c.cat === cat);
+  const inFolder = p.clips.filter((c) => c.cat === cat);
+  const qn = norm(q);
+  const list = qn ? inFolder.filter((c) => norm(`${c.title ?? ""} ${c.text} ${c.triggers ?? ""}`).includes(qn)) : inFolder;
+
+  /* ===== إضافات: حزم المجلدات ===== */
+  const playAll = async () => {
+    if (playing) { stopAll.current = true; return; }
+    const items = inFolder; if (!items.length) { toast("المجلد فاضي"); return; }
+    setPlaying(true); stopAll.current = false;
+    try {
+      for (const c of items) {
+        if (stopAll.current) break;
+        const el = new Audio(await audioOf(c)); el.playbackRate = c.speed ?? 1;
+        await new Promise<void>((res) => { el.onended = () => res(); el.onerror = () => res(); void el.play().catch(() => res()); const iv = setInterval(() => { if (stopAll.current) { el.pause(); clearInterval(iv); res(); } }, 200); el.addEventListener("ended", () => clearInterval(iv)); });
+      }
+    } catch (e) { toast.error((e as Error).message); } finally { setPlaying(false); }
+  };
+  const copyBundle = () => {
+    const name = window.prompt("اسم نسخة الحزمة؟", `نسخة ${lbl(cat, folders.find(([k]) => k === cat)?.[1] ?? cat)}`)?.trim();
+    if (!name) return;
+    const fid = `f_${uid()}`; const next: Folder[] = [...custom, [fid, `📁 ${name}`]];
+    setCustom(next); localStorage.setItem(FOLDERS_KEY, JSON.stringify(next));
+    save([...inFolder.map((c) => ({ ...c, id: uid(), cat: fid })), ...p.clips]); setCat(fid);
+    toast.success(`📋 انتسخت الحزمة (${inFolder.length} مقطع)`);
+  };
+  const publishBundle = async () => {
+    if (!inFolder.length) { toast("المجلد فاضي"); return; }
+    if (!window.confirm(`نشر ${inFolder.length} مقطع للمملكة وكل التجار؟`)) return;
+    let ok = 0;
+    for (const c of inFolder) { try { await publishKingdom(c, true); ok++; setKingIds((s) => new Set(s).add(c.id.replace(/^kg_/, ""))); } catch { /* يكمل */ } }
+    toast.success(`👑 انتشر ${ok} من ${inFolder.length} مقطع للمملكة`);
+  };
+
+  /* ===== إضافة: محاكي المطابقة (قراءة فقط) ===== */
+  const simulate = () => {
+    const t0 = performance.now(); const s = norm(sim);
+    if (!s) { setSimRes(null); return; }
+    const q2 = ` ${s} `; let hit: VaultClip | undefined; let how = "";
+    if (p.opts.triggers) hit = p.clips.find((c) => {
+      if (!c.triggers) return false;
+      const bans = (c.banned ?? "").split(/[,،\n]+/).map(norm).filter(Boolean);
+      if (bans.some((b) => s.includes(b))) return false;
+      return c.triggers.split(/[,،\n]+/).map(norm).filter(Boolean).some((w) => q2.includes(` ${w} `) || s === w);
+    });
+    if (hit) how = "🎯 كلمة تشغيل";
+    if (!hit && p.opts.link) { hit = p.clips.find((c) => norm(c.text) === s); if (hit) how = "🔗 مطابق لنص الرد"; }
+    setSimRes({ clip: hit, how, ms: performance.now() - t0 });
+  };
 
   return (
     <section className="rounded-2xl border-2 border-primary/30 bg-card p-5 shadow-soft">
