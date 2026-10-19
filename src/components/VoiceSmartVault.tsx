@@ -4,11 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EMOTIONS } from "@/components/VoiceStudio";
 import { VoiceModelPicker } from "@/components/VoiceModelPicker";
+import { vaultContext, pullMine, pullKingdom, pushClip, removeClip, publishKingdom } from "@/lib/voice-vault-cloud";
 
 /* لوحة بنك الأصوات والمجلدات الذكية — إضافة مستقلة، تستخدم نفس مقاطع البنك الحالية */
 export type VaultClip = { id: string; cat: string; text: string; audio?: string | undefined; speed?: number; emotion?: string; triggers?: string; title?: string; banned?: string; vip?: string | undefined };
 type Folder = [string, string];
-const BASE: Folder[] = [["welcome", "👋 الترحيب والاستقبال"], ["price", "💰 الأسعار والاعتراضات"], ["ship", "🚚 الشحن والضمان"], ["fun", "💖 غنج وسوالف ودلع"], ["close", "🤝 إغلاق الصفقات"], ["personal", "🔐 مكتبتي الخاصة"]];
+const BASE: Folder[] = [["welcome", "👋 الترحيب والاستقبال"], ["price", "💰 الأسعار والاعتراضات"], ["ship", "🚚 الشحن والضمان"], ["fun", "💖 غنج وسوالف ودلع"], ["close", "🤝 إغلاق الصفقات"], ["personal", "🔐 مكتبتي الخاصة"], ["kingdom", "👑 أصوات المملكة الرسمية"]];
 
 /* شريط صوت صغير: زر تشغيل بالطرف + خط تقدم + الثواني */
 function AudioBar({ load, speed = 1, label }: { load: () => Promise<string>; speed?: number; label: string }) {
@@ -75,7 +76,60 @@ export function VoiceSmartVault(p: {
   }, []);
   const folders = [...BASE, ...custom];
   const lbl = (k: string, l: string) => labels[k] || l;
-  const save = (c: VaultClip[]) => { try { p.saveClips(c); } catch { toast.error("المساحة ممتلئة — احذف مقاطع قديمة"); } };
+
+  /* ☁️ مزامنة سحابية (إضافة): المحلي فوري دائماً، والسحابة بالخلفية */
+  const [ctx, setCtx] = useState({ storeId: "", admin: false });
+  const [kingIds, setKingIds] = useState<Set<string>>(new Set());
+  const clipsRef = useRef(p.clips); clipsRef.current = p.clips;
+  const synced = useRef<Map<string, string>>(new Map());
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const syncCloud = (next: VaultClip[]) => {
+    if (!ctx.storeId) return;
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      const own = next.filter((c) => !c.id.startsWith("kg_"));
+      const ids = new Set(own.map((c) => c.id));
+      for (const c of own) {
+        const j = JSON.stringify(c);
+        if (synced.current.get(c.id) !== j) { synced.current.set(c.id, j); void pushClip(ctx.storeId, c).catch(() => synced.current.delete(c.id)); }
+      }
+      for (const id of [...synced.current.keys()]) if (!ids.has(id)) { synced.current.delete(id); void removeClip(ctx.storeId, id).catch(() => {}); }
+    }, 800);
+  };
+  useEffect(() => {
+    let off = false;
+    (async () => {
+      const c = await vaultContext(); if (off) return; setCtx(c);
+      try {
+        const [mine, kg] = await Promise.all([pullMine(c.storeId), pullKingdom()]);
+        if (off) return;
+        setKingIds(new Set(kg.map((x) => x.id.replace(/^kg_/, ""))));
+        const local = clipsRef.current;
+        for (const x of mine) synced.current.set(x.id, JSON.stringify(x));
+        const localIds = new Set(local.map((x) => x.id));
+        const keepKg = new Map(local.filter((x) => x.id.startsWith("kg_")).map((x) => [x.id, x]));
+        const merged = [
+          ...local.filter((x) => !x.id.startsWith("kg_")),
+          ...mine.filter((x) => !localIds.has(x.id)),
+          ...kg.map((x) => ({ ...x, ...(keepKg.get(x.id) ? { triggers: keepKg.get(x.id)!.triggers, banned: keepKg.get(x.id)!.banned } : {}) })),
+        ];
+        try { p.saveClips(merged); } catch { /* local full — keep going */ }
+        // رفع المقاطع المحلية اللي ما وصلت السحابة بعد
+        if (c.storeId) for (const x of merged) if (!x.id.startsWith("kg_") && !synced.current.has(x.id)) { synced.current.set(x.id, JSON.stringify(x)); void pushClip(c.storeId, x).catch(() => synced.current.delete(x.id)); }
+      } catch { /* offline: localStorage only */ }
+    })();
+    return () => { off = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const toggleKingdom = async (c: VaultClip) => {
+    const id = c.id.replace(/^kg_/, ""); const on = !kingIds.has(id);
+    try {
+      await publishKingdom(c, on);
+      setKingIds((s) => { const n = new Set(s); if (on) n.add(id); else n.delete(id); return n; });
+      toast.success(on ? "👑 انتشر لكل التجار في «أصوات المملكة الرسمية»" : "⭕ انسحب من المملكة");
+    } catch (e) { toast.error((e as Error).message); }
+  };
+  const save = (c: VaultClip[]) => { try { p.saveClips(c); } catch { toast.error("المساحة ممتلئة — احذف مقاطع قديمة"); } syncCloud(c); };
 
   const addFolder = () => {
     const name = window.prompt("اسم المجلد الصوتي الجديد؟")?.trim();
@@ -204,42 +258,57 @@ export function VoiceSmartVault(p: {
 
       <p className="mt-4 mb-2 text-sm font-medium">📋 مقاطع المجلد المختار</p>
       <div className="space-y-2">
-        {list.map((c) => (
+        {list.map((c) => {
+          const upd = (patch: Partial<VaultClip>) => save(p.clips.map((x) => (x.id === c.id ? { ...x, ...patch } : x)));
+          const isKg = c.id.startsWith("kg_");
+          return (
           <div key={c.id} className="rounded-xl border bg-background p-3">
-            <Input defaultValue={c.title ?? ""} placeholder="🏷️ سمّ المقطع باللي تبي" className="mb-2 h-8 text-sm font-medium"
-              onBlur={(e) => save(p.clips.map((x) => (x.id === c.id ? { ...x, title: e.target.value.trim() } : x)))} />
-            <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Input defaultValue={c.title ?? ""} placeholder="🏷️ سمّ المقطع باللي تبي" className="h-8 flex-1 text-sm font-medium"
+                onChange={(e) => upd({ title: e.target.value.trim() })} />
+              <span className="whitespace-nowrap rounded-full bg-secondary px-2 py-0.5 text-[10px]">{lbl(c.cat, folders.find(([k]) => k === c.cat)?.[1] ?? c.cat)}</span>
+            </div>
+            <div className="mt-1 flex items-start justify-between gap-2">
               <p className="text-sm">"{c.text}"</p>
               <span className="whitespace-nowrap text-[10px] text-muted-foreground">{c.audio ? `⚡ مخزن${dur[c.id] ? ` (${dur[c.id]!.toFixed(1)} ث)` : ""}` : "⏳ غير مولّد"}</span>
             </div>
             <AudioBar key={`${c.id}_${c.audio ? c.audio.length : 0}`} label={c.title || c.text} speed={c.speed ?? 1} load={() => audioOf(c)} />
-            <Input defaultValue={c.triggers ?? ""} placeholder="🎯 علّمها: كلمات الزبون (مرحبا, هلا, كم السعر)" className="mt-2 h-8 text-xs"
-              onBlur={(e) => save(p.clips.map((x) => (x.id === c.id ? { ...x, triggers: e.target.value.trim() } : x)))} />
-            <Input defaultValue={c.banned ?? ""} placeholder="🚫 الممنوع: إذا قالها الزبون ما يشتغل هالمقطع" className="mt-2 h-8 text-xs"
-              onBlur={(e) => save(p.clips.map((x) => (x.id === c.id ? { ...x, banned: e.target.value.trim() } : x)))} />
-            <Input defaultValue={c.vip ?? ""} dir="ltr" placeholder="⭐ رقم VIP لهذا المقطع (اختياري)" className="mt-2 h-8 text-xs"
-              onBlur={(e) => save(p.clips.map((x) => (x.id === c.id ? { ...x, vip: e.target.value.replace(/\D/g, "") } : x)))} />
-            <select value={c.cat} onChange={(e) => { save(p.clips.map((x) => (x.id === c.id ? { ...x, cat: e.target.value } : x))); toast.success("📁 انتقل المقطع"); }}
-              className="mt-2 w-full rounded-md border bg-background px-2 py-1 text-xs" aria-label="نقل لمجلد">
-              {folders.map(([k, l]) => <option key={k} value={k}>📁 {lbl(k, l)}</option>)}
-            </select>
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-              <select value={c.emotion ?? ""} onChange={(e) => save(p.clips.map((x) => (x.id === c.id ? { ...x, emotion: e.target.value, audio: undefined } : x)))} className="rounded-md border bg-background px-2 py-1" aria-label="نبرة المقطع">
-                {EMOTIONS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-              </select>
-              <label className="flex flex-1 items-center gap-1">🎚️ {(c.speed ?? 1).toFixed(2)}x
-                <input type="range" min={0.7} max={1.3} step={0.05} value={c.speed ?? 1} className="flex-1" onChange={(e) => save(p.clips.map((x) => (x.id === c.id ? { ...x, speed: +e.target.value } : x)))} />
-              </label>
-            </div>
             <div className="mt-2 flex flex-wrap gap-1">
-              <Button size="sm" variant="secondary" disabled={busy === c.id} onClick={() => listen(c)}>{busy === c.id ? "…" : "▶️ استماع فوري"}</Button>
-              <Button size="sm" disabled={!p.live || busy === c.id} onClick={() => fire(c)}>⚡ أطلق في المكالمة الآن</Button>
-              <Button size="sm" variant="outline" disabled={busy === c.id} onClick={() => ptt(c)}>🚀 PTT واتساب</Button>
-              <Button size="sm" variant="outline" onClick={() => { if (window.confirm("حذف المقطع؟")) save(p.clips.filter((x) => x.id !== c.id)); }}>🗑️ حذف</Button>
-              <Button size="sm" variant="outline" disabled={busy === c.id} onClick={() => { save(p.clips.map((x) => (x.id === c.id ? { ...x, audio: undefined } : x))); toast("🔄 بيتولد من جديد عند التشغيل"); }}>🔄 إعادة وزن</Button>
+              <Button size="sm" disabled={!p.live || busy === c.id} onClick={() => fire(c)}>⚡ أطلق في المكالمة</Button>
+              <Button size="sm" variant="outline" disabled={busy === c.id} onClick={() => ptt(c)}>🚀 واتساب</Button>
+              {ctx.admin && <Button size="sm" variant={kingIds.has(c.id.replace(/^kg_/, "")) ? "secondary" : "outline"} className="border-gold text-gold" onClick={() => toggleKingdom(c)}>
+                {kingIds.has(c.id.replace(/^kg_/, "")) ? "👑 منشور — إلغاء" : "👑 انشر للمملكة"}</Button>}
+              <Button size="sm" variant="destructive" onClick={() => { if (window.confirm("حذف المقطع نهائياً؟")) { save(p.clips.filter((x) => x.id !== c.id)); toast.success("🗑️ انحذف"); } }}>🗑️ حذف</Button>
             </div>
+            <details className="mt-2 rounded-lg border bg-secondary/40 p-2">
+              <summary className="cursor-pointer text-xs font-medium">⚙️ تخصيص وتدريب المقطع</summary>
+              {isKg && <p className="mt-1 text-[10px] text-muted-foreground">👑 مقطع من المملكة — تعديلك يبقى عندك فقط.</p>}
+              <Input defaultValue={c.triggers ?? ""} placeholder="🎯 علّمها: كلمات الزبون (مرحبا, هلا, كم السعر)" className="mt-2 h-8 text-xs"
+                onChange={(e) => upd({ triggers: e.target.value })} onBlur={(e) => upd({ triggers: e.target.value.trim() })} />
+              <Input defaultValue={c.banned ?? ""} placeholder="🚫 الممنوع: إذا قالها الزبون ما يشتغل هالمقطع" className="mt-2 h-8 text-xs"
+                onChange={(e) => upd({ banned: e.target.value })} onBlur={(e) => upd({ banned: e.target.value.trim() })} />
+              <Input defaultValue={c.vip ?? ""} dir="ltr" placeholder="⭐ رقم VIP لهذا المقطع (اختياري)" className="mt-2 h-8 text-xs"
+                onChange={(e) => upd({ vip: e.target.value.replace(/\D/g, "") })} />
+              <select value={c.cat} onChange={(e) => { upd({ cat: e.target.value }); toast.success("📁 انتقل المقطع"); }}
+                className="mt-2 w-full rounded-md border bg-background px-2 py-1 text-xs" aria-label="نقل لمجلد">
+                {folders.map(([k, l]) => <option key={k} value={k}>📁 {lbl(k, l)}</option>)}
+              </select>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                <select value={c.emotion ?? ""} onChange={(e) => upd({ emotion: e.target.value, audio: undefined })} className="rounded-md border bg-background px-2 py-1" aria-label="نبرة المقطع">
+                  {EMOTIONS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                </select>
+                <label className="flex flex-1 items-center gap-1">🎚️ {(c.speed ?? 1).toFixed(2)}x
+                  <input type="range" min={0.7} max={1.3} step={0.05} value={c.speed ?? 1} className="flex-1" onChange={(e) => upd({ speed: +e.target.value })} />
+                </label>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1">
+                <Button size="sm" variant="secondary" disabled={busy === c.id} onClick={() => listen(c)}>{busy === c.id ? "…" : "▶️ استماع فوري"}</Button>
+                <Button size="sm" variant="outline" disabled={busy === c.id} onClick={() => { upd({ audio: undefined }); toast("🔄 بيتولد من جديد عند التشغيل"); }}>🔄 إعادة وزن</Button>
+              </div>
+            </details>
           </div>
-        ))}
+          );
+        })}
         {!list.length && <p className="text-sm text-muted-foreground">المجلد فاضي — اكتب عبارة فوق أو سجّل/ارفع صوت.</p>}
       </div>
     </section>
