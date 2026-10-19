@@ -11,7 +11,7 @@ function voiceFolders(): { mine: [string, string][]; king: [string, string][] } 
     const mine = [...base, ...(Array.isArray(custom) ? custom : [])].map(([k, l]) => [k, labels[k] || l] as [string, string]);
     const king = new Map<string, string>();
     for (const c of Array.isArray(clips) ? clips : []) {
-      if (c.cat === "kingdom") king.set("kingdom", labels.kingdom || "👑 أصوات المملكة الرسمية");
+      if (c.cat === "kingdom") king.set("kingdom", labels["kingdom"] || "👑 أصوات المملكة الرسمية");
       else if (c.cat?.startsWith("kg:")) king.set(c.cat, `👑 ${c.fname || "مجلد ملكي"}`);
     }
     return { mine, king: [...king.entries()] };
