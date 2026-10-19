@@ -308,7 +308,28 @@ export function VoiceSmartVault(p: {
         </div>
       </div>
 
+      <div className="mt-4 space-y-2 rounded-xl border border-primary/30 bg-background p-3">
+        <p className="text-sm font-medium">🧪 محاكي فحص المطابقة</p>
+        <div className="flex gap-2">
+          <Input value={sim} onChange={(e) => setSim(e.target.value)} onKeyDown={(e) => e.key === "Enter" && simulate()} placeholder="اكتب كأنك الزبون: مساء الخير، كم التوصيل…" className="h-9 text-sm" />
+          <Button size="sm" onClick={simulate}>افحص</Button>
+        </div>
+        {simRes && (simRes.clip ? (
+          <div className="rounded-lg bg-secondary p-2 text-xs">
+            <p>✅ {simRes.how} — {simRes.clip.audio ? "⚡ تسجيل جاهز بدون توليد" : "⏳ يتولد أول مرة"} — {simRes.ms.toFixed(1)} ms</p>
+            <p className="mt-1 font-medium">"{simRes.clip.title || simRes.clip.text}"</p>
+            <AudioBar key={simRes.clip.id} label={simRes.clip.text} speed={simRes.clip.speed ?? 1} load={() => audioOf(simRes.clip!)} />
+          </div>
+        ) : <p className="rounded-lg bg-secondary p-2 text-xs">⭕ ما فيه مقطع مطابق — المكالمة تكمل بمسارها المعتاد (الردود/الذكاء أو «علّمها»).</p>)}
+      </div>
+
       <p className="mt-4 mb-2 text-sm font-medium">📋 مقاطع المجلد المختار</p>
+      <div className="mb-2 flex flex-wrap gap-1">
+        <Button size="sm" variant="secondary" onClick={playAll}>{playing ? "⏹️ أوقف التشغيل" : "▶️ تشغيل المجلد متتالي"}</Button>
+        <Button size="sm" variant="outline" onClick={copyBundle}>📋 انسخ الحزمة</Button>
+        {ctx.admin && <Button size="sm" variant="outline" className="border-gold text-gold" onClick={publishBundle}>👑 انشر المجلد كامل للمملكة</Button>}
+      </div>
+      <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 ابحث داخل المجلد (الاسم، النص، الكلمات)" className="mb-2 h-8 text-xs" />
       <div className="space-y-2">
         {list.map((c) => {
           const upd = (patch: Partial<VaultClip>) => save(p.clips.map((x) => (x.id === c.id ? { ...x, ...patch } : x)));
