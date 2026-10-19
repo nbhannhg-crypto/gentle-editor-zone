@@ -859,21 +859,6 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
           <p className="mt-1 text-xs text-muted-foreground">ينحفظ كقاعدة دائمة مع قواعدك ({rules.length.toLocaleString("ar")} قاعدة).</p>
         </Card>
 
-        <Card title="🎛️ بنك المقاطع الجاهزة — اضغط تنطق فوراً">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {board.map((s, i) => (
-              <div key={i} className="group relative">
-                <Button variant="secondary" className="h-auto w-full whitespace-normal py-2 text-xs" disabled={speaking} onClick={() => say(s)}>{s}</Button>
-                <button aria-label="احذف المقطع" onClick={() => saveBoard(board.filter((_, j) => j !== i))} className="absolute -left-1 -top-1 hidden h-5 w-5 rounded-full bg-destructive text-[10px] text-destructive-foreground group-hover:block">×</button>
-              </div>
-            ))}
-          </div>
-          <div className="mt-3 flex gap-2">
-            <Input value={newClip} onChange={(e) => setNewClip(e.target.value)} placeholder="أضف مقطع جديد…" onKeyDown={(e) => { if (e.key === "Enter" && newClip.trim()) { saveBoard([...board, newClip.trim()]); setNewClip(""); } }} />
-            <Button variant="outline" onClick={() => { if (newClip.trim()) { saveBoard([...board, newClip.trim()]); setNewClip(""); } }}>➕ أضف</Button>
-          </div>
-          <button onClick={() => saveBoard(DEFAULT_BOARD)} className="mt-2 text-xs text-muted-foreground underline">رجّع المقاطع الأساسية</button>
-        </Card>
 
         <Card title="👁️ عين الصفقة اللحظية">
           {deal ? (
