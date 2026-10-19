@@ -626,27 +626,45 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
     setBusy(false);
   };
 
-  const start = () => {
+  const start = async () => {
     const W = window as any;
     const C = W.SpeechRecognition || W.webkitSpeechRecognition;
     if (!C) { toast.error("المتصفح ما يدعم سماع الصوت. استخدم Chrome أو اكتب كلام الزبون."); return; }
-    const rec: SR = new C();
-    rec.lang = "ar-SA"; rec.continuous = true; rec.interimResults = true;
-    rec.onresult = (e) => {
-      if (mutedRef.current) return;
-      let fin = "", tmp = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const t = e.results[i][0].transcript;
-        if (e.results[i].isFinal) fin += t; else tmp += t;
-      }
-      // كاشف المقاطعة: الزبون تكلم والموظفة تتكلم → تسكت فوراً
-      if ((tmp.trim() || fin.trim()) && audioRef.current && !audioRef.current.paused) { audioRef.current.pause(); setSpeaking(false); }
-      setInterim(tmp);
-      if (fin.trim()) handleCustomer(fin.trim());
+    // طلب إذن المايك صراحة من الجهاز
+    try { const s = await navigator.mediaDevices?.getUserMedia?.({ audio: true }); s?.getTracks().forEach((t) => t.stop()); }
+    catch { toast.error("🎙️ المايك مقفول — اسمح للمتصفح باستخدام المايك من الإعدادات"); return; }
+    let pending = ""; let silence: ReturnType<typeof setTimeout> | null = null;
+    const flush = () => { if (silence) clearTimeout(silence); silence = null; const t = pending.trim(); pending = ""; setInterim(""); if (t) handleCustomer(t); };
+    const spawn = () => {
+      if (!liveRef.current) return;
+      const rec: SR = new C();
+      rec.lang = "ar-SA"; rec.continuous = true; rec.interimResults = true;
+      rec.onresult = (e) => {
+        if (mutedRef.current) return;
+        let fin = "", tmp = "";
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const t = e.results[i][0].transcript;
+          if (e.results[i].isFinal) fin += t; else tmp += t;
+        }
+        // كاشف المقاطعة: الزبون تكلم والموظفة تتكلم → تسكت فوراً
+        if ((tmp.trim() || fin.trim()) && audioRef.current && !audioRef.current.paused) { audioRef.current.pause(); setSpeaking(false); }
+        if (fin.trim()) { pending = ""; if (silence) clearTimeout(silence); silence = null; setInterim(""); handleCustomer(fin.trim()); return; }
+        if (tmp.trim()) {
+          pending = tmp; setInterim(tmp);
+          if (silence) clearTimeout(silence);
+          silence = setTimeout(flush, 1200); // سكت الزبون ثانية → نرسل كلامه حتى لو الجوال ما أكد
+        }
+      };
+      (rec as any).onerror = (ev: any) => {
+        if (ev?.error === "not-allowed" || ev?.error === "service-not-allowed") { toast.error("🎙️ المتصفح منع المايك — اسمح له وارجع ابدأ المكالمة"); liveRef.current = false; setLive(false); }
+      };
+      rec.onend = () => { if (pending.trim()) flush(); if (liveRef.current) setTimeout(spawn, 250); };
+      recRef.current = rec;
+      try { rec.start(); } catch { setTimeout(spawn, 500); }
     };
-    rec.onend = () => { if (liveRef.current) try { rec.start(); } catch { /* ignore */ } };
-    recRef.current = rec; liveRef.current = true;
-    rec.start(); setLive(true); setSeconds(0); setDeal(null);
+    liveRef.current = true;
+    setLive(true); setSeconds(0); setDeal(null);
+    spawn();
   };
   const stop = () => { liveRef.current = false; recRef.current?.stop(); setLive(false); setInterim(""); audioRef.current?.pause(); setSpeaking(false); cancelCountdown(); };
   useEffect(() => () => { liveRef.current = false; recRef.current?.stop(); cancelCountdown(); }, []);
