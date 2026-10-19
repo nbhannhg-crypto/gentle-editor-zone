@@ -626,45 +626,45 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
     setBusy(false);
   };
 
-  const start = async () => {
+  const lastHeardRef = useRef<{ t: string; at: number }>({ t: "", at: 0 });
+  const lastSaidRef = useRef("");
+  const isEcho = (heard: string) => {
+    const h = normalize(heard).split(" ").filter((w) => w.length > 1);
+    const s = normalize(lastSaidRef.current);
+    if (!h.length || !s) return false;
+    return h.filter((w) => s.includes(w)).length / h.length >= 0.6;
+  };
+  const start = () => {
     const W = window as any;
     const C = W.SpeechRecognition || W.webkitSpeechRecognition;
     if (!C) { toast.error("المتصفح ما يدعم سماع الصوت. استخدم Chrome أو اكتب كلام الزبون."); return; }
-    // طلب إذن المايك صراحة من الجهاز
-    try { const s = await navigator.mediaDevices?.getUserMedia?.({ audio: true }); s?.getTracks().forEach((t) => t.stop()); }
-    catch { toast.error("🎙️ المايك مقفول — اسمح للمتصفح باستخدام المايك من الإعدادات"); return; }
-    let pending = ""; let silence: ReturnType<typeof setTimeout> | null = null;
-    const flush = () => { if (silence) clearTimeout(silence); silence = null; const t = pending.trim(); pending = ""; setInterim(""); if (t) handleCustomer(t); };
-    const spawn = () => {
-      if (!liveRef.current) return;
-      const rec: SR = new C();
-      rec.lang = "ar-SA"; rec.continuous = true; rec.interimResults = true;
-      rec.onresult = (e) => {
-        if (mutedRef.current) return;
-        let fin = "", tmp = "";
-        for (let i = e.resultIndex; i < e.results.length; i++) {
-          const t = e.results[i][0].transcript;
-          if (e.results[i].isFinal) fin += t; else tmp += t;
-        }
-        // كاشف المقاطعة: الزبون تكلم والموظفة تتكلم → تسكت فوراً
-        if ((tmp.trim() || fin.trim()) && audioRef.current && !audioRef.current.paused) { audioRef.current.pause(); setSpeaking(false); }
-        if (fin.trim()) { pending = ""; if (silence) clearTimeout(silence); silence = null; setInterim(""); handleCustomer(fin.trim()); return; }
-        if (tmp.trim()) {
-          pending = tmp; setInterim(tmp);
-          if (silence) clearTimeout(silence);
-          silence = setTimeout(flush, 1200); // سكت الزبون ثانية → نرسل كلامه حتى لو الجوال ما أكد
-        }
-      };
-      (rec as any).onerror = (ev: any) => {
-        if (ev?.error === "not-allowed" || ev?.error === "service-not-allowed") { toast.error("🎙️ المتصفح منع المايك — اسمح له وارجع ابدأ المكالمة"); liveRef.current = false; setLive(false); }
-      };
-      rec.onend = () => { if (pending.trim()) flush(); if (liveRef.current) setTimeout(spawn, 250); };
-      recRef.current = rec;
-      try { rec.start(); } catch { setTimeout(spawn, 500); }
+    const rec: SR = new C();
+    rec.lang = "ar-SA"; rec.continuous = true; rec.interimResults = true;
+    rec.onresult = (e) => {
+      if (mutedRef.current) return;
+      let fin = "", tmp = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) fin += t; else tmp += t;
+      }
+      const playing = !!audioRef.current && !audioRef.current.paused;
+      // صدى صوت الموظفة نفسها من السماعة → نتجاهله
+      if (playing && isEcho(fin || tmp)) return;
+      // كاشف المقاطعة: الزبون تكلم والموظفة تتكلم → تسكت فوراً
+      if ((tmp.trim() || fin.trim()) && playing) { audioRef.current!.pause(); setSpeaking(false); }
+      setInterim(tmp);
+      const f = fin.trim();
+      if (!f) return;
+      if (isEcho(f) && Date.now() - lastHeardRef.current.at < 15000) return;
+      // منع تكرار نفس الجملة خلال 4 ثواني
+      const n = normalize(f);
+      if (n === lastHeardRef.current.t && Date.now() - lastHeardRef.current.at < 4000) return;
+      lastHeardRef.current = { t: n, at: Date.now() };
+      handleCustomer(f);
     };
-    liveRef.current = true;
-    setLive(true); setSeconds(0); setDeal(null);
-    spawn();
+    rec.onend = () => { if (liveRef.current) try { rec.start(); } catch { /* ignore */ } };
+    recRef.current = rec; liveRef.current = true;
+    rec.start(); setLive(true); setSeconds(0); setDeal(null);
   };
   const stop = () => { liveRef.current = false; recRef.current?.stop(); setLive(false); setInterim(""); audioRef.current?.pause(); setSpeaking(false); cancelCountdown(); };
   useEffect(() => () => { liveRef.current = false; recRef.current?.stop(); cancelCountdown(); }, []);
@@ -704,6 +704,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
     const bad = hitBanned(text, c);
     if (bad) { toast.error(`🚫 الرد فيه كلمة ممنوعة «${bad}» — ما نطقته`); return; }
     setLog((l) => [...l, { who: "a", t: text }]);
+    lastSaidRef.current = text;
     if (c.route === "text") { setAnswer(text); return; }
     const spoken = applyFixes(text, c);
     if (c.route === "ptt") {
