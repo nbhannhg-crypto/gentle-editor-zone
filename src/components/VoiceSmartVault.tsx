@@ -6,9 +6,44 @@ import { EMOTIONS } from "@/components/VoiceStudio";
 import { VoiceModelPicker } from "@/components/VoiceModelPicker";
 
 /* لوحة بنك الأصوات والمجلدات الذكية — إضافة مستقلة، تستخدم نفس مقاطع البنك الحالية */
-export type VaultClip = { id: string; cat: string; text: string; audio?: string | undefined; speed?: number; emotion?: string; triggers?: string; title?: string; banned?: string };
+export type VaultClip = { id: string; cat: string; text: string; audio?: string | undefined; speed?: number; emotion?: string; triggers?: string; title?: string; banned?: string; vip?: string | undefined };
 type Folder = [string, string];
-const BASE: Folder[] = [["welcome", "👋 الترحيب والاستقبال"], ["price", "💰 الأسعار والاعتراضات"], ["ship", "🚚 الشحن والضمان"], ["fun", "💖 غنج وسوالف ودلع"], ["close", "🤝 إغلاق الصفقات"]];
+const BASE: Folder[] = [["welcome", "👋 الترحيب والاستقبال"], ["price", "💰 الأسعار والاعتراضات"], ["ship", "🚚 الشحن والضمان"], ["fun", "💖 غنج وسوالف ودلع"], ["close", "🤝 إغلاق الصفقات"], ["personal", "🔐 مكتبتي الخاصة"]];
+
+/* شريط صوت صغير: زر تشغيل بالطرف + خط تقدم + الثواني */
+function AudioBar({ load, speed = 1, label }: { load: () => Promise<string>; speed?: number; label: string }) {
+  const ref = useRef<HTMLAudioElement | null>(null);
+  const [on, setOn] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [t, setT] = useState(0);
+  const [d, setD] = useState(0);
+  const toggle = async () => {
+    if (ref.current && on) { ref.current.pause(); setOn(false); return; }
+    try {
+      if (!ref.current) {
+        setBusy(true);
+        const el = new Audio(await load());
+        el.ontimeupdate = () => setT(el.currentTime);
+        el.onloadedmetadata = () => setD(el.duration || 0);
+        el.onended = () => { setOn(false); setT(0); };
+        ref.current = el;
+      }
+      ref.current.playbackRate = speed;
+      await ref.current.play(); setOn(true);
+    } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
+  };
+  const seek = (v: number) => { if (ref.current && d) { ref.current.currentTime = v; setT(v); } };
+  return (
+    <div className="mt-2 flex items-center gap-2 rounded-full border bg-secondary px-2 py-1" title={label}>
+      <button type="button" onClick={toggle} disabled={busy} aria-label={on ? "إيقاف" : "تشغيل"}
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
+        {busy ? "…" : on ? "⏸" : "▶"}
+      </button>
+      <input type="range" min={0} max={d || 1} step={0.05} value={t} onChange={(e) => seek(+e.target.value)} className="h-1 flex-1 accent-primary" aria-label="تقدم الصوت" />
+      <span className="w-14 shrink-0 text-left text-[10px] text-muted-foreground" dir="ltr">{t.toFixed(1)}/{d ? d.toFixed(1) : "–"}s</span>
+    </div>
+  );
+}
 const FOLDERS_KEY = "live_vault_folders";
 const LABELS_KEY = "live_vault_labels";
 const norm = (s: string) => s.replace(/[\u064B-\u0652\u0640]/g, "").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim().toLowerCase();
