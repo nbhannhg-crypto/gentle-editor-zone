@@ -4,10 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EMOTIONS } from "@/components/VoiceStudio";
 import { VoiceModelPicker } from "@/components/VoiceModelPicker";
+import { getStudioVoice, getVoiceModel } from "@/lib/voice-model";
 import { vaultContext, pullMine, pullKingdom, pushClip, removeClip, publishKingdom } from "@/lib/voice-vault-cloud";
 
 /* لوحة بنك الأصوات والمجلدات الذكية — إضافة مستقلة، تستخدم نفس مقاطع البنك الحالية */
-export type VaultClip = { id: string; cat: string; text: string; audio?: string | undefined; speed?: number; emotion?: string; triggers?: string; title?: string; banned?: string; vip?: string | undefined };
+export type VaultClip = { id: string; cat: string; text: string; audio?: string | undefined; speed?: number; emotion?: string; triggers?: string; title?: string; banned?: string; vip?: string | undefined; voice?: string; model?: string };
 type Folder = [string, string];
 const BASE: Folder[] = [["welcome", "👋 الترحيب والاستقبال"], ["price", "💰 الأسعار والاعتراضات"], ["ship", "🚚 الشحن والضمان"], ["fun", "💖 غنج وسوالف ودلع"], ["close", "🤝 إغلاق الصفقات"], ["personal", "🔐 مكتبتي الخاصة"], ["kingdom", "👑 أصوات المملكة الرسمية"]];
 
@@ -48,6 +49,8 @@ function AudioBar({ load, speed = 1, label }: { load: () => Promise<string>; spe
 const FOLDERS_KEY = "live_vault_folders";
 const LABELS_KEY = "live_vault_labels";
 const norm = (s: string) => s.replace(/[\u064B-\u0652\u0640]/g, "").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim().toLowerCase();
+const splitPh = (s?: string) => (s ?? "").split(/[\/|\n,،]+/).map((x) => x.trim()).filter(Boolean);
+const joinPh = (a: string[]) => [...new Map(a.map((x) => [norm(x), x])).values()].join("، ");
 const uid = () => Math.random().toString(36).slice(2, 9);
 
 export function VoiceSmartVault(p: {
@@ -63,6 +66,7 @@ export function VoiceSmartVault(p: {
   const [custom, setCustom] = useState<Folder[]>([]);
   const [cat, setCat] = useState("welcome");
   const [text, setText] = useState("");
+  const [phrases, setPhrases] = useState("");
   const [emotion, setEmotion] = useState("");
   const [speed, setSpeed] = useState(1);
   const [busy, setBusy] = useState("");
@@ -156,20 +160,23 @@ export function VoiceSmartVault(p: {
     save(p.clips.map((c) => (c.cat === cat ? { ...c, cat: "welcome" } : c))); setCat("welcome");
   };
 
-  const cached = text.trim() ? p.clips.find((c) => c.audio && norm(c.text) === norm(text)) : undefined;
+  const curVoice = () => getStudioVoice() || "";
+  const cached = text.trim() ? p.clips.find((c) => c.audio && norm(c.text) === norm(text) && c.cat === cat && (c.voice ?? "") === curVoice()) : undefined;
   const checkOrGen = async () => {
     const t = text.trim();
     if (!t) { toast.error("اكتب العبارة"); return; }
+    const ph = splitPh(phrases);
     if (cached) {
-      if (cached.cat === cat) { toast("💾 موجودة أصلاً في هذا المجلد"); return; }
-      save([{ ...cached, id: uid(), cat }, ...p.clips]); setText(""); toast.success("💾 كانت محفوظة — انضافت فوراً بدون توليد"); return;
+      if (!ph.length) { toast("💾 نفس الرد بنفس الصوت موجود أصلاً في هذا المجلد"); setQ(cached.text); return; }
+      save(p.clips.map((x) => (x.id === cached.id ? { ...x, triggers: joinPh([...splitPh(x.triggers), ...ph]) } : x)));
+      setText(""); setPhrases(""); setQ(cached.text); toast.success(`💾 الصوت موجود — انضافت ${ph.length} عبارة لنفس البطاقة بدون توليد`); return;
     }
     setBusy("gen");
     try {
       const a = await p.tts(t, { emotion });
-      save([{ id: uid(), cat, text: t, audio: a, speed, emotion }, ...p.clips]);
+      save([{ id: uid(), cat, text: t, audio: a, speed, emotion, voice: curVoice(), model: getVoiceModel(), ...(ph.length ? { triggers: joinPh(ph) } : {}) }, ...p.clips]);
       const el = new Audio(a); el.playbackRate = speed; void el.play();
-      setText(""); toast.success("🪄 انولّد وانحفظ في المجلد");
+      setText(""); setPhrases(""); toast.success(ph.length ? `🪄 انولّد وانربط بـ ${ph.length} عبارة` : "🪄 انولّد وانحفظ في المجلد");
     } catch (e) { toast.error((e as Error).message); } finally { setBusy(""); }
   };
 
@@ -252,9 +259,9 @@ export function VoiceSmartVault(p: {
     const q2 = ` ${s} `; let hit: VaultClip | undefined; let how = "";
     if (p.opts.triggers) hit = p.clips.find((c) => {
       if (!c.triggers) return false;
-      const bans = (c.banned ?? "").split(/[,،\n]+/).map(norm).filter(Boolean);
+      const bans = (c.banned ?? "").split(/[,،\n\/|]+/).map(norm).filter(Boolean);
       if (bans.some((b) => s.includes(b))) return false;
-      return c.triggers.split(/[,،\n]+/).map(norm).filter(Boolean).some((w) => q2.includes(` ${w} `) || s === w);
+      return c.triggers.split(/[,،\n\/|]+/).map(norm).filter(Boolean).some((w) => q2.includes(` ${w} `) || s === w);
     });
     if (hit) how = "🎯 كلمة تشغيل";
     if (!hit && p.opts.link) { hit = p.clips.find((c) => norm(c.text) === s); if (hit) how = "🔗 مطابق لنص الرد"; }
@@ -288,8 +295,12 @@ export function VoiceSmartVault(p: {
 
       <div className="mt-4 space-y-2 rounded-xl bg-secondary p-3">
         <p className="text-sm font-medium">🪄 الفحص والكاش المسبق</p>
+        <label className="block text-xs font-medium">🗣️ كلام الزبون / العبارات المشغّلة</label>
+        <textarea value={phrases} onChange={(e) => setPhrases(e.target.value)} rows={2} placeholder="مساء الخير / مساء الفل / مساء العسل" className="w-full rounded-md border bg-background px-3 py-2 text-sm" />
+        {splitPh(phrases).length > 0 && <div className="flex flex-wrap gap-1">{splitPh(phrases).map((x, i) => <span key={i} className="rounded-full bg-background px-2 py-0.5 text-[11px]">🎯 {x}</span>)}</div>}
+        <label className="block text-xs font-medium">🔊 الرد الذي سيُولد بصوت</label>
         <Input value={text} onChange={(e) => setText(e.target.value)} placeholder="اكتب العبارة للتحقق أو التوليد…" />
-        {text.trim() && <p className="text-xs">{cached ? "💾 متوفرة مسبقاً — تنضاف فوراً بدون توليد" : "✨ عبارة جديدة — تتولد بنقرة"}</p>}
+        {text.trim() && <p className="text-xs">{cached ? "💾 نفس الرد بنفس الصوت موجود — العبارات تنضاف لبطاقته بدون توليد" : "✨ رد جديد (أو صوت بنت مختلفة) — يتولد بنقرة"}</p>}
         <VoiceModelPicker />
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <select value={emotion} onChange={(e) => setEmotion(e.target.value)} className="rounded-md border bg-background px-2 py-1" aria-label="النبرة">
@@ -345,12 +356,23 @@ export function VoiceSmartVault(p: {
               <p className="text-sm">"{c.text}"</p>
               <span className="whitespace-nowrap text-[10px] text-muted-foreground">{c.audio ? `⚡ مخزن${dur[c.id] ? ` (${dur[c.id]!.toFixed(1)} ث)` : ""}` : "⏳ غير مولّد"}</span>
             </div>
+            <div className="mt-1 flex flex-wrap items-center gap-1">
+              {splitPh(c.triggers).map((w, i, arr) => (
+                <span key={i} className="flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[11px]">
+                  <button type="button" onClick={() => { const v = window.prompt("تعديل العبارة", w)?.trim(); if (v) upd({ triggers: joinPh(arr.map((x, j) => (j === i ? v : x))) }); }}>🎯 {w}</button>
+                  <button type="button" aria-label="حذف العبارة" className="text-destructive" onClick={() => upd({ triggers: joinPh(arr.filter((_, j) => j !== i)) })}>×</button>
+                </span>
+              ))}
+              <button type="button" className="rounded-full border px-2 py-0.5 text-[11px]" onClick={() => { const v = window.prompt("أضف عبارة (تقدر تفصل بـ / أو |)"); if (v) upd({ triggers: joinPh([...splitPh(c.triggers), ...splitPh(v)]) }); }}>➕ إضافة عبارة</button>
+            </div>
             <AudioBar key={`${c.id}_${c.audio ? c.audio.length : 0}`} label={c.title || c.text} speed={c.speed ?? 1} load={() => audioOf(c)} />
             <div className="mt-2 flex flex-wrap gap-1">
               <Button size="sm" disabled={!p.live || busy === c.id} onClick={() => fire(c)}>⚡ أطلق في المكالمة</Button>
               <Button size="sm" variant="outline" disabled={busy === c.id} onClick={() => ptt(c)}>🚀 واتساب</Button>
               {ctx.admin && <Button size="sm" variant={kingIds.has(c.id.replace(/^kg_/, "")) ? "secondary" : "outline"} className="border-gold text-gold" onClick={() => toggleKingdom(c)}>
                 {kingIds.has(c.id.replace(/^kg_/, "")) ? "👑 منشور — إلغاء" : "👑 انشر للمملكة"}</Button>}
+              <Button size="sm" variant="ghost" onClick={() => { const v = window.prompt("تعديل نص الرد (يحتاج إعادة توليد)", c.text)?.trim(); if (v && v !== c.text) { upd({ text: v, audio: undefined }); toast("✏️ تعدّل — اضغط تشغيل ليتولد الصوت الجديد"); } }}>✏️ نص الرد</Button>
+              <Button size="sm" variant="ghost" disabled={busy === c.id} onClick={() => { if (window.confirm("إعادة توليد الصوت؟")) upd({ audio: undefined, voice: curVoice(), model: getVoiceModel() }); }}>🔄 إعادة توليد</Button>
               <Button size="sm" variant="destructive" onClick={() => { if (window.confirm("حذف المقطع نهائياً؟")) { save(p.clips.filter((x) => x.id !== c.id)); toast.success("🗑️ انحذف"); } }}>🗑️ حذف</Button>
             </div>
             <details className="mt-2 rounded-lg border bg-secondary/40 p-2">

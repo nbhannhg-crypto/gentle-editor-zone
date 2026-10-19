@@ -24,9 +24,9 @@ export function findTriggerClip(customer: string): { text: string; audio: string
   const q = ` ${norm(customer)} `;
   for (const c of savedClips()) {
     if (!c.audio || !c.triggers) continue;
-    const bans = (c.banned ?? "").split(/[,،\n]+/).map(norm).filter(Boolean);
+    const bans = (c.banned ?? "").split(/[,،\n\/|]+/).map(norm).filter(Boolean);
     if (bans.some((b) => q.includes(` ${b} `) || norm(customer).includes(b))) continue;
-    const ts = c.triggers.split(/[,،\n]+/).map(norm).filter(Boolean);
+    const ts = c.triggers.split(/[,،\n\/|]+/).map(norm).filter(Boolean);
     if (ts.some((t) => q.includes(` ${t} `) || norm(customer) === t)) return { text: c.text, audio: c.audio };
   }
   return null;
