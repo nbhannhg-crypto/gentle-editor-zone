@@ -6,10 +6,11 @@ import { EMOTIONS } from "@/components/VoiceStudio";
 import { VoiceModelPicker } from "@/components/VoiceModelPicker";
 
 /* لوحة بنك الأصوات والمجلدات الذكية — إضافة مستقلة، تستخدم نفس مقاطع البنك الحالية */
-export type VaultClip = { id: string; cat: string; text: string; audio?: string | undefined; speed?: number; emotion?: string; triggers?: string };
+export type VaultClip = { id: string; cat: string; text: string; audio?: string | undefined; speed?: number; emotion?: string; triggers?: string; title?: string; banned?: string };
 type Folder = [string, string];
 const BASE: Folder[] = [["welcome", "👋 الترحيب والاستقبال"], ["price", "💰 الأسعار والاعتراضات"], ["ship", "🚚 الشحن والضمان"], ["fun", "💖 غنج وسوالف ودلع"], ["close", "🤝 إغلاق الصفقات"]];
 const FOLDERS_KEY = "live_vault_folders";
+const LABELS_KEY = "live_vault_labels";
 const norm = (s: string) => s.replace(/[\u064B-\u0652\u0640]/g, "").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim().toLowerCase();
 const uid = () => Math.random().toString(36).slice(2, 9);
 
@@ -32,8 +33,13 @@ export function VoiceSmartVault(p: {
   const [rec, setRec] = useState<MediaRecorder | null>(null);
   const [dur, setDur] = useState<Record<string, number>>({});
 
-  useEffect(() => { try { const v = JSON.parse(localStorage.getItem(FOLDERS_KEY) ?? "[]"); if (Array.isArray(v)) setCustom(v); } catch { /* */ } }, []);
+  const [labels, setLabels] = useState<Record<string, string>>({});
+  useEffect(() => {
+    try { const v = JSON.parse(localStorage.getItem(FOLDERS_KEY) ?? "[]"); if (Array.isArray(v)) setCustom(v); } catch { /* */ }
+    try { setLabels(JSON.parse(localStorage.getItem(LABELS_KEY) ?? "{}") || {}); } catch { /* */ }
+  }, []);
   const folders = [...BASE, ...custom];
+  const lbl = (k: string, l: string) => labels[k] || l;
   const save = (c: VaultClip[]) => { try { p.saveClips(c); } catch { toast.error("المساحة ممتلئة — احذف مقاطع قديمة"); } };
 
   const addFolder = () => {
@@ -41,6 +47,19 @@ export function VoiceSmartVault(p: {
     if (!name) return;
     const next: Folder[] = [...custom, [`f_${uid()}`, `📁 ${name}`]];
     setCustom(next); localStorage.setItem(FOLDERS_KEY, JSON.stringify(next)); setCat(next[next.length - 1]![0]);
+  };
+  const renameFolder = () => {
+    const cur = folders.find(([k]) => k === cat);
+    const name = window.prompt("الاسم الجديد للمجلد؟", cur ? lbl(cur[0], cur[1]) : "")?.trim();
+    if (!name) return;
+    const next = { ...labels, [cat]: name };
+    setLabels(next); localStorage.setItem(LABELS_KEY, JSON.stringify(next)); toast.success("✏️ تغيّر الاسم");
+  };
+  const deleteFolder = () => {
+    if (!window.confirm("حذف المجلد؟ المقاطع ما تنحذف، تنتقل لمجلد الترحيب")) return;
+    const next = custom.filter(([k]) => k !== cat);
+    setCustom(next); localStorage.setItem(FOLDERS_KEY, JSON.stringify(next));
+    save(p.clips.map((c) => (c.cat === cat ? { ...c, cat: "welcome" } : c))); setCat("welcome");
   };
 
   const cached = text.trim() ? p.clips.find((c) => c.audio && norm(c.text) === norm(text)) : undefined;
@@ -117,9 +136,13 @@ export function VoiceSmartVault(p: {
       <p className="mt-4 mb-2 text-sm font-medium">📁 المجلدات الصوتية</p>
       <div className="flex flex-wrap gap-1">
         {folders.map(([k, l]) => (
-          <Button key={k} size="sm" variant={cat === k ? "default" : "outline"} onClick={() => setCat(k)}>{l} ({p.clips.filter((c) => c.cat === k).length})</Button>
+          <Button key={k} size="sm" variant={cat === k ? "default" : "outline"} onClick={() => setCat(k)}>{lbl(k, l)} ({p.clips.filter((c) => c.cat === k).length})</Button>
         ))}
         <Button size="sm" variant="secondary" onClick={addFolder}>➕ مجلد جديد</Button>
+      </div>
+      <div className="mt-1 flex flex-wrap gap-1">
+        <Button size="sm" variant="ghost" onClick={renameFolder}>✏️ سمّ المجلد المختار</Button>
+        {custom.some(([k]) => k === cat) && <Button size="sm" variant="ghost" onClick={deleteFolder}>🗑️ احذف المجلد (المقاطع تنتقل للترحيب)</Button>}
       </div>
 
       <div className="mt-4 space-y-2 rounded-xl bg-secondary p-3">
@@ -148,12 +171,23 @@ export function VoiceSmartVault(p: {
       <div className="space-y-2">
         {list.map((c) => (
           <div key={c.id} className="rounded-xl border bg-background p-3">
+            <Input defaultValue={c.title ?? ""} placeholder="🏷️ سمّ المقطع باللي تبي" className="mb-2 h-8 text-sm font-medium"
+              onBlur={(e) => save(p.clips.map((x) => (x.id === c.id ? { ...x, title: e.target.value.trim() } : x)))} />
             <div className="flex items-start justify-between gap-2">
               <p className="text-sm">"{c.text}"</p>
               <span className="whitespace-nowrap text-[10px] text-muted-foreground">{c.audio ? `⚡ مخزن${dur[c.id] ? ` (${dur[c.id]!.toFixed(1)} ث)` : ""}` : "⏳ غير مولّد"}</span>
             </div>
-            <Input defaultValue={c.triggers ?? ""} placeholder="🎯 كلمات الزبون: مرحبا, هلا, مساء الخير" className="mt-2 h-8 text-xs"
+            <Button className="mt-2 h-12 w-full text-base" disabled={busy === c.id} onClick={() => (p.live ? fire(c) : listen(c))}>
+              {busy === c.id ? "…" : `🔊 ${c.title || "شغّل الصوت"}`}
+            </Button>
+            <Input defaultValue={c.triggers ?? ""} placeholder="🎯 علّمها: كلمات الزبون (مرحبا, هلا, كم السعر)" className="mt-2 h-8 text-xs"
               onBlur={(e) => save(p.clips.map((x) => (x.id === c.id ? { ...x, triggers: e.target.value.trim() } : x)))} />
+            <Input defaultValue={c.banned ?? ""} placeholder="🚫 الممنوع: إذا قالها الزبون ما يشتغل هالمقطع" className="mt-2 h-8 text-xs"
+              onBlur={(e) => save(p.clips.map((x) => (x.id === c.id ? { ...x, banned: e.target.value.trim() } : x)))} />
+            <select value={c.cat} onChange={(e) => { save(p.clips.map((x) => (x.id === c.id ? { ...x, cat: e.target.value } : x))); toast.success("📁 انتقل المقطع"); }}
+              className="mt-2 w-full rounded-md border bg-background px-2 py-1 text-xs" aria-label="نقل لمجلد">
+              {folders.map(([k, l]) => <option key={k} value={k}>📁 {lbl(k, l)}</option>)}
+            </select>
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
               <select value={c.emotion ?? ""} onChange={(e) => save(p.clips.map((x) => (x.id === c.id ? { ...x, emotion: e.target.value, audio: undefined } : x)))} className="rounded-md border bg-background px-2 py-1" aria-label="نبرة المقطع">
                 {EMOTIONS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
