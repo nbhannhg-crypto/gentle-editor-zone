@@ -8,7 +8,7 @@ import { getStudioVoice, getVoiceModel } from "@/lib/voice-model";
 import { vaultContext, pullMine, pullKingdom, pushClip, removeClip, publishKingdom } from "@/lib/voice-vault-cloud";
 
 /* لوحة بنك الأصوات والمجلدات الذكية — إضافة مستقلة، تستخدم نفس مقاطع البنك الحالية */
-export type VaultClip = { id: string; cat: string; text: string; audio?: string | undefined; speed?: number; emotion?: string; triggers?: string; title?: string; banned?: string; vip?: string | undefined; voice?: string; model?: string };
+export type VaultClip = { id: string; cat: string; text: string; audio?: string | undefined; speed?: number; emotion?: string; triggers?: string; title?: string; banned?: string; vip?: string | undefined; voice?: string; model?: string; fname?: string };
 type Folder = [string, string];
 const BASE: Folder[] = [["welcome", "👋 الترحيب والاستقبال"], ["price", "💰 الأسعار والاعتراضات"], ["ship", "🚚 الشحن والضمان"], ["fun", "💖 غنج وسوالف ودلع"], ["close", "🤝 إغلاق الصفقات"], ["personal", "🔐 مكتبتي الخاصة"], ["kingdom", "👑 أصوات المملكة الرسمية"]];
 
@@ -78,7 +78,8 @@ export function VoiceSmartVault(p: {
     try { const v = JSON.parse(localStorage.getItem(FOLDERS_KEY) ?? "[]"); if (Array.isArray(v)) setCustom(v); } catch { /* */ }
     try { setLabels(JSON.parse(localStorage.getItem(LABELS_KEY) ?? "{}") || {}); } catch { /* */ }
   }, []);
-  const folders = [...BASE, ...custom];
+  const kgFolders: Folder[] = [...new Map(p.clips.filter((c) => c.cat.startsWith("kg:")).map((c) => [c.cat, [c.cat, `👑 ${c.fname || "مجلد ملكي"}`] as Folder])).values()];
+  const folders = [...BASE, ...custom, ...kgFolders];
   const lbl = (k: string, l: string) => labels[k] || l;
 
   /* ☁️ مزامنة سحابية (إضافة): المحلي فوري دائماً، والسحابة بالخلفية */
@@ -248,7 +249,8 @@ export function VoiceSmartVault(p: {
     if (!inFolder.length) { toast("المجلد فاضي"); return; }
     if (!window.confirm(`نشر ${inFolder.length} مقطع للمملكة وكل التجار؟`)) return;
     let ok = 0;
-    for (const c of inFolder) { try { await publishKingdom(c, true); ok++; setKingIds((s) => new Set(s).add(c.id.replace(/^kg_/, ""))); } catch { /* يكمل */ } }
+    const fname = lbl(cat, folders.find(([k]) => k === cat)?.[1] ?? cat).replace(/^[^\p{L}\p{N}]+/u, "");
+    for (const c of inFolder) { try { await publishKingdom({ ...c, fname: c.fname || fname, cat: cat.startsWith("kg:") ? cat.slice(3) : cat }, true, true); ok++; setKingIds((s) => new Set(s).add(c.id.replace(/^kg_/, ""))); } catch { /* يكمل */ } }
     toast.success(`👑 انتشر ${ok} من ${inFolder.length} مقطع للمملكة`);
   };
 

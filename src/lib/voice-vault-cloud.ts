@@ -40,12 +40,13 @@ export async function pullMine(store: string): Promise<VaultClip[]> {
 
 export async function pullKingdom(): Promise<VaultClip[]> {
   const { data } = await supabase.from(T).select("id, trigger_text, response_text").like("trigger_text", "vv_kingdom:%").limit(1000);
-  return ((data ?? []) as Row[]).map(parse).filter((x): x is VaultClip => !!x).map((c) => ({ ...c, id: `kg_${c.id.replace(/^kg_/, "")}`, cat: "kingdom" }));
+  return ((data ?? []) as Row[]).map(parse).filter((x): x is VaultClip => !!x).map((c) => ({ ...c, id: `kg_${c.id.replace(/^kg_/, "")}`, cat: c.fname && c.cat !== "kingdom" ? `kg:${c.cat}` : "kingdom" }));
 }
 
-export async function publishKingdom(c: VaultClip, on: boolean) {
+/** bundle=true keeps the folder identity (cat + fname) so merchants see it as its own Kingdom folder. */
+export async function publishKingdom(c: VaultClip, on: boolean, bundle = false) {
   const id = c.id.replace(/^kg_/, "");
-  if (on) await upsert(king(id), { ...c, id, cat: "kingdom" });
+  if (on) await upsert(king(id), bundle && c.fname ? { ...c, id } : { ...c, id, cat: "kingdom" });
   else await supabase.from(T).delete().eq("trigger_text", king(id));
 }
 
@@ -54,3 +55,6 @@ export async function pullAllMerchants(): Promise<(VaultClip & { store: string }
   const { data } = await supabase.from(T).select("id, trigger_text, response_text").like("trigger_text", "vv_clip:%").limit(2000);
   return ((data ?? []) as Row[]).flatMap((r) => { const c = parse(r); return c ? [{ ...c, store: r.trigger_text.split(":")[1] ?? "" }] : []; });
 }
+
+/** Queen: edit a merchant clip in place. */
+export const queenUpdate = (store: string, c: VaultClip) => upsert(mine(store, c.id), c);
