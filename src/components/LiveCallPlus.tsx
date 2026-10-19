@@ -17,7 +17,9 @@ export function loadClipOpts(): ClipOpts {
   try { return { link: true, triggers: true, ...JSON.parse(localStorage.getItem(CLIP_OPTS_KEY) ?? "{}") }; } catch { return { link: true, triggers: true }; }
 }
 const norm = (s: string) => s.replace(/[\u064B-\u0652\u0640]/g, "").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim().toLowerCase();
-const savedClips = (): Clip[] => { try { const v = JSON.parse(localStorage.getItem("live_clips") ?? "[]"); return Array.isArray(v) ? v : []; } catch { return []; } };
+const voiceOff = (): string[] => { try { const v = JSON.parse(localStorage.getItem("live_cockpit") ?? "{}").voff; return Array.isArray(v) ? v : []; } catch { return []; } };
+/* المجلدات الصوتية المطفأة من شريط المكالمة تُستبعد من المطابقة */
+const savedClips = (): Clip[] => { try { const v = JSON.parse(localStorage.getItem("live_clips") ?? "[]"); const off = voiceOff(); return Array.isArray(v) ? v.filter((c: Clip) => !off.includes(c.cat)) : []; } catch { return []; } };
 /** كلام الزبون يطابق كلمة تشغيل مقطع مسجل؟ يرجع الصوت الجاهز */
 export function findTriggerClip(customer: string): { text: string; audio: string } | null {
   if (!loadClipOpts().triggers) return null;

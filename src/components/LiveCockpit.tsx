@@ -1,10 +1,30 @@
 import { useEffect, useState } from "react";
 import { loadCallBrains, loadCallSections } from "@/lib/call-brains";
 
+/* أزرار المجلدات الصوتية (من بنك الأصوات) — مفعّلة افتراضياً */
+function voiceFolders(): { mine: [string, string][]; king: [string, string][] } {
+  const base: [string, string][] = [["welcome", "👋 الترحيب"], ["price", "💰 الأسعار"], ["ship", "🚚 الشحن"], ["fun", "💖 غنج"], ["close", "🤝 الإغلاق"], ["personal", "🔐 الخاصة"]];
+  try {
+    const labels = JSON.parse(localStorage.getItem("live_vault_labels") ?? "{}") as Record<string, string>;
+    const custom = JSON.parse(localStorage.getItem("live_vault_folders") ?? "[]") as [string, string][];
+    const clips = JSON.parse(localStorage.getItem("live_clips") ?? "[]") as { cat: string; fname?: string }[];
+    const mine = [...base, ...(Array.isArray(custom) ? custom : [])].map(([k, l]) => [k, labels[k] || l] as [string, string]);
+    const king = new Map<string, string>();
+    for (const c of Array.isArray(clips) ? clips : []) {
+      if (c.cat === "kingdom") king.set("kingdom", labels["kingdom"] || "👑 أصوات المملكة الرسمية");
+      else if (c.cat?.startsWith("kg:")) king.set(c.cat, `👑 ${c.fname || "مجلد ملكي"}`);
+    }
+    return { mine, king: [...king.entries()] };
+  } catch { return { mine: base, king: [] }; }
+}
+
 function CallBrainsBar({ cfg, set, pill }: { cfg: Cockpit; set: (o: Partial<Cockpit>) => void; pill: (on: boolean) => string }) {
   const [secs, setSecs] = useState<string[]>([]);
   const [brains, setBrains] = useState<{ id: string; name: string }[]>([]);
-  useEffect(() => { void loadCallSections().then(setSecs); void loadCallBrains().then(setBrains); }, []);
+  const [vf, setVf] = useState<{ mine: [string, string][]; king: [string, string][] }>({ mine: [], king: [] });
+  useEffect(() => { void loadCallSections().then(setSecs); void loadCallBrains().then(setBrains); setVf(voiceFolders()); }, []);
+  const voff = cfg.voff ?? [];
+  const vbtn = ([k, l]: [string, string]) => { const a = !voff.includes(k); return <button key={k} className={pill(a)} onClick={() => set({ voff: a ? [...voff, k] : voff.filter((x) => x !== k) })}>{a ? "✓ " : ""}{l}</button>; };
   const match = cfg.match ?? 0.6;
   const on = cfg.secs ?? [];
   const kb = cfg.kbrains ?? [];
@@ -34,6 +54,13 @@ function CallBrainsBar({ cfg, set, pill }: { cfg: Cockpit; set: (o: Partial<Cock
         {brains.map((b) => { const a = kb.includes(b.id); return <button key={b.id} className={pill(a)} onClick={() => set({ kbrains: a ? kb.filter((x) => x !== b.id) : [...kb, b.id] })}>{a ? "✓ " : ""}{b.name}</button>; })}
         {!brains.length && <span className="text-xs text-muted-foreground">ما فيه عقول منشورة.</span>}
       </div>
+      <p className="text-xs text-muted-foreground">🎙️ مجلدات أصواتي الخاصة في المكالمة:</p>
+      <div className="flex flex-wrap gap-2">{vf.mine.map(vbtn)}</div>
+      <p className="text-xs text-muted-foreground">👑 مجلدات أصوات المملكة المنشورة:</p>
+      <div className="flex flex-wrap gap-2">
+        {vf.king.map(vbtn)}
+        {!vf.king.length && <span className="text-xs text-muted-foreground">ما فيه مجلدات أصوات منشورة.</span>}
+      </div>
     </div>
   );
 }
@@ -48,7 +75,7 @@ export type Cockpit = {
   fast: boolean; route: Route;
   brains: { mine: boolean; queen: boolean; clips: boolean; ai: boolean };
   extra: string[]; persona: string; banned: string[]; fixes: { from: string; to: string }[]; blocked: string[];
-  match?: number; secs?: string[]; kbrains?: string[];
+  match?: number; secs?: string[]; kbrains?: string[]; voff?: string[];
 };
 export const COCKPIT_KEY = "live_cockpit";
 export const DEFAULT_COCKPIT: Cockpit = {
