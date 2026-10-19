@@ -8,7 +8,7 @@ import { useSpeaker, EMOTIONS } from "@/components/VoiceStudio";
 
 /* إضافات لوحة المكالمة الحية — كلها إضافة، ما تلمس الموجود */
 
-type Clip = { id: string; cat: string; text: string; audio?: string | undefined; speed?: number; emotion?: string; triggers?: string; title?: string; banned?: string };
+type Clip = { id: string; cat: string; text: string; audio?: string | undefined; speed?: number; emotion?: string; triggers?: string; title?: string; banned?: string; vip?: string | undefined };
 
 /* مطابقة المقاطع: كلمات التشغيل + الربط بمكتبة الردود (إضافة فقط) */
 export const CLIP_OPTS_KEY = "live_clip_opts";
@@ -87,8 +87,14 @@ export function LiveCallPlus(p: {
   const saveOpts = (o: ClipOpts) => { setOpts(o); localStorage.setItem(CLIP_OPTS_KEY, JSON.stringify(o)); };
 
   useEffect(() => {
-    setClips(load("live_clips", DEFAULT_CLIPS));
-    setPersonal(load("live_personal", []));
+    const base = load<Clip[]>("live_clips", DEFAULT_CLIPS);
+    const pers = load<Personal[]>("live_personal", []);
+    setPersonal(pers);
+    // نقل مقاطع «مكتبتي الخاصة» القديمة لمجلد خاص داخل البنك الذكي (مرة وحدة، بدون حذف الأصل)
+    const missing = pers.filter((x) => !base.some((c) => c.id === `pv_${x.id}`))
+      .map((x) => ({ id: `pv_${x.id}`, cat: "personal", text: x.name, title: x.name, audio: x.audio, vip: x.vip, speed: 1 }));
+    if (missing.length) { const merged = [...base, ...missing]; setClips(merged); try { localStorage.setItem("live_clips", JSON.stringify(merged)); } catch { /* */ } }
+    else setClips(base);
     setTuning(loadTuning());
     setLinks(load("live_links", { image: "", pay: "", location: "" }));
     setReports(load("live_reports", []));
@@ -205,97 +211,7 @@ export function LiveCallPlus(p: {
         <p className="mt-2 text-xs text-muted-foreground">ملاحظة: واتساب ما يسمح بمكالمات صوتية آلية عبر السيرفر — المكالمة الحية تشتغل من المايك هنا، والإرسال للزبون يكون فويس ورسائل.</p>
       </section>
 
-      {/* 2. بنك الأصوات المزدوج */}
-      <section className={box}>
-        <div className="mb-3 flex gap-2">
-          <Button size="sm" variant={vaultTab === "official" ? "default" : "secondary"} onClick={() => setVaultTab("official")}>📚 المقاطع الرسمية</Button>
-          <Button size="sm" variant={vaultTab === "personal" ? "default" : "secondary"} onClick={() => setVaultTab("personal")}>🔐 مكتبتي الخاصة</Button>
-        </div>
-        {vaultTab === "official" ? (
-          <>
-            <div className="mb-3 space-y-1 rounded-xl border bg-background p-3 text-sm">
-              <label className="flex items-center gap-2"><input type="checkbox" checked={opts.link} onChange={(e) => saveOpts({ ...opts, link: e.target.checked })} />🔗 تفعيل الربط التلقائي بمكتبة الردود (يشغّل التسجيل الجاهز بدل توليد صوت)</label>
-              <label className="flex items-center gap-2"><input type="checkbox" checked={opts.triggers} onChange={(e) => saveOpts({ ...opts, triggers: e.target.checked })} />🎯 تفعيل كلمات التشغيل المباشرة للمقاطع</label>
-            </div>
-            <div className="mb-3 flex flex-wrap gap-1">
-              {CATS.map(([k, l]) => <Button key={k} size="sm" variant={cat === k ? "default" : "outline"} onClick={() => setCat(k)}>{l}</Button>)}
-            </div>
-            <div className="mb-3 space-y-2 rounded-xl bg-secondary p-3">
-              <p className="text-sm font-medium">🪄 توليد وحفظ مسبق ({CATS.find(([k]) => k === cat)?.[1]})</p>
-              <Input value={gen.text} onChange={(e) => setGen({ ...gen, text: e.target.value })} placeholder="اكتب العبارة…" />
-              <div className="flex flex-wrap items-center gap-2 text-xs">
-                <select value={gen.emotion} onChange={(e) => setGen({ ...gen, emotion: e.target.value })} className="rounded-md border bg-background px-2 py-1" aria-label="النبرة">
-                  {EMOTIONS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-                </select>
-                <label className="flex flex-1 items-center gap-1">السرعة {gen.speed.toFixed(2)}x
-                  <input type="range" min={0.7} max={1.3} step={0.05} value={gen.speed} className="flex-1" onChange={(e) => setGen({ ...gen, speed: +e.target.value })} />
-                </label>
-              </div>
-              <Button disabled={genBusy} onClick={generateSave}>{genBusy ? "…يتولد" : "🪄 ولّد واحفظ في بنكي"}</Button>
-            </div>
-            <div className="space-y-2">
-              {clips.filter((c) => c.cat === cat).map((c) => (
-                <div key={c.id} className="rounded-xl border bg-background p-3">
-                  <p className="text-sm">{c.text}</p>
-                  <Input defaultValue={c.triggers ?? ""} placeholder="🎯 كلمات تشغيل الزبون (Triggers) — مثال: مساء الخير, مساء النور" className="mt-2 h-8 text-xs"
-                    onBlur={(e) => saveClips(clips.map((x) => (x.id === c.id ? { ...x, triggers: e.target.value.trim() } : x)))} />
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    <Button size="sm" variant="secondary" disabled={busyId === c.id} onClick={() => preview(c)}>{busyId === c.id ? "…" : "▶️ استماع فوري"}</Button>
-                    <Button size="sm" disabled={!p.live || busyId === c.id} onClick={() => launch(c)}>🗣️ أطلق في المكالمة</Button>
-                    <Button size="sm" disabled={busyId === c.id} onClick={() => pttClip(c)}>🚀 أرسل كـ PTT</Button>
-                    <Button size="sm" variant="outline" onClick={() => setEditing(editing === c.id ? null : c.id)}>✏️ تعديل</Button>
-                    <Button size="sm" variant="outline" onClick={() => saveClips(clips.filter((x) => x.id !== c.id))}>🗑️ حذف</Button>
-                    {c.audio && <span className="self-center text-[10px] text-muted-foreground">💾 محفوظ</span>}
-                  </div>
-                  {editing === c.id && (
-                    <div className="mt-2 space-y-2 rounded-lg bg-secondary p-2 text-xs">
-                      <Input defaultValue={c.text} onBlur={(e) => saveClips(clips.map((x) => (x.id === c.id ? { ...x, text: e.target.value, audio: undefined } : x)))} />
-                      <label className="block">السرعة {(c.speed ?? 1).toFixed(2)}x
-                        <input type="range" min={0.7} max={1.3} step={0.05} value={c.speed ?? 1} className="w-full" onChange={(e) => saveClips(clips.map((x) => (x.id === c.id ? { ...x, speed: +e.target.value } : x)))} />
-                      </label>
-                      <select value={c.emotion ?? ""} onChange={(e) => saveClips(clips.map((x) => (x.id === c.id ? { ...x, emotion: e.target.value, audio: undefined } : x)))} className="w-full rounded-md border bg-background px-2 py-1">
-                        {EMOTIONS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-                      </select>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-            <div className="mt-3 flex gap-2">
-              <Input value={newText} onChange={(e) => setNewText(e.target.value)} placeholder="نص المقطع الرسمي الجديد…" />
-              <Button variant="outline" onClick={() => { if (newText.trim()) { saveClips([...clips, { id: uid(), cat, text: newText.trim(), emotion: tuning.emotion }]); setNewText(""); } }}>➕ أضف</Button>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="flex flex-wrap gap-2">
-              {rec ? <Button variant="destructive" onClick={() => rec.stop()}>⏹️ أوقف واحفظ</Button> : <Button onClick={startRec}>🎙️ سجّل من المايك</Button>}
-              <label className="cursor-pointer rounded-md border px-3 py-2 text-sm">📁 ارفع ملف صوتي
-                <input type="file" accept="audio/*" className="hidden" onChange={(e) => upload(e.target.files?.[0])} />
-              </label>
-            </div>
-            <div className="mt-3 space-y-2">
-              {personal.map((c) => (
-                <div key={c.id} className="rounded-xl border bg-background p-3">
-                  <Input defaultValue={c.name} className="h-8 text-sm" onBlur={(e) => savePersonal(personal.map((x) => (x.id === c.id ? { ...x, name: e.target.value } : x)))} />
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    <Button size="sm" variant="secondary" onClick={() => new Audio(c.audio).play()}>🎧 معاينة</Button>
-                    <Button size="sm" disabled={!p.live} onClick={() => p.playAudio(c.audio)}>📢 شغّل في المكالمة</Button>
-                    <Button size="sm" variant="outline" onClick={() => p.send({ text: c.name, voice: true, audio: c.audio })}>🎙️ أرسل فويس</Button>
-                    <Button size="sm" variant="outline" onClick={() => savePersonal(personal.filter((x) => x.id !== c.id))}>🗑️</Button>
-                  </div>
-                  <Input defaultValue={c.vip ?? ""} dir="ltr" placeholder="⭐ رد مفضل لرقم VIP (اختياري)" className="mt-2 h-8 text-xs"
-                    onBlur={(e) => savePersonal(personal.map((x) => (x.id === c.id ? { ...x, vip: e.target.value.replace(/\D/g, "") } : x)))} />
-                </div>
-              ))}
-              {!personal.length && <p className="text-sm text-muted-foreground">ما فيه مقاطع خاصة للحين.</p>}
-            </div>
-            {p.waTo && personal.find((x) => x.vip && p.waTo.replace(/\D/g, "").endsWith(x.vip)) && (
-              <p className="mt-2 text-xs text-primary">⭐ هذا الرقم VIP وله مقطع مفضل جاهز.</p>
-            )}
-          </>
-        )}
-      </section>
+      {/* 2. القسم القديم انشال — كل ميزاته صارت داخل لوحة بنك الأصوات الذكية تحت */}
 
       {/* 2.5 لوحة بنك الأصوات والمجلدات الذكية (إضافة) */}
       <VoiceSmartVault clips={clips} saveClips={saveClips} opts={opts} saveOpts={saveOpts}
