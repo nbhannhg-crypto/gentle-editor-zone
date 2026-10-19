@@ -82,7 +82,7 @@ export function LiveCallPlus(p: {
   const [rec, setRec] = useState<MediaRecorder | null>(null);
   const [busyId, setBusyId] = useState("");
   const [reports, setReports] = useState<{ at: string; phone: string; text: string }[]>([]);
-  const [opts, setOpts] = useState<ClipOpts>({ link: false, triggers: false });
+  const [opts, setOpts] = useState<ClipOpts>({ link: true, triggers: true });
   useEffect(() => { setOpts(loadClipOpts()); }, []);
   const saveOpts = (o: ClipOpts) => { setOpts(o); localStorage.setItem(CLIP_OPTS_KEY, JSON.stringify(o)); };
 
