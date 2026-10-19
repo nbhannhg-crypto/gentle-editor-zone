@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -163,9 +163,9 @@ export function VoiceSmartVault(p: {
         <span className="rounded-full bg-secondary px-3 py-1">💾 جاهزة في الكاش: {ready}</span>
         <span className="rounded-full bg-secondary px-3 py-1">🎯 مربوطة بكلمات التشغيل: {linked}</span>
       </div>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <Button size="sm" variant={p.opts.link ? "default" : "outline"} onClick={() => p.saveOpts({ ...p.opts, link: !p.opts.link })}>🔗 الربط بمكتبة الردود: {p.opts.link ? "مفعل" : "موقف"}</Button>
-        <Button size="sm" variant={p.opts.triggers ? "default" : "outline"} onClick={() => p.saveOpts({ ...p.opts, triggers: !p.opts.triggers })}>🎯 كلمات الزبون: {p.opts.triggers ? "مفعل" : "موقف"}</Button>
+      <div className="mt-3 space-y-1 rounded-xl border bg-background p-3 text-sm">
+        <label className="flex items-center gap-2"><input type="checkbox" checked={p.opts.link} onChange={(e) => p.saveOpts({ ...p.opts, link: e.target.checked })} />🔗 تفعيل الربط التلقائي بمكتبة الردود (يشغّل التسجيل الجاهز بدل توليد صوت)</label>
+        <label className="flex items-center gap-2"><input type="checkbox" checked={p.opts.triggers} onChange={(e) => p.saveOpts({ ...p.opts, triggers: e.target.checked })} />🎯 تفعيل كلمات التشغيل المباشرة للمقاطع</label>
       </div>
 
       <p className="mt-4 mb-2 text-sm font-medium">📁 المجلدات الصوتية</p>
@@ -212,13 +212,13 @@ export function VoiceSmartVault(p: {
               <p className="text-sm">"{c.text}"</p>
               <span className="whitespace-nowrap text-[10px] text-muted-foreground">{c.audio ? `⚡ مخزن${dur[c.id] ? ` (${dur[c.id]!.toFixed(1)} ث)` : ""}` : "⏳ غير مولّد"}</span>
             </div>
-            <Button className="mt-2 h-12 w-full text-base" disabled={busy === c.id} onClick={() => (p.live ? fire(c) : listen(c))}>
-              {busy === c.id ? "…" : `🔊 ${c.title || "شغّل الصوت"}`}
-            </Button>
+            <AudioBar key={`${c.id}_${c.audio ? c.audio.length : 0}`} label={c.title || c.text} speed={c.speed ?? 1} load={() => audioOf(c)} />
             <Input defaultValue={c.triggers ?? ""} placeholder="🎯 علّمها: كلمات الزبون (مرحبا, هلا, كم السعر)" className="mt-2 h-8 text-xs"
               onBlur={(e) => save(p.clips.map((x) => (x.id === c.id ? { ...x, triggers: e.target.value.trim() } : x)))} />
             <Input defaultValue={c.banned ?? ""} placeholder="🚫 الممنوع: إذا قالها الزبون ما يشتغل هالمقطع" className="mt-2 h-8 text-xs"
               onBlur={(e) => save(p.clips.map((x) => (x.id === c.id ? { ...x, banned: e.target.value.trim() } : x)))} />
+            <Input defaultValue={c.vip ?? ""} dir="ltr" placeholder="⭐ رقم VIP لهذا المقطع (اختياري)" className="mt-2 h-8 text-xs"
+              onBlur={(e) => save(p.clips.map((x) => (x.id === c.id ? { ...x, vip: e.target.value.replace(/\D/g, "") } : x)))} />
             <select value={c.cat} onChange={(e) => { save(p.clips.map((x) => (x.id === c.id ? { ...x, cat: e.target.value } : x))); toast.success("📁 انتقل المقطع"); }}
               className="mt-2 w-full rounded-md border bg-background px-2 py-1 text-xs" aria-label="نقل لمجلد">
               {folders.map(([k, l]) => <option key={k} value={k}>📁 {lbl(k, l)}</option>)}
@@ -235,6 +235,7 @@ export function VoiceSmartVault(p: {
               <Button size="sm" variant="secondary" disabled={busy === c.id} onClick={() => listen(c)}>{busy === c.id ? "…" : "▶️ استماع فوري"}</Button>
               <Button size="sm" disabled={!p.live || busy === c.id} onClick={() => fire(c)}>⚡ أطلق في المكالمة الآن</Button>
               <Button size="sm" variant="outline" disabled={busy === c.id} onClick={() => ptt(c)}>🚀 PTT واتساب</Button>
+              <Button size="sm" variant="outline" onClick={() => { if (window.confirm("حذف المقطع؟")) save(p.clips.filter((x) => x.id !== c.id)); }}>🗑️ حذف</Button>
               <Button size="sm" variant="outline" disabled={busy === c.id} onClick={() => { save(p.clips.map((x) => (x.id === c.id ? { ...x, audio: undefined } : x))); toast("🔄 بيتولد من جديد عند التشغيل"); }}>🔄 إعادة وزن</Button>
             </div>
           </div>
