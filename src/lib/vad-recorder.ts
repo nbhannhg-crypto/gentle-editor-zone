@@ -28,7 +28,7 @@ export async function startVadRecorder(opts: {
     rec.onstop = () => {
       const dur = Date.now() - startedAt;
       const type = rec?.mimeType || mime || "audio/webm";
-      if (dur > 400 && chunks.length) opts.onPhrase(new Blob(chunks, { type }), type.split(";")[0]);
+      if (dur > 400 && chunks.length) opts.onPhrase(new Blob(chunks, { type }), type.split(";")[0] ?? type);
     };
     rec.start(250);
     startedAt = Date.now();
@@ -38,7 +38,7 @@ export async function startVadRecorder(opts: {
     if (stopped) return;
     an.getByteTimeDomainData(buf);
     let sum = 0;
-    for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; sum += v * v; }
+    for (let i = 0; i < buf.length; i++) { const v = ((buf[i] ?? 128) - 128) / 128; sum += v * v; }
     const rms = Math.sqrt(sum / buf.length);
     if (!speaking) noise = noise * 0.97 + rms * 0.03;
     const loud = rms > Math.max(0.02, noise * 2.5);
