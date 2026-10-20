@@ -618,7 +618,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
       let rule: Rule | undefined;
       const th = c.match ?? 0.6;
       if (c.brains.mine) {
-        const r = await engine(text);
+        const r = c.rulesOff ? { answer: "", rule: undefined as Rule | undefined, matches: [] as { rule: Rule; score: number }[] } : await engine(text);
         ans = r.answer; rule = r.rule;
         const top = r.matches[0];
         if (rule && top && (th >= 1 ? normalize(top.rule.trigger_text) !== normalize(text) : top.score < th)) { ans = ""; rule = undefined; }
@@ -824,7 +824,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
 
   return (
     <div className="grid gap-6 lg:grid-cols-3">
-      <LiveCockpit cfg={cfg} setCfg={saveCfg} live={live} onToggle={() => (live ? stop() : start())}
+      <LiveCockpit cfg={cfg} setCfg={saveCfg} live={live} onToggle={() => (live ? stop() : start())} rulesCount={rules.length}
         accounts={accounts} accErr={accErr} reloadAcc={loadAccounts}
         waFrom={waFrom} setWaFrom={(v) => { setWaFrom(v); localStorage.setItem("live_wa_from", v); }} waTo={waTo} setWaTo={setWaTo} customers={custList} />
       <section className="rounded-2xl bg-royal p-5 text-primary-foreground shadow-soft lg:col-span-3">
