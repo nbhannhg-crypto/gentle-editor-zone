@@ -5,6 +5,7 @@ export async function startVadRecorder(opts: {
   onPhrase: (blob: Blob, mime: string, info?: { durationMs: number; peak: number }) => void;
   onSpeechStart?: () => void;
   isPaused?: () => boolean;
+  onLevel?: (rms: number, speaking: boolean) => void;
   silenceMs?: number;
 }): Promise<VadHandle> {
   const pro = { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1, sampleRate: { ideal: 16000 } } as MediaTrackConstraints;
@@ -22,7 +23,7 @@ export async function startVadRecorder(opts: {
   let speaking = false, lastVoice = 0, startedAt = 0, noise = 0.01, stopped = false, peak = 0, voiced = 0;
   const silenceMs = Math.max(350, opts.silenceMs ?? 450);
   // حد الكلام البشري الواضح: يتجاهل التنفس وهواء الغرفة
-  const MIN_RMS = 0.03;
+  const MIN_RMS = 0.012;
 
   const begin = () => {
     chunks = []; peak = 0; voiced = 0;
@@ -33,7 +34,7 @@ export async function startVadRecorder(opts: {
       const dur = Date.now() - startedAt;
       const type = r.mimeType || mime || "audio/webm";
       // يرسل فقط إذا فيه كلام فعلي كافٍ (ليس وشيش قصير)
-      if (dur > 600 && voiced >= 8 && chunks.length) opts.onPhrase(new Blob(chunks, { type }), type.split(";")[0] ?? type, { durationMs: dur, peak });
+      if (dur > 250 && voiced >= 3 && chunks.length) opts.onPhrase(new Blob(chunks, { type }), type.split(";")[0] ?? type, { durationMs: dur, peak });
     };
     r.start(250);
     startedAt = Date.now();
@@ -46,8 +47,9 @@ export async function startVadRecorder(opts: {
     for (let i = 0; i < buf.length; i++) { const v = ((buf[i] ?? 128) - 128) / 128; sum += v * v; }
     const rms = Math.sqrt(sum / buf.length);
     if (!speaking) noise = noise * 0.97 + rms * 0.03;
-    const loud = rms > Math.max(MIN_RMS, noise * 3);
+    const loud = rms > Math.max(MIN_RMS, noise * 2.2);
     const now = Date.now();
+    opts.onLevel?.(rms, speaking);
     if (opts.isPaused?.()) { if (speaking) { speaking = false; chunks = []; voiced = 0; try { rec?.stop(); } catch { /* */ } } }
     else if (loud) {
       lastVoice = now; voiced++; if (rms > peak) peak = rms;
