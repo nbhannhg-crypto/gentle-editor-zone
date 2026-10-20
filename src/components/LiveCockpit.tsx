@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { loadCallBrains, loadCallSections } from "@/lib/call-brains";
+import { loadCallBrains, loadCallSectionCounts } from "@/lib/call-brains";
 
 /* أزرار المجلدات الصوتية (من بنك الأصوات) — مفعّلة افتراضياً */
 function voiceFolders(): { mine: [string, string][]; king: [string, string][] } {
@@ -81,7 +81,7 @@ export type Cockpit = {
   fast: boolean; route: Route;
   brains: { mine: boolean; queen: boolean; clips: boolean; ai: boolean };
   extra: string[]; persona: string; banned: string[]; fixes: { from: string; to: string }[]; blocked: string[];
-  match?: number; secs?: string[]; kbrains?: string[]; voff?: string[];
+  match?: number; secs?: string[]; kbrains?: string[]; voff?: string[]; rulesOff?: boolean;
 };
 export const COCKPIT_KEY = "live_cockpit";
 export const DEFAULT_COCKPIT: Cockpit = {
@@ -106,7 +106,7 @@ export const isBlocked = (n: string, c: Cockpit) => { const d = n.replace(/\D/g,
 type Acc = { name: string; label?: string; status: string; number?: string };
 
 export function LiveCockpit(p: {
-  cfg: Cockpit; setCfg: (c: Cockpit) => void; live: boolean; onToggle: () => void;
+  cfg: Cockpit; setCfg: (c: Cockpit) => void; live: boolean; onToggle: () => void; rulesCount?: number;
   accounts: Acc[]; accErr: string; reloadAcc: () => void;
   waFrom: string; setWaFrom: (v: string) => void; waTo: string; setWaTo: (v: string) => void;
   customers: { name: string; phone: string }[];
@@ -138,7 +138,7 @@ export function LiveCockpit(p: {
   return (
     <section className="rounded-2xl border bg-card p-4 shadow-soft lg:col-span-3">
       <h3 className="font-display mb-3 text-lg">🎛️ لوحة تحكم الموظفة اللحظية</h3>
-      <CallBrainsBar cfg={cfg} set={set} pill={pill} />
+      <CallBrainsBar cfg={cfg} set={set} pill={pill} rulesCount={p.rulesCount ?? 0} />
 
       <div className="flex flex-wrap gap-2">
         <button className={pill(p.live)} onClick={p.onToggle}>{p.live ? "🟢 المكالمة شغّالة" : "⚪ متوقفة — اضغط للتشغيل"}</button>
