@@ -5,11 +5,14 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 /** Live-call speech-to-text via free Gemini keys (no platform credits). */
 export const transcribeLive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ audio: z.string().min(10).max(12_000_000), mime: z.string().max(60) }).parse(d))
+  .inputValidator((d) => z.object({ audio: z.string().min(10).max(12_000_000), mime: z.string().max(60), vocab: z.array(z.string().max(80)).max(150).optional() }).parse(d))
   .handler(async ({ data }) => {
     const { geminiMedia } = await import("./ai-keys.server");
+    const vocab = (data.vocab ?? []).filter(Boolean).join("، ");
     const out = await geminiMedia(
-      "فرّغ كلام المتحدث في هذا التسجيل حرفياً بالعربية كما قيل (أي لهجة: سعودية، يمنية، خليجية). اكتب النص فقط بدون أي تعليق. إذا لم يوجد كلام واضح أو كان صمتاً/ضجيجاً فقط اكتب: -",
+      "فرّغ كلام المتحدث في هذا التسجيل حرفياً بالعربية كما قيل. المتحدث زبون متجر سعودي يتكلم باللهجة السعودية/الخليجية العامية (مثل: وش، ابغى، كم سعره، فيه توصيل، الحين، زين، طيب). لا تحوّل الكلام للفصحى ولا تخمّن كلمات غير منطوقة." +
+        (vocab ? `\nمصطلحات المتجر المتوقعة — إذا سمعت كلمة قريبة منها نطقاً فاكتبها بهذا الشكل بالضبط: ${vocab}` : "") +
+        "\nاكتب النص فقط بدون أي تعليق. إذا لم يوجد كلام واضح أو كان صمتاً/ضجيجاً فقط اكتب: -",
       data.mime || "audio/webm",
       data.audio,
     );

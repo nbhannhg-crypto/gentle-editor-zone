@@ -7,7 +7,8 @@ export async function startVadRecorder(opts: {
   isPaused?: () => boolean;
   silenceMs?: number;
 }): Promise<VadHandle> {
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+  const pro = { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1, sampleRate: { ideal: 16000 } } as MediaTrackConstraints;
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: pro }).catch(() => navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }));
   const AC = (window as any).AudioContext || (window as any).webkitAudioContext;
   const ctx: AudioContext = new AC();
   const src = ctx.createMediaStreamSource(stream);
@@ -19,7 +20,7 @@ export async function startVadRecorder(opts: {
   let rec: MediaRecorder | null = null;
   let chunks: Blob[] = [];
   let speaking = false, lastVoice = 0, startedAt = 0, noise = 0.01, stopped = false, peak = 0, voiced = 0;
-  const silenceMs = Math.max(1300, opts.silenceMs ?? 1300);
+  const silenceMs = Math.max(350, opts.silenceMs ?? 450);
   // حد الكلام البشري الواضح: يتجاهل التنفس وهواء الغرفة
   const MIN_RMS = 0.03;
 

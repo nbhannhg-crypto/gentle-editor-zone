@@ -17,7 +17,7 @@ import { waCtrlSend } from "@/lib/wa-ctrl.functions";
 import { waList } from "@/lib/studio.functions";
 import { getOrCreateMyStore, isAdmin, type Store } from "@/lib/stores";
 import { VoiceStudio, useSpeaker, EMOTIONS, loadVoice } from "@/components/VoiceStudio";
-import { LiveCallPlus, loadTuning, findTriggerClip, findLinkedClip } from "@/components/LiveCallPlus";
+import { LiveCallPlus, loadTuning, findTriggerClip, findLinkedClip, triggerVocab } from "@/components/LiveCallPlus";
 import { LiveHybrid } from "@/components/LiveHybrid";
 import { searchCallSources } from "@/lib/call-brains";
 import { LiveCockpit, loadCockpit, DEFAULT_COCKPIT, COCKPIT_KEY, EXTRA_HINT, applyFixes, hitBanned, isBlocked, type Cockpit } from "@/components/LiveCockpit";
@@ -682,9 +682,11 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
         // كاشف المقاطعة
         if (playing) { audioRef.current!.pause(); setSpeaking(false); }
         if (fin.trim()) { pending = ""; if (silence) clearTimeout(silence); silence = null; setInterim(""); deliver(fin); return; }
+        // مطابقة لحظية أثناء النطق: كلمة تشغيل لمقطع مسجل → نطلقه فوراً
+        if (findTriggerClip(tmp)) { pending = ""; if (silence) clearTimeout(silence); silence = null; setInterim(""); deliver(tmp); return; }
         pending = tmp; setInterim(tmp);
         if (silence) clearTimeout(silence);
-        silence = setTimeout(flush, 1500);
+        silence = setTimeout(flush, 450);
       };
       (rec as any).onerror = () => { /* لا نوقف المكالمة — onend يعيد التشغيل تلقائياً */ };
       rec.onend = () => { if (pending.trim()) flush(); if (liveRef.current) setTimeout(spawn, 200); };
@@ -695,7 +697,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
     setLive(true); setSeconds(0); setDeal(null);
     // المحرك الأقوى: تسجيل المايك + تفريغ Gemini (يشتغل في كل المتصفحات)
     startVadRecorder({
-      silenceMs: 1300,
+      silenceMs: 450,
       // كتم الاستماع وهي تتكلم: ما يلتقط صوت الموظفة من السماعة
       isPaused: () => mutedRef.current || (!!audioRef.current && !audioRef.current.paused) || speakingRef.current,
       onSpeechStart: () => { setInterim("🎙️ أسمعك…"); },
@@ -704,7 +706,8 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
         setInterim("⏳ أفهم كلامك…");
         try {
           const b64 = await blobToBase64(blob);
-          const r = await transcribeLive({ data: { audio: b64, mime } });
+          const vocab = [...triggerVocab(100), ...rules.slice(0, 50).map((x) => x.trigger_text.slice(0, 80))].filter(Boolean).slice(0, 150);
+          const r = await transcribeLive({ data: { audio: b64, mime, vocab } });
           setInterim("");
           const heard = r.text.trim();
           if (!heard) { if (r.busy) toast.error("المفاتيح مشغولة لحظة، كرر كلامك"); return; }

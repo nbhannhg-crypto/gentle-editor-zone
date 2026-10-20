@@ -30,16 +30,50 @@ const savedClips = (): Clip[] => {
   return [...local, ...kg].filter((c) => !off.includes(c.cat));
 };
 if (typeof window !== "undefined") void loadKingdomMem();
+/* تقريب صوتي: يوحّد الحروف المتشابهة نطقاً (ذ/ز/ظ، ث/س/ص، ض/د، ق/ج/ك، ه/ح، ء) */
+const phon = (s: string) => norm(s).replace(/[ذظ]/g, "ز").replace(/[ثص]/g, "س").replace(/ض/g, "د").replace(/[قگ]/g, "ج").replace(/ح/g, "ه").replace(/[ءئؤ]/g, "ا").replace(/(.)\1+/g, "$1");
+const lev = (a: string, b: string) => {
+  if (Math.abs(a.length - b.length) > 2) return 9;
+  const d = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) { let p = d[0]!; d[0] = i; for (let j = 1; j <= b.length; j++) { const t = d[j]!; d[j] = Math.min(d[j]! + 1, d[j - 1]! + 1, p + (a[i - 1] === b[j - 1] ? 0 : 1)); p = t; } }
+  return d[b.length]!;
+};
+/** هل عبارة التشغيل موجودة في الكلام بمرونة (خطأ همزة/حرف بسيط) */
+function fuzzyHas(text: string, trig: string) {
+  const q = ` ${phon(text)} `, t = phon(trig);
+  if (!t) return false;
+  if (q.includes(` ${t} `)) return true;
+  const qw = q.trim().split(" "), tw = t.split(" ");
+  for (let i = 0; i + tw.length <= qw.length; i++) {
+    if (tw.every((w, k) => { const x = qw[i + k]!; return x === w || (w.length >= 4 && lev(x, w) <= (w.length >= 7 ? 2 : 1)) || x === "ال" + w || "ال" + x === w; })) return true;
+  }
+  return false;
+}
+/** كل عبارات التشغيل المفعلة — تُرسل لمحرك التفريغ كمفردات مرجّحة */
+export function triggerVocab(max = 120): string[] {
+  const out = new Set<string>();
+  try { for (const c of savedClips()) for (const t of (c.triggers ?? "").split(/[,،\n\/|]+/)) { const v = t.trim(); if (v) out.add(v); if (out.size >= max) break; } } catch { /* */ }
+  return [...out].slice(0, max);
+}
 /** كلام الزبون يطابق كلمة تشغيل مقطع مسجل؟ يرجع الصوت الجاهز */
 export function findTriggerClip(customer: string): { text: string; audio: string } | null {
   if (!loadClipOpts().triggers) return null;
   const q = ` ${norm(customer)} `;
-  for (const c of savedClips()) {
+  const clips = savedClips();
+  for (const c of clips) {
     if (!c.audio || !c.triggers) continue;
     const bans = (c.banned ?? "").split(/[,،\n\/|]+/).map(norm).filter(Boolean);
     if (bans.some((b) => q.includes(` ${b} `) || norm(customer).includes(b))) continue;
     const ts = c.triggers.split(/[,،\n\/|]+/).map(norm).filter(Boolean);
     if (ts.some((t) => q.includes(` ${t} `) || norm(customer) === t)) return { text: c.text, audio: c.audio };
+  }
+  // مطابقة مرنة: أخطاء المايك البسيطة (همزة/حرف) — بعد فشل المطابقة الحرفية
+  for (const c of clips) {
+    if (!c.audio || !c.triggers) continue;
+    const bans = (c.banned ?? "").split(/[,،\n\/|]+/).map(norm).filter(Boolean);
+    if (bans.some((b) => fuzzyHas(customer, b))) continue;
+    const ts = c.triggers.split(/[,،\n\/|]+/).map(norm).filter(Boolean);
+    if (ts.some((t) => fuzzyHas(customer, t))) return { text: c.text, audio: c.audio };
   }
   return null;
 }
