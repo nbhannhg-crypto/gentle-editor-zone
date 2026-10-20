@@ -43,6 +43,25 @@ export async function pullKingdom(): Promise<VaultClip[]> {
   return ((data ?? []) as Row[]).map(parse).filter((x): x is VaultClip => !!x).map((c) => ({ ...c, id: `kg_${c.id.replace(/^kg_/, "")}`, cat: c.fname && c.cat !== "kingdom" ? `kg:${c.cat}` : "kingdom" }));
 }
 
+/* ذاكرة مؤقتة للمكالمة (RAM فقط — لا localStorage) لمقاطع المملكة المنشورة */
+let kgMem: VaultClip[] = [];
+let kgLoad: Promise<VaultClip[]> | null = null;
+export const kingdomMem = () => kgMem;
+export function loadKingdomMem(force = false): Promise<VaultClip[]> {
+  if (!kgLoad || force) kgLoad = pullKingdom().then((r) => (kgMem = r), () => kgMem);
+  return kgLoad;
+}
+/** أسماء مجلدات المملكة + عدد المقاطع */
+export async function kingdomFolders(): Promise<{ key: string; label: string; count: number }[]> {
+  const m = new Map<string, { key: string; label: string; count: number }>();
+  for (const c of await loadKingdomMem()) {
+    const label = c.cat === "kingdom" ? "👑 أصوات المملكة الرسمية" : `👑 ${c.fname || "مجلد ملكي"}`;
+    const e = m.get(c.cat) ?? { key: c.cat, label, count: 0 };
+    e.count++; m.set(c.cat, e);
+  }
+  return [...m.values()];
+}
+
 /** bundle=true keeps the folder identity (cat + fname) so merchants see it as its own Kingdom folder. */
 export async function publishKingdom(c: VaultClip, on: boolean, bundle = false) {
   const id = c.id.replace(/^kg_/, "");
