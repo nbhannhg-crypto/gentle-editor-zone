@@ -24,11 +24,24 @@ export async function loadCallSections(): Promise<string[]> {
   return [...set].filter((s) => !GEN.has(s));
 }
 
-export async function loadCallBrains(): Promise<{ id: string; name: string }[]> {
+export async function loadCallBrains(): Promise<{ id: string; name: string; count: number }[]> {
   try {
     const r: any = await (supabase.rpc as any)("kingdom_brains");
-    return ((r.data ?? []) as any[]).map((b) => ({ id: String(b.id), name: String(b.name) }));
+    return ((r.data ?? []) as any[]).map((b) => ({ id: String(b.id), name: String(b.name), count: Number(b.reply_count ?? 0) }));
   } catch { return []; }
+}
+
+/** Section names + reply counts (fast HEAD count queries from reply_library + training_rules). */
+export async function loadCallSectionCounts(): Promise<{ name: string; count: number }[]> {
+  const names = await loadCallSections();
+  return Promise.all(names.map(async (name) => {
+    const head = { count: "exact" as const, head: true };
+    const [a, b] = await Promise.all([
+      (supabase.from as any)("reply_library").select("id", head).eq("tag", name).then((r: any) => r.count ?? 0, () => 0),
+      supabase.from("training_rules").select("id", head).eq("category", name).then((r) => r.count ?? 0, () => 0),
+    ]);
+    return { name, count: Number(a) + Number(b) };
+  }));
 }
 
 const brainCache = new Map<string, Rule[]>();
