@@ -491,6 +491,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
   const [log, setLog] = useState<{ who: "c" | "a"; t: string }[]>([]);
   const recRef = useRef<SR | null>(null);
   const liveRef = useRef(false);
+  const vadRef = useRef<VadHandle | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const engine = useReplyEngine(rules, mode, product);
   const tts = useSpeaker();
@@ -678,10 +679,32 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
     };
     liveRef.current = true;
     setLive(true); setSeconds(0); setDeal(null);
-    spawn();
+    // المحرك الأقوى: تسجيل المايك + تفريغ Gemini (يشتغل في كل المتصفحات)
+    startVadRecorder({
+      isPaused: () => mutedRef.current,
+      onSpeechStart: () => { setInterim("🎙️ أسمعك…"); },
+      onPhrase: async (blob, mime) => {
+        if (!liveRef.current) return;
+        setInterim("⏳ أفهم كلامك…");
+        try {
+          const b64 = await blobToBase64(blob);
+          const r = await transcribeLive({ data: { audio: b64, mime } });
+          setInterim("");
+          const heard = r.text.trim();
+          if (!heard) { if (r.busy) toast.error("المفاتيح مشغولة لحظة، كرر كلامك"); return; }
+          const playing = !!audioRef.current && !audioRef.current.paused;
+          if (playing && isEcho(heard)) return;
+          if (playing) { audioRef.current!.pause(); setSpeaking(false); }
+          deliver(heard);
+        } catch { setInterim(""); }
+      },
+    }).then((h) => {
+      if (!liveRef.current) { h.stop(); return; }
+      vadRef.current = h;
+    }).catch(() => { spawn(); });
   };
-  const stop = () => { liveRef.current = false; recRef.current?.stop(); setLive(false); setInterim(""); audioRef.current?.pause(); setSpeaking(false); cancelCountdown(); };
-  useEffect(() => () => { liveRef.current = false; recRef.current?.stop(); cancelCountdown(); }, []);
+  const stop = () => { liveRef.current = false; vadRef.current?.stop(); vadRef.current = null; recRef.current?.stop(); setLive(false); setInterim(""); audioRef.current?.pause(); setSpeaking(false); cancelCountdown(); };
+  useEffect(() => () => { liveRef.current = false; vadRef.current?.stop(); recRef.current?.stop(); cancelCountdown(); }, []);
 
   const runDealEye = async () => {
     if (log.length < 2) { toast.error("المحادثة قصيرة — خل الزبون يتكلم شوي"); return; }
