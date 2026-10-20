@@ -479,6 +479,15 @@ function TestBox({ rules, mode, product, reload }: { rules: Rule[]; mode: Mode; 
 /* ---------------- Live call ---------------- */
 type SR = { lang: string; continuous: boolean; interimResults: boolean; start: () => void; stop: () => void; onresult: ((e: any) => void) | null; onend: (() => void) | null };
 
+/* فلتر هلوسة التفريغ عند السكوت/الوشيش */
+const HALLU = ["ان شاء الله يعني", "ان شاء الله", "شكرا لكم", "شكرا", "يعني", "شكرا للمشاهده", "اشتركوا في القناه", "ترجمه"];
+export function isHallucination(text: string, info?: { durationMs: number; peak: number }): boolean {
+  const t = text.replace(/[\u064B-\u0652\u0640]/g, "").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim();
+  if (!t) return true;
+  const weak = !info || info.durationMs < 1800 || info.peak < 0.06;
+  return weak && HALLU.includes(t);
+}
+
 function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; reload: () => Promise<void>; mode: Mode; product: string; storeId?: string | undefined }) {
   const [live, setLive] = useState(false);
   const [interim, setInterim] = useState("");
@@ -538,6 +547,8 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
   const autoRef = useRef(false);
   const cdRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => { mutedRef.current = muted; }, [muted]);
+  const speakingRef = useRef(false);
+  useEffect(() => { speakingRef.current = speaking; }, [speaking]);
   useEffect(() => { autoRef.current = autopilot; }, [autopilot]);
   useEffect(() => {
     setAvatar(localStorage.getItem("live_avatar") ?? "");
