@@ -481,7 +481,7 @@ type SR = { lang: string; continuous: boolean; interimResults: boolean; start: (
 
 /* فلتر هلوسة التفريغ عند السكوت/الوشيش */
 const HALLU = ["ان شاء الله يعني", "ان شاء الله", "شكرا لكم", "شكرا", "يعني", "شكرا للمشاهده", "اشتركوا في القناه", "ترجمه"];
-export function isHallucination(text: string, info?: { durationMs: number; peak: number }): boolean {
+function isHallucination(text: string, info?: { durationMs: number; peak: number }): boolean {
   const t = text.replace(/[\u064B-\u0652\u0640]/g, "").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim();
   if (!t) return true;
   const weak = !info || info.durationMs < 1800 || info.peak < 0.06;
