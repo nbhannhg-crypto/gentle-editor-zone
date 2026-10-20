@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { loadCallBrains, loadCallSections } from "@/lib/call-brains";
+import { loadCallBrains, loadCallSectionCounts } from "@/lib/call-brains";
 
 /* أزرار المجلدات الصوتية (من بنك الأصوات) — مفعّلة افتراضياً */
 function voiceFolders(): { mine: [string, string][]; king: [string, string][] } {
@@ -18,11 +18,13 @@ function voiceFolders(): { mine: [string, string][]; king: [string, string][] } 
   } catch { return { mine: base, king: [] }; }
 }
 
-function CallBrainsBar({ cfg, set, pill }: { cfg: Cockpit; set: (o: Partial<Cockpit>) => void; pill: (on: boolean) => string }) {
-  const [secs, setSecs] = useState<string[]>([]);
-  const [brains, setBrains] = useState<{ id: string; name: string }[]>([]);
+function CallBrainsBar({ cfg, set, pill, rulesCount = 0 }: { cfg: Cockpit; set: (o: Partial<Cockpit>) => void; pill: (on: boolean) => string; rulesCount?: number }) {
+  const [secs, setSecs] = useState<{ name: string; count: number }[]>([]);
+  const [brains, setBrains] = useState<{ id: string; name: string; count: number }[]>([]);
   const [vf, setVf] = useState<{ mine: [string, string][]; king: [string, string][] }>({ mine: [], king: [] });
-  useEffect(() => { void loadCallSections().then(setSecs); void loadCallBrains().then(setBrains); setVf(voiceFolders()); }, []);
+  useEffect(() => { setVf(voiceFolders()); void loadCallBrains().then(setBrains); }, []);
+  // العدادات تتحدث تلقائياً مع أي إضافة/حذف قاعدة
+  useEffect(() => { void loadCallSectionCounts().then(setSecs); }, [rulesCount]);
   const voff = cfg.voff ?? [];
   const vbtn = ([k, l]: [string, string]) => { const a = !voff.includes(k); return <button key={k} className={pill(a)} onClick={() => set({ voff: a ? [...voff, k] : voff.filter((x) => x !== k) })}>{a ? "✓ " : ""}{l}</button>; };
   const match = cfg.match ?? 0.6;
@@ -30,6 +32,7 @@ function CallBrainsBar({ cfg, set, pill }: { cfg: Cockpit; set: (o: Partial<Cock
   const kb = cfg.kbrains ?? [];
   const src = cfg.brains.mine && cfg.brains.ai ? "both" : cfg.brains.ai ? "ai" : "mine";
   const setSrc = (s: string) => set({ brains: { ...cfg.brains, mine: s !== "ai", ai: s !== "mine" } });
+  const rulesOn = !cfg.rulesOff;
   return (
     <div className="mb-4 space-y-2 rounded-xl bg-secondary p-3">
       <p className="text-xs text-muted-foreground">🎯 دقة مطابقة كلام الزبون:</p>
@@ -44,14 +47,17 @@ function CallBrainsBar({ cfg, set, pill }: { cfg: Cockpit; set: (o: Partial<Cock
           <button key={k} className={pill(src === k)} onClick={() => setSrc(k)}>{l}</button>
         ))}
       </div>
+      <div className="flex flex-wrap gap-2">
+        <button className={pill(rulesOn)} onClick={() => set({ rulesOff: rulesOn })}>{rulesOn ? "✓ " : "⭕ "}🧠 قواعد التدريب الخاصة بي ({rulesCount})</button>
+      </div>
       <p className="text-xs text-muted-foreground">📂 أقسام مكتبتي في المكالمة:</p>
       <div className="flex flex-wrap gap-2">
-        {secs.map((s) => { const a = on.includes(s); return <button key={s} className={pill(a)} onClick={() => set({ secs: a ? on.filter((x) => x !== s) : [...on, s] })}>{a ? "✓ " : ""}{s}</button>; })}
+        {secs.map(({ name: s, count }) => { const a = on.includes(s); return <button key={s} className={`${pill(a)} ${count ? "" : "opacity-50"}`} onClick={() => set({ secs: a ? on.filter((x) => x !== s) : [...on, s] })}>{a ? "✓ " : ""}{s} ({count})</button>; })}
         {!secs.length && <span className="text-xs text-muted-foreground">ما فيه أقسام للحين.</span>}
       </div>
       <p className="text-xs text-muted-foreground">👑 عقول المملكة في المكالمة:</p>
       <div className="flex flex-wrap gap-2">
-        {brains.map((b) => { const a = kb.includes(b.id); return <button key={b.id} className={pill(a)} onClick={() => set({ kbrains: a ? kb.filter((x) => x !== b.id) : [...kb, b.id] })}>{a ? "✓ " : ""}{b.name}</button>; })}
+        {brains.map((b) => { const a = kb.includes(b.id); return <button key={b.id} className={`${pill(a)} ${b.count ? "" : "opacity-50"}`} onClick={() => set({ kbrains: a ? kb.filter((x) => x !== b.id) : [...kb, b.id] })}>{a ? "✓ " : ""}{b.name} ({b.count})</button>; })}
         {!brains.length && <span className="text-xs text-muted-foreground">ما فيه عقول منشورة.</span>}
       </div>
       <p className="text-xs text-muted-foreground">🎙️ مجلدات أصواتي الخاصة في المكالمة:</p>
@@ -75,7 +81,7 @@ export type Cockpit = {
   fast: boolean; route: Route;
   brains: { mine: boolean; queen: boolean; clips: boolean; ai: boolean };
   extra: string[]; persona: string; banned: string[]; fixes: { from: string; to: string }[]; blocked: string[];
-  match?: number; secs?: string[]; kbrains?: string[]; voff?: string[];
+  match?: number; secs?: string[]; kbrains?: string[]; voff?: string[]; rulesOff?: boolean;
 };
 export const COCKPIT_KEY = "live_cockpit";
 export const DEFAULT_COCKPIT: Cockpit = {
@@ -100,7 +106,7 @@ export const isBlocked = (n: string, c: Cockpit) => { const d = n.replace(/\D/g,
 type Acc = { name: string; label?: string; status: string; number?: string };
 
 export function LiveCockpit(p: {
-  cfg: Cockpit; setCfg: (c: Cockpit) => void; live: boolean; onToggle: () => void;
+  cfg: Cockpit; setCfg: (c: Cockpit) => void; live: boolean; onToggle: () => void; rulesCount?: number;
   accounts: Acc[]; accErr: string; reloadAcc: () => void;
   waFrom: string; setWaFrom: (v: string) => void; waTo: string; setWaTo: (v: string) => void;
   customers: { name: string; phone: string }[];
@@ -132,7 +138,7 @@ export function LiveCockpit(p: {
   return (
     <section className="rounded-2xl border bg-card p-4 shadow-soft lg:col-span-3">
       <h3 className="font-display mb-3 text-lg">🎛️ لوحة تحكم الموظفة اللحظية</h3>
-      <CallBrainsBar cfg={cfg} set={set} pill={pill} />
+      <CallBrainsBar cfg={cfg} set={set} pill={pill} rulesCount={p.rulesCount ?? 0} />
 
       <div className="flex flex-wrap gap-2">
         <button className={pill(p.live)} onClick={p.onToggle}>{p.live ? "🟢 المكالمة شغّالة" : "⚪ متوقفة — اضغط للتشغيل"}</button>

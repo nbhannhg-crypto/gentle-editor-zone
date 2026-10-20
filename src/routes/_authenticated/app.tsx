@@ -479,6 +479,15 @@ function TestBox({ rules, mode, product, reload }: { rules: Rule[]; mode: Mode; 
 /* ---------------- Live call ---------------- */
 type SR = { lang: string; continuous: boolean; interimResults: boolean; start: () => void; stop: () => void; onresult: ((e: any) => void) | null; onend: (() => void) | null };
 
+/* فلتر هلوسة التفريغ عند السكوت/الوشيش */
+const HALLU = ["ان شاء الله يعني", "ان شاء الله", "شكرا لكم", "شكرا", "يعني", "شكرا للمشاهده", "اشتركوا في القناه", "ترجمه"];
+function isHallucination(text: string, info?: { durationMs: number; peak: number }): boolean {
+  const t = text.replace(/[\u064B-\u0652\u0640]/g, "").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim();
+  if (!t) return true;
+  const weak = !info || info.durationMs < 1800 || info.peak < 0.06;
+  return weak && HALLU.includes(t);
+}
+
 function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; reload: () => Promise<void>; mode: Mode; product: string; storeId?: string | undefined }) {
   const [live, setLive] = useState(false);
   const [interim, setInterim] = useState("");
@@ -538,6 +547,8 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
   const autoRef = useRef(false);
   const cdRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => { mutedRef.current = muted; }, [muted]);
+  const speakingRef = useRef(false);
+  useEffect(() => { speakingRef.current = speaking; }, [speaking]);
   useEffect(() => { autoRef.current = autopilot; }, [autopilot]);
   useEffect(() => {
     setAvatar(localStorage.getItem("live_avatar") ?? "");
@@ -607,7 +618,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
       let rule: Rule | undefined;
       const th = c.match ?? 0.6;
       if (c.brains.mine) {
-        const r = await engine(text);
+        const r = c.rulesOff ? { answer: "", rule: undefined as Rule | undefined, matches: [] as { rule: Rule; score: number }[] } : await engine(text);
         ans = r.answer; rule = r.rule;
         const top = r.matches[0];
         if (rule && top && (th >= 1 ? normalize(top.rule.trigger_text) !== normalize(text) : top.score < th)) { ans = ""; rule = undefined; }
@@ -684,9 +695,11 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
     setLive(true); setSeconds(0); setDeal(null);
     // المحرك الأقوى: تسجيل المايك + تفريغ Gemini (يشتغل في كل المتصفحات)
     startVadRecorder({
-      isPaused: () => mutedRef.current,
+      silenceMs: 1300,
+      // كتم الاستماع وهي تتكلم: ما يلتقط صوت الموظفة من السماعة
+      isPaused: () => mutedRef.current || (!!audioRef.current && !audioRef.current.paused) || speakingRef.current,
       onSpeechStart: () => { setInterim("🎙️ أسمعك…"); },
-      onPhrase: async (blob, mime) => {
+      onPhrase: async (blob, mime, info) => {
         if (!liveRef.current) return;
         setInterim("⏳ أفهم كلامك…");
         try {
@@ -695,6 +708,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
           setInterim("");
           const heard = r.text.trim();
           if (!heard) { if (r.busy) toast.error("المفاتيح مشغولة لحظة، كرر كلامك"); return; }
+          if (isHallucination(heard, info)) return;
           const playing = !!audioRef.current && !audioRef.current.paused;
           if (playing && isEcho(heard)) return;
           if (playing) { audioRef.current!.pause(); setSpeaking(false); }
@@ -810,7 +824,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
 
   return (
     <div className="grid gap-6 lg:grid-cols-3">
-      <LiveCockpit cfg={cfg} setCfg={saveCfg} live={live} onToggle={() => (live ? stop() : start())}
+      <LiveCockpit cfg={cfg} setCfg={saveCfg} live={live} onToggle={() => (live ? stop() : start())} rulesCount={rules.length}
         accounts={accounts} accErr={accErr} reloadAcc={loadAccounts}
         waFrom={waFrom} setWaFrom={(v) => { setWaFrom(v); localStorage.setItem("live_wa_from", v); }} waTo={waTo} setWaTo={setWaTo} customers={custList} />
       <section className="rounded-2xl bg-royal p-5 text-primary-foreground shadow-soft lg:col-span-3">

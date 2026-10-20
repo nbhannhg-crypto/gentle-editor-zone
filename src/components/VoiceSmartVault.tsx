@@ -135,6 +135,22 @@ export function VoiceSmartVault(p: {
     } catch (e) { toast.error((e as Error).message); }
   };
   const save = (c: VaultClip[]) => { try { p.saveClips(c); } catch { toast.error("المساحة ممتلئة — احذف مقاطع قديمة"); } syncCloud(c); };
+  const [syncing, setSyncing] = useState(false);
+  /** رفع كل المقاطع المحلية لحساب المتجر بضغطة وحدة */
+  const syncAll = async () => {
+    const c = ctx.storeId ? ctx : await vaultContext();
+    if (!c.storeId) { toast.error("ما لقيت متجرك — سجّل دخول بحساب التاجر"); return; }
+    if (!ctx.storeId) setCtx(c);
+    setSyncing(true);
+    const own = clipsRef.current.filter((x) => !x.id.startsWith("kg_"));
+    let ok = 0;
+    for (const x of own) {
+      try { await pushClip(c.storeId, x); synced.current.set(x.id, JSON.stringify(x)); ok++; } catch { /* keep going */ }
+    }
+    setSyncing(false);
+    if (ok === own.length) toast.success(`☁️ انرفعت ${ok} مقطع للسحاب — افتحها من أي متصفح`);
+    else toast.error(`انرفع ${ok} من ${own.length} — اضغط مرة ثانية للباقي`);
+  };
   const [q, setQ] = useState("");
   const [sim, setSim] = useState("");
   const [simRes, setSimRes] = useState<{ clip?: VaultClip | undefined; how: string; ms: number } | null>(null);
@@ -273,6 +289,7 @@ export function VoiceSmartVault(p: {
   return (
     <section className="rounded-2xl border-2 border-primary/30 bg-card p-5 shadow-soft">
       <h3 className="font-display text-lg">🎛️ لوحة تحكم بنك الأصوات والمجلدات الذكية</h3>
+      <Button size="sm" variant="outline" disabled={syncing} onClick={syncAll}>{syncing ? "⏳ يرفع…" : `☁️ مزامنة المقاطع مع السحاب (${p.clips.filter((x) => !x.id.startsWith("kg_")).length})`}</Button>
       <p className="text-xs text-muted-foreground">Voice Smart Vault</p>
       <div className="mt-3 flex flex-wrap gap-2 text-xs">
         <span className="rounded-full bg-secondary px-3 py-1">💾 جاهزة في الكاش: {ready}</span>
