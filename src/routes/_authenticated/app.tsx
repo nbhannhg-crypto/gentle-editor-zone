@@ -671,9 +671,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
         if (silence) clearTimeout(silence);
         silence = setTimeout(flush, 1500);
       };
-      (rec as any).onerror = (ev: any) => {
-        if (ev?.error === "not-allowed" || ev?.error === "service-not-allowed") { toast.error("🎙️ المتصفح منع المايك — اسمح له وارجع ابدأ المكالمة"); liveRef.current = false; setLive(false); }
-      };
+      (rec as any).onerror = () => { /* لا نوقف المكالمة — onend يعيد التشغيل تلقائياً */ };
       rec.onend = () => { if (pending.trim()) flush(); if (liveRef.current) setTimeout(spawn, 200); };
       recRef.current = rec;
       try { rec.start(); } catch { setTimeout(spawn, 500); }
