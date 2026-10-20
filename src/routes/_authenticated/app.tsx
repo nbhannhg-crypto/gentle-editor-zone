@@ -40,6 +40,8 @@ import { MediaLibrary } from "@/components/MediaLibrary";
 import { Complaints } from "@/components/Complaints";
 import { WaInbox } from "@/components/WaInbox";
 import { VoiceAssistant } from "@/components/VoiceAssistant";
+import { startVadRecorder, blobToBase64, type VadHandle } from "@/lib/vad-recorder";
+import { transcribeLive } from "@/lib/listen.functions";
 
 export const Route = createFileRoute("/_authenticated/app")({
   head: () => ({
@@ -638,7 +640,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
   const start = () => {
     const W = window as any;
     const C = W.SpeechRecognition || W.webkitSpeechRecognition;
-    if (!C) { toast.error("المتصفح ما يدعم سماع الصوت. استخدم Chrome أو اكتب كلام الزبون."); return; }
+
     let pending = ""; let silence: ReturnType<typeof setTimeout> | null = null;
     const deliver = (raw: string) => {
       const f = raw.trim(); if (!f) return;
@@ -651,6 +653,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
     const flush = () => { if (silence) clearTimeout(silence); silence = null; const t = pending; pending = ""; setInterim(""); deliver(t); };
     const spawn = () => {
       if (!liveRef.current) return;
+      if (!C) { toast.error("اسمح بالمايك أو اكتب كلام الزبون"); return; }
       const rec: SR = new C();
       rec.lang = "ar-SA"; rec.continuous = true; rec.interimResults = true;
       rec.onresult = (e) => {
