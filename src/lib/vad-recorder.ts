@@ -2,7 +2,7 @@
 export type VadHandle = { stop: () => void };
 
 export async function startVadRecorder(opts: {
-  onPhrase: (blob: Blob, mime: string) => void;
+  onPhrase: (blob: Blob, mime: string, info?: { durationMs: number; peak: number }) => void;
   onSpeechStart?: () => void;
   isPaused?: () => boolean;
   silenceMs?: number;
@@ -18,19 +18,23 @@ export async function startVadRecorder(opts: {
   const mime = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"].find((m) => (window as any).MediaRecorder?.isTypeSupported?.(m)) || "";
   let rec: MediaRecorder | null = null;
   let chunks: Blob[] = [];
-  let speaking = false, lastVoice = 0, startedAt = 0, noise = 0.01, stopped = false;
-  const silenceMs = opts.silenceMs ?? 1000;
+  let speaking = false, lastVoice = 0, startedAt = 0, noise = 0.01, stopped = false, peak = 0, voiced = 0;
+  const silenceMs = Math.max(1300, opts.silenceMs ?? 1300);
+  // حد الكلام البشري الواضح: يتجاهل التنفس وهواء الغرفة
+  const MIN_RMS = 0.03;
 
   const begin = () => {
-    chunks = [];
+    chunks = []; peak = 0; voiced = 0;
     rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
-    rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
-    rec.onstop = () => {
+    const r = rec;
+    r.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+    r.onstop = () => {
       const dur = Date.now() - startedAt;
-      const type = rec?.mimeType || mime || "audio/webm";
-      if (dur > 400 && chunks.length) opts.onPhrase(new Blob(chunks, { type }), type.split(";")[0] ?? type);
+      const type = r.mimeType || mime || "audio/webm";
+      // يرسل فقط إذا فيه كلام فعلي كافٍ (ليس وشيش قصير)
+      if (dur > 600 && voiced >= 8 && chunks.length) opts.onPhrase(new Blob(chunks, { type }), type.split(";")[0] ?? type, { durationMs: dur, peak });
     };
-    rec.start(250);
+    r.start(250);
     startedAt = Date.now();
   };
 
@@ -41,12 +45,12 @@ export async function startVadRecorder(opts: {
     for (let i = 0; i < buf.length; i++) { const v = ((buf[i] ?? 128) - 128) / 128; sum += v * v; }
     const rms = Math.sqrt(sum / buf.length);
     if (!speaking) noise = noise * 0.97 + rms * 0.03;
-    const loud = rms > Math.max(0.02, noise * 2.5);
+    const loud = rms > Math.max(MIN_RMS, noise * 3);
     const now = Date.now();
-    if (opts.isPaused?.()) { if (speaking) { speaking = false; try { rec?.stop(); } catch { /* */ } } }
+    if (opts.isPaused?.()) { if (speaking) { speaking = false; chunks = []; voiced = 0; try { rec?.stop(); } catch { /* */ } } }
     else if (loud) {
-      lastVoice = now;
-      if (!speaking) { speaking = true; opts.onSpeechStart?.(); begin(); }
+      lastVoice = now; voiced++; if (rms > peak) peak = rms;
+      if (!speaking) { speaking = true; opts.onSpeechStart?.(); begin(); voiced = 1; peak = rms; }
       else if (now - startedAt > 25000) { try { rec?.stop(); } catch { /* */ } begin(); }
     } else if (speaking && now - lastVoice > silenceMs) {
       speaking = false;

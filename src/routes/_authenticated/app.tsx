@@ -684,9 +684,11 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
     setLive(true); setSeconds(0); setDeal(null);
     // المحرك الأقوى: تسجيل المايك + تفريغ Gemini (يشتغل في كل المتصفحات)
     startVadRecorder({
-      isPaused: () => mutedRef.current,
+      silenceMs: 1300,
+      // كتم الاستماع وهي تتكلم: ما يلتقط صوت الموظفة من السماعة
+      isPaused: () => mutedRef.current || (!!audioRef.current && !audioRef.current.paused) || speakingRef.current,
       onSpeechStart: () => { setInterim("🎙️ أسمعك…"); },
-      onPhrase: async (blob, mime) => {
+      onPhrase: async (blob, mime, info) => {
         if (!liveRef.current) return;
         setInterim("⏳ أفهم كلامك…");
         try {
@@ -695,6 +697,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
           setInterim("");
           const heard = r.text.trim();
           if (!heard) { if (r.busy) toast.error("المفاتيح مشغولة لحظة، كرر كلامك"); return; }
+          if (isHallucination(heard, info)) return;
           const playing = !!audioRef.current && !audioRef.current.paused;
           if (playing && isEcho(heard)) return;
           if (playing) { audioRef.current!.pause(); setSpeaking(false); }
