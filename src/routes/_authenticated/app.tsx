@@ -497,6 +497,8 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
   const [alts, setAlts] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  const [micLvl, setMicLvl] = useState(0);
+  const lvlAt = useRef(0);
   const [aiSugs, setAiSugs] = useState<string[]>([]);
   const [custom, setCustom] = useState("");
   const [log, setLog] = useState<{ who: "c" | "a"; t: string }[]>([]);
@@ -701,6 +703,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
       // كتم الاستماع وهي تتكلم: ما يلتقط صوت الموظفة من السماعة
       isPaused: () => mutedRef.current || (!!audioRef.current && !audioRef.current.paused) || speakingRef.current,
       onSpeechStart: () => { setInterim("🎙️ أسمعك…"); },
+      onLevel: (rms) => { const n = Date.now(); if (n - lvlAt.current > 120) { lvlAt.current = n; setMicLvl(Math.min(1, rms * 12)); } },
       onPhrase: async (blob, mime, info) => {
         if (!liveRef.current) return;
         setInterim("⏳ أفهم كلامك…");
@@ -721,9 +724,11 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
     }).then((h) => {
       if (!liveRef.current) { h.stop(); return; }
       vadRef.current = h;
+      // محرك مزدوج: على الكمبيوتر نشغّل الاستماع المباشر مع التسجيل، أول واحد يلقط يسلّم
+      if (C && !/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)) spawn();
     }).catch(() => { spawn(); });
   };
-  const stop = () => { liveRef.current = false; vadRef.current?.stop(); vadRef.current = null; recRef.current?.stop(); setLive(false); setInterim(""); audioRef.current?.pause(); setSpeaking(false); cancelCountdown(); };
+  const stop = () => { setMicLvl(0); liveRef.current = false; vadRef.current?.stop(); vadRef.current = null; recRef.current?.stop(); setLive(false); setInterim(""); audioRef.current?.pause(); setSpeaking(false); cancelCountdown(); };
   useEffect(() => () => { liveRef.current = false; vadRef.current?.stop(); recRef.current?.stop(); cancelCountdown(); }, []);
 
   const runDealEye = async () => {
@@ -890,6 +895,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
 
         <Card title="🗣️ الزبون يقول">
           <p className="min-h-8 text-lg">{customer || <span className="text-muted-foreground">بانتظار كلام الزبون…</span>}</p>
+          {live && <div className="flex items-center gap-2 text-xs text-muted-foreground"><span>🎙️</span><div className="h-2 flex-1 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary transition-all" style={{ width: `${Math.round(micLvl * 100)}%` }} /></div></div>}
           {interim && <p className="text-sm text-muted-foreground">… {interim}</p>}
         </Card>
 
