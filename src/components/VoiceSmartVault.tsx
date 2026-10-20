@@ -289,6 +289,7 @@ export function VoiceSmartVault(p: {
   return (
     <section className="rounded-2xl border-2 border-primary/30 bg-card p-5 shadow-soft">
       <h3 className="font-display text-lg">🎛️ لوحة تحكم بنك الأصوات والمجلدات الذكية</h3>
+      <Button size="sm" variant="outline" disabled={syncing} onClick={syncAll}>{syncing ? "⏳ يرفع…" : `☁️ مزامنة المقاطع مع السحاب (${p.clips.filter((x) => !x.id.startsWith("kg_")).length})`}</Button>
       <p className="text-xs text-muted-foreground">Voice Smart Vault</p>
       <div className="mt-3 flex flex-wrap gap-2 text-xs">
         <span className="rounded-full bg-secondary px-3 py-1">💾 جاهزة في الكاش: {ready}</span>
