@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { VoiceModelPicker } from "@/components/VoiceModelPicker";
 import { VoiceSmartVault } from "@/components/VoiceSmartVault";
+import { kingdomMem, loadKingdomMem } from "@/lib/voice-vault-cloud";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +20,16 @@ export function loadClipOpts(): ClipOpts {
 const norm = (s: string) => s.replace(/[\u064B-\u0652\u0640]/g, "").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim().toLowerCase();
 const voiceOff = (): string[] => { try { const v = JSON.parse(localStorage.getItem("live_cockpit") ?? "{}").voff; return Array.isArray(v) ? v : []; } catch { return []; } };
 /* المجلدات الصوتية المطفأة من شريط المكالمة تُستبعد من المطابقة */
-const savedClips = (): Clip[] => { try { const v = JSON.parse(localStorage.getItem("live_clips") ?? "[]"); const off = voiceOff(); return Array.isArray(v) ? v.filter((c: Clip) => !off.includes(c.cat)) : []; } catch { return []; } };
+const savedClips = (): Clip[] => {
+  const off = voiceOff();
+  let local: Clip[] = [];
+  try { const v = JSON.parse(localStorage.getItem("live_clips") ?? "[]"); if (Array.isArray(v)) local = v; } catch { /* */ }
+  // مقاطع المملكة من الذاكرة (السحابة) — المحلي له الأولوية لو موجود
+  const ids = new Set(local.map((c) => c.id));
+  const kg = (kingdomMem() as Clip[]).filter((c) => !ids.has(c.id));
+  return [...local, ...kg].filter((c) => !off.includes(c.cat));
+};
+if (typeof window !== "undefined") void loadKingdomMem();
 /** كلام الزبون يطابق كلمة تشغيل مقطع مسجل؟ يرجع الصوت الجاهز */
 export function findTriggerClip(customer: string): { text: string; audio: string } | null {
   if (!loadClipOpts().triggers) return null;
