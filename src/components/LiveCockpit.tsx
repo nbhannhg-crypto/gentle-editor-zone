@@ -1,28 +1,30 @@
 import { useEffect, useState } from "react";
 import { loadCallBrains, loadCallSectionCounts } from "@/lib/call-brains";
+import { kingdomFolders } from "@/lib/voice-vault-cloud";
 
-/* أزرار المجلدات الصوتية (من بنك الأصوات) — مفعّلة افتراضياً */
+/* أزرار المجلدات الصوتية (من بنك الأصوات) — مفعّلة افتراضياً، مع عدد المقاطع */
 function voiceFolders(): { mine: [string, string][]; king: [string, string][] } {
   const base: [string, string][] = [["welcome", "👋 الترحيب"], ["price", "💰 الأسعار"], ["ship", "🚚 الشحن"], ["fun", "💖 غنج"], ["close", "🤝 الإغلاق"], ["personal", "🔐 الخاصة"]];
   try {
     const labels = JSON.parse(localStorage.getItem("live_vault_labels") ?? "{}") as Record<string, string>;
     const custom = JSON.parse(localStorage.getItem("live_vault_folders") ?? "[]") as [string, string][];
-    const clips = JSON.parse(localStorage.getItem("live_clips") ?? "[]") as { cat: string; fname?: string }[];
-    const mine = [...base, ...(Array.isArray(custom) ? custom : [])].map(([k, l]) => [k, labels[k] || l] as [string, string]);
-    const king = new Map<string, string>();
-    for (const c of Array.isArray(clips) ? clips : []) {
-      if (c.cat === "kingdom") king.set("kingdom", labels["kingdom"] || "👑 أصوات المملكة الرسمية");
-      else if (c.cat?.startsWith("kg:")) king.set(c.cat, `👑 ${c.fname || "مجلد ملكي"}`);
-    }
-    return { mine, king: [...king.entries()] };
-  } catch { return { mine: base, king: [] }; }
+    const clips = JSON.parse(localStorage.getItem("live_clips") ?? "[]") as { cat: string; fname?: string; id?: string }[];
+    const cnt = new Map<string, number>();
+    for (const c of Array.isArray(clips) ? clips : []) if (!c.id?.startsWith("kg_")) cnt.set(c.cat, (cnt.get(c.cat) ?? 0) + 1);
+    const mine = [...base, ...(Array.isArray(custom) ? custom : [])].map(([k, l]) => [k, `${labels[k] || l} (${cnt.get(k) ?? 0})`] as [string, string]);
+    return { mine, king: [] };
+  } catch { return { mine: base.map(([k, l]) => [k, `${l} (0)`] as [string, string]), king: [] }; }
 }
 
 function CallBrainsBar({ cfg, set, pill, rulesCount = 0 }: { cfg: Cockpit; set: (o: Partial<Cockpit>) => void; pill: (on: boolean) => string; rulesCount?: number }) {
   const [secs, setSecs] = useState<{ name: string; count: number }[]>([]);
   const [brains, setBrains] = useState<{ id: string; name: string; count: number }[]>([]);
   const [vf, setVf] = useState<{ mine: [string, string][]; king: [string, string][] }>({ mine: [], king: [] });
-  useEffect(() => { setVf(voiceFolders()); void loadCallBrains().then(setBrains); }, []);
+  useEffect(() => {
+    setVf(voiceFolders()); void loadCallBrains().then(setBrains);
+    // مجلدات المملكة من السحابة مباشرة (ذاكرة فقط بدون localStorage)
+    void kingdomFolders().then((k) => setVf((v) => ({ ...v, king: k.map((f) => [f.key, `${f.label} (${f.count})`] as [string, string]) })));
+  }, []);
   // العدادات تتحدث تلقائياً مع أي إضافة/حذف قاعدة
   useEffect(() => { void loadCallSectionCounts().then(setSecs); }, [rulesCount]);
   const voff = cfg.voff ?? [];
