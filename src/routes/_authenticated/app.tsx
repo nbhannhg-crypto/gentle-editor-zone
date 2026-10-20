@@ -40,6 +40,8 @@ import { MediaLibrary } from "@/components/MediaLibrary";
 import { Complaints } from "@/components/Complaints";
 import { WaInbox } from "@/components/WaInbox";
 import { VoiceAssistant } from "@/components/VoiceAssistant";
+import { startVadRecorder, blobToBase64, type VadHandle } from "@/lib/vad-recorder";
+import { transcribeLive } from "@/lib/listen.functions";
 
 export const Route = createFileRoute("/_authenticated/app")({
   head: () => ({
@@ -491,6 +493,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
   const [log, setLog] = useState<{ who: "c" | "a"; t: string }[]>([]);
   const recRef = useRef<SR | null>(null);
   const liveRef = useRef(false);
+  const vadRef = useRef<VadHandle | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const engine = useReplyEngine(rules, mode, product);
   const tts = useSpeaker();
@@ -637,7 +640,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
   const start = () => {
     const W = window as any;
     const C = W.SpeechRecognition || W.webkitSpeechRecognition;
-    if (!C) { toast.error("المتصفح ما يدعم سماع الصوت. استخدم Chrome أو اكتب كلام الزبون."); return; }
+
     let pending = ""; let silence: ReturnType<typeof setTimeout> | null = null;
     const deliver = (raw: string) => {
       const f = raw.trim(); if (!f) return;
@@ -650,6 +653,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
     const flush = () => { if (silence) clearTimeout(silence); silence = null; const t = pending; pending = ""; setInterim(""); deliver(t); };
     const spawn = () => {
       if (!liveRef.current) return;
+      if (!C) { toast.error("اسمح بالمايك أو اكتب كلام الزبون"); return; }
       const rec: SR = new C();
       rec.lang = "ar-SA"; rec.continuous = true; rec.interimResults = true;
       rec.onresult = (e) => {
@@ -678,10 +682,32 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
     };
     liveRef.current = true;
     setLive(true); setSeconds(0); setDeal(null);
-    spawn();
+    // المحرك الأقوى: تسجيل المايك + تفريغ Gemini (يشتغل في كل المتصفحات)
+    startVadRecorder({
+      isPaused: () => mutedRef.current,
+      onSpeechStart: () => { setInterim("🎙️ أسمعك…"); },
+      onPhrase: async (blob, mime) => {
+        if (!liveRef.current) return;
+        setInterim("⏳ أفهم كلامك…");
+        try {
+          const b64 = await blobToBase64(blob);
+          const r = await transcribeLive({ data: { audio: b64, mime } });
+          setInterim("");
+          const heard = r.text.trim();
+          if (!heard) { if (r.busy) toast.error("المفاتيح مشغولة لحظة، كرر كلامك"); return; }
+          const playing = !!audioRef.current && !audioRef.current.paused;
+          if (playing && isEcho(heard)) return;
+          if (playing) { audioRef.current!.pause(); setSpeaking(false); }
+          deliver(heard);
+        } catch { setInterim(""); }
+      },
+    }).then((h) => {
+      if (!liveRef.current) { h.stop(); return; }
+      vadRef.current = h;
+    }).catch(() => { spawn(); });
   };
-  const stop = () => { liveRef.current = false; recRef.current?.stop(); setLive(false); setInterim(""); audioRef.current?.pause(); setSpeaking(false); cancelCountdown(); };
-  useEffect(() => () => { liveRef.current = false; recRef.current?.stop(); cancelCountdown(); }, []);
+  const stop = () => { liveRef.current = false; vadRef.current?.stop(); vadRef.current = null; recRef.current?.stop(); setLive(false); setInterim(""); audioRef.current?.pause(); setSpeaking(false); cancelCountdown(); };
+  useEffect(() => () => { liveRef.current = false; vadRef.current?.stop(); recRef.current?.stop(); cancelCountdown(); }, []);
 
   const runDealEye = async () => {
     if (log.length < 2) { toast.error("المحادثة قصيرة — خل الزبون يتكلم شوي"); return; }
