@@ -1,11 +1,13 @@
 // Shared voice-model choice, persisted in the browser (call only from effects/handlers).
 export const VOICE_MODELS = [
-  ["s2.1-pro", "⭐ S2.1-PRO (الموزون)"],
-  ["s2-pro", "⚡ S2-PRO (المتقدم)"],
+  ["s2.1-pro", "⭐ S2.1-PRO (الأقوى - جودة فائقة)"],
+  ["s2.1-pro-free", "🎁 S2.1-PRO-FREE (المجاني)"],
+  ["s2-pro", "⚡ S2-PRO (نبرة أضخم)"],
   ["fast", "🎯 السريع الاقتصادي"],
   ["s1", "📻 S1 (الكلاسيكي)"],
 ] as const;
 export type VoiceModel = (typeof VOICE_MODELS)[number][0];
+export const VOICE_MODEL_IDS = VOICE_MODELS.map(([k]) => k) as unknown as [VoiceModel, ...VoiceModel[]];
 export const DEFAULT_VOICE_MODEL: VoiceModel = "s2.1-pro";
 const KEY = "voice_model_v1";
 const VKEY = "studio_voice_v1";

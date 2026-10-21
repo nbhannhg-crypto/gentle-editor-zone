@@ -278,7 +278,7 @@ export const fishSpeak = createServerFn({ method: "POST" })
       volume: z.number().min(-10).max(10).default(0),
       emotion: z.string().max(30).default(""),
       custom: z.boolean().default(false),
-      model: z.enum(["s2.1-pro", "s2-pro", "fast", "s1"]).default("s2.1-pro"),
+      model: z.enum(["s2.1-pro", "s2.1-pro-free", "s2-pro", "fast", "s1"]).default("s2.1-pro"),
     }).parse(d),
   )
   .handler(async ({ data }) => {
@@ -294,7 +294,7 @@ export const fishSpeak = createServerFn({ method: "POST" })
         text: data.emotion ? `(${data.emotion}) ${data.text}` : data.text,
         reference_id: voiceId,
         format: "mp3",
-        latency: "balanced",
+        latency: "normal", mp3_bitrate: 192,
         prosody: { speed: data.speed, volume: data.volume },
       }),
     });

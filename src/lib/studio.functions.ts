@@ -147,7 +147,7 @@ async function tts(text: string, voiceId: string, speed = 1, model = "s2.1-pro")
   const res = await fetch("https://api.fish.audio/v1/tts", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", model },
-    body: JSON.stringify({ text, reference_id: voiceId, format: "mp3", latency: "balanced", prosody: { speed, volume: 0 } }),
+    body: JSON.stringify({ text, reference_id: voiceId, format: "mp3", latency: "normal", mp3_bitrate: 192, prosody: { speed, volume: 0 } }),
   });
   if (!res.ok) throw new Error(res.status === 402 ? "رصيد الأصوات خلص" : `تعذر توليد الصوت (${res.status})`);
   return Buffer.from(await res.arrayBuffer());
@@ -162,7 +162,7 @@ export const studioGenerate = createServerFn({ method: "POST" })
     voiceName: z.string().max(80).default(""),
     emotion: z.enum(["", "happy", "excited", "friendly", "confident", "calm", "empathetic"]).default(""),
     speed: z.number().min(0.6).max(1.6).default(1),
-    model: z.enum(["s2.1-pro", "s2-pro", "fast", "s1"]).default("s2.1-pro"),
+    model: z.enum(["s2.1-pro", "s2.1-pro-free", "s2-pro", "fast", "s1"]).default("s2.1-pro"),
   }).parse(d))
   .handler(async ({ data, context }) => {
     const storeId = await myStore(context as Ctx);
