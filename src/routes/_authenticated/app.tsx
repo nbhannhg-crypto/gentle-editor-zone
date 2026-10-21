@@ -487,6 +487,12 @@ function isHallucination(text: string, info?: { durationMs: number; peak: number
   const weak = !info || info.durationMs < 1800 || info.peak < 0.06;
   return weak && HALLU.includes(t);
 }
+const ASK_AGAIN = [
+  "ما سمعتك يا قلبي، عيد لي فديتك",
+  "الصوت يقطع عندك يا روحي، وش قلت؟",
+  "ما فهمت عليك يا بعد قلبي، عيدها لي",
+  "يا عمري الصوت مو واضح، عيد كلامك",
+];
 
 function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; reload: () => Promise<void>; mode: Mode; product: string; storeId?: string | undefined }) {
   const [live, setLive] = useState(false);
@@ -633,7 +639,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
       if (!ans && c.brains.clips) ans = clipMatch(text);
       if (!ans && (c.brains.ai || c.brains.queen)) {
         const ctx = [product, c.persona && `شخصية الموظفة: ${c.persona}`, c.brains.queen && "تكلمي بخبرة عقل الملكة: ذكية وحاسمة في البيع.", ...c.extra.map((k) => EXTRA_HINT[k])].filter(Boolean).join("\n");
-        const { reply } = await smart({ data: { customer: text, product: ctx.slice(0, 2000), rules: c.brains.mine ? rulesPayload(rules) : [] } });
+        const { reply } = await smart({ data: { customer: text, product: ctx.slice(0, 2000), rules: c.brains.mine ? rulesPayload(rules) : [], mood: "call" } });
         ans = reply;
       }
       setAnswer(ans);
@@ -644,6 +650,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
   };
 
   const lastHeardRef = useRef<{ t: string; at: number }>({ t: "", at: 0 });
+  const askAgainAt = useRef(0);
   const lastSaidRef = useRef("");
   const isEcho = (heard: string) => {
     const h = normalize(heard).split(" ").filter((w) => w.length > 1);
@@ -718,8 +725,16 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
           if (my !== sttSeq.current) { if (r.text.trim()) deliver(r.text); return; }
           setInterim("");
           const heard = r.text.trim();
-          if (!heard) { if (r.busy) toast.error("المفاتيح مشغولة لحظة، كرر كلامك"); return; }
-          if (isHallucination(heard, info)) return;
+          // كلام حقيقي (طويل وواضح الطاقة) بس ما انفهم → تطلب منه يعيد بدلع بدل ما تألف
+          const realSpeech = !!info && info.durationMs > 700 && info.peak > 0.04;
+          if (!heard || isHallucination(heard, info)) {
+            if (realSpeech && Date.now() - askAgainAt.current > 6000) {
+              askAgainAt.current = Date.now();
+              const say = ASK_AGAIN[Math.floor(Math.random() * ASK_AGAIN.length)];
+              setAnswer(say); autoSay(say);
+            } else if (!heard && r.busy) toast.error("المفاتيح مشغولة لحظة، كرر كلامك");
+            return;
+          }
           const playing = !!audioRef.current && !audioRef.current.paused;
           if (playing && isEcho(heard)) return;
           if (playing) { audioRef.current!.pause(); setSpeaking(false); }
