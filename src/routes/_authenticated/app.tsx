@@ -650,6 +650,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
   };
 
   const lastHeardRef = useRef<{ t: string; at: number }>({ t: "", at: 0 });
+  const askAgainAt = useRef(0);
   const lastSaidRef = useRef("");
   const isEcho = (heard: string) => {
     const h = normalize(heard).split(" ").filter((w) => w.length > 1);
