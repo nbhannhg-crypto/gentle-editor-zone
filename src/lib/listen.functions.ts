@@ -9,7 +9,7 @@ export const transcribeLive = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const vocab = (data.vocab ?? []).filter(Boolean).join("، ");
     // Primary: Groq Whisper Large-v3 (fast, literal). Fallback: Gemini.
-    const groqKey = process.env.GROQ_API_KEY;
+    const groqKey = process.env['GROQ_API_KEY'];
     if (groqKey) {
       try {
         const bin = Uint8Array.from(atob(data.audio), (c) => c.charCodeAt(0));
