@@ -730,7 +730,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
           if (!heard || isHallucination(heard, info)) {
             if (realSpeech && Date.now() - askAgainAt.current > 6000) {
               askAgainAt.current = Date.now();
-              const say = ASK_AGAIN[Math.floor(Math.random() * ASK_AGAIN.length)];
+              const say = ASK_AGAIN[Math.floor(Math.random() * ASK_AGAIN.length)] ?? "ما سمعتك يا قلبي، عيد لي فديتك";
               setAnswer(say); autoSay(say);
             } else if (!heard && r.busy) toast.error("المفاتيح مشغولة لحظة، كرر كلامك");
             return;
