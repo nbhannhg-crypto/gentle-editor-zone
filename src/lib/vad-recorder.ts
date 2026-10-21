@@ -7,6 +7,7 @@ export async function startVadRecorder(opts: {
   isPaused?: () => boolean;
   onLevel?: (rms: number, speaking: boolean) => void;
   silenceMs?: number;
+  minRms?: () => number;
 }): Promise<VadHandle> {
   const pro = { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1, sampleRate: { ideal: 16000 } } as MediaTrackConstraints;
   const stream = await navigator.mediaDevices.getUserMedia({ audio: pro }).catch(() => navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }));
@@ -21,9 +22,9 @@ export async function startVadRecorder(opts: {
   let rec: MediaRecorder | null = null;
   let chunks: Blob[] = [];
   let speaking = false, lastVoice = 0, startedAt = 0, noise = 0.01, stopped = false, peak = 0, voiced = 0;
-  const silenceMs = Math.max(350, opts.silenceMs ?? 450);
+  const silenceMs = Math.max(300, opts.silenceMs ?? 450);
   // حد الكلام البشري الواضح: يتجاهل التنفس وهواء الغرفة
-  const MIN_RMS = 0.012;
+  const MIN_RMS = () => Math.min(0.05, Math.max(0.005, opts.minRms?.() ?? 0.012));
 
   const begin = () => {
     chunks = []; peak = 0; voiced = 0;
@@ -34,7 +35,7 @@ export async function startVadRecorder(opts: {
       const dur = Date.now() - startedAt;
       const type = r.mimeType || mime || "audio/webm";
       // يرسل فقط إذا فيه كلام فعلي كافٍ (ليس وشيش قصير)
-      if (dur > 250 && voiced >= 3 && chunks.length) opts.onPhrase(new Blob(chunks, { type }), type.split(";")[0] ?? type, { durationMs: dur, peak });
+      if (dur > 180 && voiced >= 2 && chunks.length) opts.onPhrase(new Blob(chunks, { type }), type.split(";")[0] ?? type, { durationMs: dur, peak });
     };
     r.start(250);
     startedAt = Date.now();
@@ -47,7 +48,7 @@ export async function startVadRecorder(opts: {
     for (let i = 0; i < buf.length; i++) { const v = ((buf[i] ?? 128) - 128) / 128; sum += v * v; }
     const rms = Math.sqrt(sum / buf.length);
     if (!speaking) noise = noise * 0.97 + rms * 0.03;
-    const loud = rms > Math.max(MIN_RMS, noise * 2.2);
+    const loud = rms > Math.max(MIN_RMS(), noise * 2.2);
     const now = Date.now();
     opts.onLevel?.(rms, speaking);
     if (opts.isPaused?.()) { if (speaking) { speaking = false; chunks = []; voiced = 0; try { rec?.stop(); } catch { /* */ } } }

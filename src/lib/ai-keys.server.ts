@@ -117,7 +117,7 @@ export async function geminiJson(system: string, contents: GContent[]): Promise<
 }
 
 /** Free Gemini (key rotation) for image/audio -> Arabic text. Returns "" when no key works. */
-export async function geminiMedia(instruction: string, mimeType: string, base64: string): Promise<string> {
+export async function geminiMedia(instruction: string, mimeType: string, base64: string, gen?: Record<string, unknown>): Promise<string> {
   const keys = geminiKeys();
   for (let i = 0; i < keys.length; i++) {
     const key = keys[cursor++ % keys.length]!;
@@ -125,7 +125,7 @@ export async function geminiMedia(instruction: string, mimeType: string, base64:
       const res = await gemFetch(key, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: instruction }, { inlineData: { mimeType, data: base64 } }] }] }),
+        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: instruction }, { inlineData: { mimeType, data: base64 } }] }], ...(gen ? { generationConfig: gen } : {}) }),
       });
       if (!res.ok) { console.error(`[ai-keys] Gemini key #${i + 1} rejected: ${res.status} ${(await res.text().catch(() => "")).slice(0, 300)}`); continue; }
       const j = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
