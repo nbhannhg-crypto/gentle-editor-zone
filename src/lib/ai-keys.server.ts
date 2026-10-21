@@ -20,7 +20,8 @@ export function quickGreeting(text: string): string | null {
 let cursor = 0;
 
 // Model fallback: if Google is busy (503/429/404) on one model, try the next — all free keys.
-const GEMINI_MODELS = ["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-flash-lite-latest", "gemini-flash-latest"];
+// Fastest stable model first (~0.8s, also handles audio); 3.5-flash / flash-latest removed — constantly 429.
+const GEMINI_MODELS = ["gemini-flash-lite-latest", "gemini-3.5-transcribe", "gemini-3.5-flash-lite"];
 
 async function gemFetch(key: string, init: RequestInit): Promise<Response> {
   let last: Response | null = null;
