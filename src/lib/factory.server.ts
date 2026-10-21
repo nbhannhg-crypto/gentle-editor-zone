@@ -22,7 +22,7 @@ export async function ttsOnce(text: string, speed: number): Promise<Buffer> {
   const res = await fetch(`${FISH}/v1/tts`, {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", model: "s2.1-pro" },
-    body: JSON.stringify({ text, reference_id: BUILTIN_FISH_VOICE_ID, format: "mp3", latency: "balanced", prosody: { speed, volume: 0 } }),
+    body: JSON.stringify({ text, reference_id: BUILTIN_FISH_VOICE_ID, format: "mp3", latency: "normal", mp3_bitrate: 192, prosody: { speed, volume: 0 } }),
   });
   if (res.status === 402 || res.status === 403) {
     const err: any = new Error(res.status === 402 ? "رصيد الأصوات خلص" : "تم رفض الوصول للأصوات");
