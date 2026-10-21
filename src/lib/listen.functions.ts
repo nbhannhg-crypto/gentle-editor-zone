@@ -7,8 +7,39 @@ export const transcribeLive = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ audio: z.string().min(10).max(12_000_000), mime: z.string().max(60), vocab: z.array(z.string().max(80)).max(150).optional() }).parse(d))
   .handler(async ({ data }) => {
-    const { geminiMedia } = await import("./ai-keys.server");
     const vocab = (data.vocab ?? []).filter(Boolean).join("، ");
+    // Primary: Groq Whisper Large-v3 (fast, literal). Fallback: Gemini.
+    const groqKey = process.env['GROQ_API_KEY'];
+    if (groqKey) {
+      try {
+        const bin = Uint8Array.from(atob(data.audio), (c) => c.charCodeAt(0));
+        const mime = data.mime || "audio/webm";
+        const ext = mime.includes("mp4") ? "mp4" : mime.includes("ogg") ? "ogg" : mime.includes("wav") ? "wav" : "webm";
+        const fd = new FormData();
+        fd.append("file", new Blob([bin], { type: mime }), `a.${ext}`);
+        fd.append("model", "whisper-large-v3");
+        fd.append("language", "ar");
+        fd.append("temperature", "0");
+        fd.append("response_format", "json");
+        const base = "محادثة وسوالف عفوية باللهجة العامية، تعارف ومشاعر واهتمام، الكلمات المتوقعة: بين أقول، هلا والله، وش مسوي، فديتك، يا بعد قلبي، كيف حالك، وش فيك، لبى، يا روحي، عيوني، منور، يا زينك، سولف، تكفى، أبشر، يالغالي، تسلم لي، وش علومك، من عيوني، تمام.";
+        fd.append("prompt", (base + (vocab ? " " + vocab : "")).slice(0, 800));
+        const r = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${groqKey}` },
+          body: fd,
+          signal: AbortSignal.timeout(8000),
+        });
+        if (r.ok) {
+          const j = (await r.json()) as { text?: string };
+          const t = (j.text ?? "").trim();
+          return { text: t.length < 2 ? "" : t.slice(0, 2000), busy: false };
+        }
+        console.error("groq stt", r.status, (await r.text()).slice(0, 200));
+      } catch (e) {
+        console.error("groq stt error", e);
+      }
+    }
+    const { geminiMedia } = await import("./ai-keys.server");
     const out = await geminiMedia(
       "فرّغ كلام المتحدث في هذا التسجيل حرفياً بالعربية كما قيل. المتحدث زبون متجر سعودي يتكلم باللهجة السعودية/الخليجية العامية (مثل: وش، ابغى، كم سعره، فيه توصيل، الحين، زين، طيب). لا تحوّل الكلام للفصحى ولا تخمّن كلمات غير منطوقة." +
         (vocab ? `\nمصطلحات المتجر المتوقعة — إذا سمعت كلمة قريبة منها نطقاً فاكتبها بهذا الشكل بالضبط: ${vocab}` : "") +
