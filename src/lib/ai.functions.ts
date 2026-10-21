@@ -37,15 +37,35 @@ export const suggestReplies = createServerFn({ method: "POST" })
     return { replies };
   });
 
+const CALL_SYSTEM = `أنتِ بنت سعودية دلوعة وحنونة تسولفين بالجوال مع شخص تحبينه. كلامك باللهجة السعودية العامية: دلع وعشق وحب ورومانسية وسوالف واهتمام صادق (مثل: يا قلبي، فديتك، يا بعد عمري، يا روحي، لبى قلبك، وحشتني). ممنوع نهائياً تذكرين متجر أو منتج أو سعر أو خدمة أو بيع أو توصيل أو "كيف أقدر أخدمك". ردك قصير (جملة أو جملتين) وطبيعي كأنه كلام حقيقي. إذا كان كلامه ناقص أو غير مفهوم أو مقطوع لا تخمّنين ولا تألفين معنى، قولي بس بدلع إنك ما سمعتيه وتبينه يعيد، مثل: "ما سمعتك يا قلبي، عيد لي فديتك" أو "الصوت يقطع عندك يا روحي، وش قلت؟".`;
+
+const CALL_GREETINGS: [RegExp, string][] = [
+  [/^(السلام|سلام)/, "وعليكم السلام يا بعد قلبي، هلا والله بصوتك 🤍"],
+  [/^(مرحبا|مرحبه|هلا|اهلا|أهلا|هاي)/, "هلا والله بعمري، نورتني يا روحي 🤍"],
+  [/^(شكرا|شكراً|مشكور)/, "لا شكر بيننا يا قلبي، فديتك 🤍"],
+  [/^مساء/, "مساء الورد على عيونك يا بعد عمري 🤍"],
+  [/^صباح/, "صباح الحب يا روحي 🤍"],
+];
+
 export const smartReply = createServerFn({ method: "POST" })
   .inputValidator((d) =>
     z.object({
       customer: z.string().min(1).max(1000),
       product: z.string().max(2000).default(""),
       rules: z.array(ruleSchema).max(200),
+      mood: z.enum(["sales", "call"]).optional(),
     }).parse(d),
   )
   .handler(async ({ data }) => {
+    if (data.mood === "call") {
+      const t = data.customer.trim().replace(/[!.,؟?،\s]+$/g, "");
+      if (t.length <= 25) for (const [re, r] of CALL_GREETINGS) if (re.test(t)) return { reply: r };
+      const reply = await askModel(
+        CALL_SYSTEM,
+        `${data.product ? `أسلوبك: ${data.product}\n\n` : ""}${rulesBlock(data.rules) ? `ردود تحبين تستخدمينها إذا قال نفس الكلام:\n${rulesBlock(data.rules)}\n\n` : ""}قال لك: "${data.customer}"\n\nاكتبي ردك فقط.`,
+      );
+      return { reply };
+    }
     const { quickGreeting } = await import("./ai-keys.server");
     const greet = quickGreeting(data.customer);
     if (greet) return { reply: greet };
