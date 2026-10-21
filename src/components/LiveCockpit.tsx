@@ -83,7 +83,7 @@ export type Cockpit = {
   fast: boolean; route: Route;
   brains: { mine: boolean; queen: boolean; clips: boolean; ai: boolean };
   extra: string[]; persona: string; banned: string[]; fixes: { from: string; to: string }[]; blocked: string[];
-  match?: number; secs?: string[]; kbrains?: string[]; voff?: string[]; rulesOff?: boolean;
+  match?: number; secs?: string[]; kbrains?: string[]; voff?: string[]; rulesOff?: boolean; sens?: number; instant?: boolean;
 };
 export const COCKPIT_KEY = "live_cockpit";
 export const DEFAULT_COCKPIT: Cockpit = {
@@ -142,6 +142,15 @@ export function LiveCockpit(p: {
       <h3 className="font-display mb-3 text-lg">🎛️ لوحة تحكم الموظفة اللحظية</h3>
       <CallBrainsBar cfg={cfg} set={set} pill={pill} rulesCount={p.rulesCount ?? 0} />
 
+      <div className="mb-3 space-y-2 rounded-xl bg-secondary p-3">
+        <label className="block text-xs text-muted-foreground">🎚️ حساسية المايك: <b dir="ltr">{(cfg.sens ?? 0.012).toFixed(3)}</b> (أقل = يسمع أهدأ صوت، أعلى = يعزل الضجيج)</label>
+        <input type="range" min={0.005} max={0.05} step={0.001} value={cfg.sens ?? 0.012} onChange={(e) => set({ sens: Number(e.target.value) })} className="w-full accent-primary" aria-label="حساسية المايك" />
+        <div className="flex flex-wrap gap-2">
+          <button className={pill(cfg.instant ?? true)} onClick={() => set({ instant: true })}>⚡ نطق فوري ومباشر</button>
+          <button className={pill(!(cfg.instant ?? true))} onClick={() => set({ instant: false })}>⏳ انتظار وتأكيد الكلام</button>
+          <button className={pill(false)} onClick={() => set({ sens: 0.012 })}>↺ الافتراضي 0.012</button>
+        </div>
+      </div>
       <div className="flex flex-wrap gap-2">
         <button className={pill(p.live)} onClick={p.onToggle}>{p.live ? "🟢 المكالمة شغّالة" : "⚪ متوقفة — اضغط للتشغيل"}</button>
         <button className={pill(cfg.fast)} onClick={() => set({ fast: !cfg.fast })}>{cfg.fast ? "⚡ رد آلي مباشر" : "🛡️ استشارتي أولاً (3 ثوانٍ)"}</button>

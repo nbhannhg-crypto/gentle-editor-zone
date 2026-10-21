@@ -550,6 +550,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
   const cdRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => { mutedRef.current = muted; }, [muted]);
   const speakingRef = useRef(false);
+  const sttSeq = useRef(0);
   useEffect(() => { speakingRef.current = speaking; }, [speaking]);
   useEffect(() => { autoRef.current = autopilot; }, [autopilot]);
   useEffect(() => {
@@ -585,7 +586,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
   const cancelCountdown = () => { if (cdRef.current) clearInterval(cdRef.current); cdRef.current = null; setCountdown(0); };
   const autoSay = (text: string) => {
     if (!text) return;
-    if (autoRef.current || cfgRef.current.fast) { say(text); return; }
+    if (autoRef.current || cfgRef.current.fast || (cfgRef.current.instant ?? true)) { say(text); return; }
     cancelCountdown();
     let n = 3; setCountdown(n);
     cdRef.current = setInterval(() => {
@@ -688,7 +689,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
         if (findTriggerClip(tmp)) { pending = ""; if (silence) clearTimeout(silence); silence = null; setInterim(""); deliver(tmp); return; }
         pending = tmp; setInterim(tmp);
         if (silence) clearTimeout(silence);
-        silence = setTimeout(flush, 450);
+        silence = setTimeout(flush, (cfgRef.current.instant ?? true) ? 400 : 900);
       };
       (rec as any).onerror = () => { /* لا نوقف المكالمة — onend يعيد التشغيل تلقائياً */ };
       rec.onend = () => { if (pending.trim()) flush(); if (liveRef.current) setTimeout(spawn, 200); };
@@ -699,18 +700,22 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
     setLive(true); setSeconds(0); setDeal(null);
     // المحرك الأقوى: تسجيل المايك + تفريغ Gemini (يشتغل في كل المتصفحات)
     startVadRecorder({
-      silenceMs: 450,
+      silenceMs: (cfgRef.current.instant ?? true) ? 400 : 900,
+      minRms: () => cfgRef.current.sens ?? 0.012,
       // كتم الاستماع وهي تتكلم: ما يلتقط صوت الموظفة من السماعة
       isPaused: () => mutedRef.current || (!!audioRef.current && !audioRef.current.paused) || speakingRef.current,
-      onSpeechStart: () => { setInterim("🎙️ أسمعك…"); },
+      onSpeechStart: () => { sttSeq.current++; setInterim("🎙️ أسمعك…"); },
       onLevel: (rms) => { const n = Date.now(); if (n - lvlAt.current > 120) { lvlAt.current = n; setMicLvl(Math.min(1, rms * 12)); } },
       onPhrase: async (blob, mime, info) => {
         if (!liveRef.current) return;
         setInterim("⏳ أفهم كلامك…");
+        const my = ++sttSeq.current;
         try {
           const b64 = await blobToBase64(blob);
           const vocab = [...triggerVocab(100), ...rules.slice(0, 50).map((x) => x.trigger_text.slice(0, 80))].filter(Boolean).slice(0, 150);
           const r = await transcribeLive({ data: { audio: b64, mime, vocab } });
+          // طلب قديم والزبون بدأ كلام جديد → نتجاهله (بدون رسالة مفاتيح)
+          if (my !== sttSeq.current) { if (r.text.trim()) deliver(r.text); return; }
           setInterim("");
           const heard = r.text.trim();
           if (!heard) { if (r.busy) toast.error("المفاتيح مشغولة لحظة، كرر كلامك"); return; }
