@@ -9,6 +9,7 @@ import { MicButton } from "@/components/MicButton";
 import { mediaAnalyze, mediaSendOne, waList } from "@/lib/studio.functions";
 import { emptyMeta, pullMeta, pushMeta, removeMeta, type MediaMeta } from "@/lib/media-meta";
 import { bestMedia, normalizeArabic } from "@/lib/media-match";
+import { LibraryGuide, LibraryLock, MediaEditor, ShareBar } from "@/components/MediaTools";
 
 type Item = { id: string; kind: string; title: string; code: string; transcript: string; path: string; mime: string; url?: string | undefined };
 const KINDS = [["audio", "🎙️ أصوات"], ["video", "🎬 فيديو"], ["image", "🎨 تصاميم"]] as const;
@@ -34,6 +35,20 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
   const [open, setOpen] = useState<string | null>(null);
   const [aiBusy, setAiBusy] = useState<string | null>(null);
   useEffect(() => { if (storeId) void pullMeta(storeId).then(setMeta).catch(() => {}); }, [storeId]);
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [editing, setEditing] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const loadCounts = async () => {
+    if (!storeId) return;
+    const r = await Promise.all(KINDS.map(([k]) => supabase.from("media_library").select("id", { count: "exact", head: true }).eq("store_id", storeId).eq("kind", k)));
+    setCounts(Object.fromEntries(KINDS.map(([k], i) => [k, r[i]?.count ?? 0])));
+  };
+  const rename = async (it: Item, t: string) => {
+    setRenaming(null);
+    const v = t.trim(); if (!v || v === it.title) return;
+    const { error } = await supabase.from("media_library").update({ title: v }).eq("id", it.id);
+    if (error) toast.error(error.message); else { setItems((x) => x.map((i) => (i.id === it.id ? { ...i, title: v } : i))); toast.success("انحفظ الاسم ✅"); }
+  };
   useEffect(() => {
     waList().then((l) => { const o = l.filter((i) => i.status === "open").map((i) => i.name); setSessions(o); if (o[0]) setSession((s) => s || o[0]!); }).catch(() => {});
   }, []);
@@ -73,7 +88,7 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
     }
     setItems(rows);
   };
-  useEffect(() => { void load(); }, [storeId, kind]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { void load(); void loadCounts(); }, [storeId, kind]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = async (file: Blob, name: string) => {
     if (!storeId) return;
@@ -88,6 +103,7 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
       if (error) throw error;
       setTitle(""); setCode("");
       toast.success("انحفظ في المكتبة ✅");
+      void loadCounts();
       if (k !== "image" && data) {
         toast.message("جاري تحويل الكلام لنص…");
         try { await transcribe({ data: { id: data.id } }); } catch (e) { toast.error((e as Error).message); }
@@ -112,6 +128,7 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
     await supabase.storage.from("media-library").remove([it.path]);
     await supabase.from("media_library").delete().eq("id", it.id);
     if (storeId) void removeMeta(storeId, it.id).catch(() => {});
+    void loadCounts();
     await load();
   };
 
@@ -120,17 +137,25 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
     const mm = m(i.id);
     if (folder && mm.folder !== folder) return false;
     if (!q) return true;
-    return `${i.title} ${i.code} ${i.transcript}`.includes(q) || normalizeArabic(`${i.title} ${i.code} ${i.transcript} ${mm.ocr} ${mm.summary} ${mm.tags.join(" ")} ${mm.triggers.join(" ")} ${mm.questions.join(" ")}`).includes(normalizeArabic(q));
+    return `${i.title} ${i.code} ${i.transcript}`.includes(q) || normalizeArabic(`${i.title} ${i.code} ${i.transcript} ${mm.folder} ${mm.ocr} ${mm.summary} ${mm.tags.join(" ")} ${mm.triggers.join(" ")} ${mm.questions.join(" ")}`).includes(normalizeArabic(q));
   });
   const simHit = sim.trim() ? bestMedia(sim, items.map((i) => ({ ...i, ...m(i.id) })), 40) : null;
   const top = [...items].sort((a, b) => m(b.id).sends - m(a.id).sends).filter((i) => m(i.id).sends > 0).slice(0, 3);
 
   return (
+    <LibraryLock storeId={storeId}>
     <div className="space-y-4 rounded-2xl border bg-card p-4">
       <h2 className="text-lg font-bold">📚 مكتبة الأصوات والفيديو والتصاميم</h2>
+      <div className="grid grid-cols-4 gap-2 text-center">
+        <div className="rounded-xl bg-secondary p-2"><b className="block text-lg">{(counts["audio"] ?? 0) + (counts["video"] ?? 0) + (counts["image"] ?? 0)}</b><span className="text-xs">📦 الكل</span></div>
+        <div className="rounded-xl bg-secondary p-2"><b className="block text-lg">{counts["audio"] ?? 0}</b><span className="text-xs">🎙️ مقاطع</span></div>
+        <div className="rounded-xl bg-secondary p-2"><b className="block text-lg">{counts["video"] ?? 0}</b><span className="text-xs">🎬 فيديو</span></div>
+        <div className="rounded-xl bg-secondary p-2"><b className="block text-lg">{counts["image"] ?? 0}</b><span className="text-xs">🖼️ صور</span></div>
+      </div>
+      <LibraryGuide />
       <div className="flex gap-2 overflow-x-auto">
         {KINDS.map(([k, l]) => (
-          <button key={k} onClick={() => setKind(k)} className={`shrink-0 rounded-full px-4 py-1.5 text-sm ${kind === k ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>{l}</button>
+          <button key={k} onClick={() => setKind(k)} className={`shrink-0 rounded-full px-4 py-1.5 text-sm ${kind === k ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>{l} ({counts[k] ?? 0})</button>
         ))}
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
@@ -178,7 +203,9 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
         {shown.map((it) => (
           <div key={it.id} className="space-y-2 rounded-xl border p-3">
             <div className="flex items-center justify-between gap-2">
-              <b className="truncate text-sm">{it.title}</b>
+              {renaming === it.id
+                ? <Input autoFocus defaultValue={it.title} className="h-8 text-sm" onBlur={(e) => void rename(it, e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} />
+                : <b className="truncate text-sm">{it.title} <button className="text-xs" title="غيّر الاسم" onClick={() => setRenaming(it.id)}>✏️</button></b>}
               {it.code && <span className="rounded bg-secondary px-2 text-xs">#{it.code}</span>}
             </div>
             {it.url && it.kind === "image" && <img src={it.url} alt={it.title} className="max-h-48 w-full rounded-lg object-cover" />}
@@ -210,9 +237,13 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
                 {m(it.id).ocr && <p className="text-xs text-muted-foreground">🔤 النص داخل الملف: {m(it.id).ocr}</p>}
               </div>
             )}
+            <ShareBar it={it} />
+            <Button size="sm" variant="outline" onClick={() => setEditing(editing === it.id ? null : it.id)}>✂️ قص وتعديل</Button>
+            {editing === it.id && <MediaEditor it={it} onSave={save} onClose={() => setEditing(null)} />}
           </div>
         ))}
       </div>
     </div>
+    </LibraryLock>
   );
 }
