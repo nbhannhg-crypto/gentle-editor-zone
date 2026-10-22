@@ -6,7 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { MicButton } from "@/components/MicButton";
 
+import { queenComplaintSenders } from "@/lib/queen-control.functions";
+
 type C = { id: string; subject: string; details: string; status: string; admin_reply: string; created_at: string; user_id: string };
+type Sender = { name: string; email: string; store: string; storeId: string; whatsapp: string };
 const STATUS: Record<string, string> = { new: "🆕 جديدة", working: "⏳ قيد المعالجة", done: "✅ تم الحل", closed: "🔒 مغلقة" };
 
 export function Complaints({ storeId, admin }: { storeId?: string | undefined; admin?: boolean | undefined }) {
@@ -15,9 +18,14 @@ export function Complaints({ storeId, admin }: { storeId?: string | undefined; a
   const [details, setDetails] = useState("");
   const [replies, setReplies] = useState<Record<string, string>>({});
 
+  const [senders, setSenders] = useState<Record<string, Sender>>({});
   const load = async () => {
     const { data } = await supabase.from("complaints").select("*").order("created_at", { ascending: false }).limit(200);
-    setList((data ?? []) as C[]);
+    const rows = (data ?? []) as C[];
+    setList(rows);
+    if (admin && rows.length) {
+      try { const r = await queenComplaintSenders({ data: { userIds: rows.map((c) => c.user_id) } }); setSenders(r.senders); } catch { /* keep list */ }
+    }
   };
   useEffect(() => { void load(); }, []);
 
@@ -46,6 +54,22 @@ export function Complaints({ storeId, admin }: { storeId?: string | undefined; a
       {!list.length && <p className="text-sm text-muted-foreground">ما فيه شكاوى.</p>}
       {list.map((c) => (
         <div key={c.id} className="space-y-1 rounded-xl border p-3">
+          {admin && (() => {
+            const s = senders[c.user_id];
+            const wa = (s?.whatsapp ?? "").replace(/\D/g, "");
+            return (
+              <div className="mb-2 space-y-0.5 rounded-lg bg-secondary p-2 text-xs">
+                <p>🏪 المتجر: <b>{s?.store || "—"}</b></p>
+                <p>👤 الحساب: {s?.name || "—"}</p>
+                <p dir="ltr" className="text-right">✉️ {s?.email || "—"}</p>
+                <p dir="ltr" className="text-right">📱 {wa || "—"}</p>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {wa && <a className="underline" target="_blank" rel="noreferrer" href={`https://wa.me/${wa}?text=${encodeURIComponent(`أهلاً بك، بخصوص شكواك: ${c.subject}`)}`}>💬 تواصل واتساب</a>}
+                  {s?.storeId && <a className="underline" target="_blank" rel="noreferrer" href={`/s/${s.storeId}`}>🔗 صفحة المتجر</a>}
+                </div>
+              </div>
+            );
+          })()}
           <div className="flex items-center justify-between gap-2"><b>{c.subject}</b><span className="text-xs">{STATUS[c.status] ?? c.status}</span></div>
           {c.details && <p className="text-sm text-muted-foreground">{c.details}</p>}
           <p className="text-xs text-muted-foreground">{new Date(c.created_at).toLocaleString("ar-SA")}</p>
