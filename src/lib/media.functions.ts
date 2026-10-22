@@ -12,10 +12,31 @@ export const transcribeMedia = createServerFn({ method: "POST" })
     if (!row) throw new Error("الملف غير موجود");
     const { data: file, error } = await sb.storage.from("media-library").download(row.path);
     if (error || !file) throw new Error("تعذر قراءة الملف");
-    const { geminiMedia } = await import("./ai-keys.server");
-    const b64 = Buffer.from(await file.arrayBuffer()).toString("base64");
-    const out = await geminiMedia("فرّغ هذا المقطع الصوتي حرفياً بالعربية (لهجة سعودية). اكتب النص فقط.", row.mime || "audio/webm", b64);
-    if (!out) throw new Error("المفاتيح المجانية مشغولة الحين، انتظر دقيقة وجرّب مرة ثانية");
+    let out = "";
+    const groqKey = process.env["GROQ_API_KEY"];
+    if (groqKey) {
+      try {
+        const mime = row.mime || "audio/webm";
+        const ext = (mime.split("/")[1] || "webm").split(";")[0];
+        const fd = new FormData();
+        fd.append("file", new Blob([await file.arrayBuffer()], { type: mime }), `audio.${ext}`);
+        fd.append("model", "whisper-large-v3");
+        fd.append("language", "ar");
+        fd.append("temperature", "0");
+        fd.append("response_format", "json");
+        const r = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+          method: "POST", headers: { Authorization: `Bearer ${groqKey}` }, body: fd,
+        });
+        if (r.ok) out = String(((await r.json()) as { text?: string }).text ?? "").trim();
+        else console.error("groq media stt", r.status, (await r.text()).slice(0, 200));
+      } catch (e) { console.error("groq media stt error", e); }
+    }
+    if (!out) {
+      const { geminiMedia } = await import("./ai-keys.server");
+      const b64 = Buffer.from(await file.arrayBuffer()).toString("base64");
+      out = (await geminiMedia("فرّغ هذا المقطع الصوتي حرفياً بالعربية (لهجة سعودية). اكتب النص فقط.", row.mime || "audio/webm", b64)) || "";
+    }
+    if (!out) throw new Error("ما قدرت أحوّل الصوت الحين، جرّب مرة ثانية بعد دقيقة");
     const j = { text: out };
     const text = String(j.text ?? "").slice(0, 10000);
     await sb.from("media_library").update({ transcript: text }).eq("id", row.id);
