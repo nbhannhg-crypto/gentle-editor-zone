@@ -81,7 +81,9 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
 
   const load = async () => {
     if (!storeId) return;
-    const { data } = await supabase.from("media_library").select("*").eq("store_id", storeId).eq("kind", kind).order("created_at", { ascending: false }).limit(300);
+    let qy = supabase.from("media_library").select("*").eq("store_id", storeId);
+    if (kind !== "all") qy = qy.eq("kind", kind);
+    const { data } = await qy.order("created_at", { ascending: false }).limit(kind === "all" ? 1000 : 300);
     const rows = (data ?? []) as Item[];
     if (rows.length) {
       const { data: urls } = await supabase.storage.from("media-library").createSignedUrls(rows.map((r) => r.path), 3600);
@@ -116,12 +118,14 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
 
   // رفع جماعي: حتى 100 ملف دفعة وحدة، يدخلون المجلد المفتوح حالياً
   const [prog, setProg] = useState<{ done: number; total: number } | null>(null);
-  const saveMany = async (files: File[]) => {
+  const saveMany = async (files: File[], target?: string) => {
     if (!storeId || !files.length) return;
+    const dest = target ?? folder;
     const list = files.slice(0, 100);
     if (files.length > 100) toast.message("بنرفع أول 100 ملف، والباقي ارفعه بعدها");
     setBusy(true); setProg({ done: 0, total: list.length });
     let ok = 0; const kinds = new Set<string>();
+    const newMeta: Record<string, MediaMeta> = {};
     for (let i = 0; i < list.length; i++) {
       const f = list[i]!;
       try {
@@ -133,15 +137,22 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
         const nm = f.name.replace(/\.[^.]+$/, "");
         const { data, error } = await supabase.from("media_library").insert({ store_id: storeId, kind: k, title: title ? `${title} ${i + 1}` : nm, code, path, mime: f.type }).select("id").single();
         if (error) throw error;
-        if (data && folder) setM(data.id, { folder });
+        if (data && dest) {
+          const mm = { ...emptyMeta(), folder: dest };
+          newMeta[data.id] = mm;
+          setMeta((x) => ({ ...x, [data.id]: mm }));
+          // حفظ مضمون بالسحابة مع محاولة ثانية
+          try { await pushMeta(storeId, data.id, mm); } catch { try { await pushMeta(storeId, data.id, mm); } catch { toast.error(`${f.name}: ما انحفظ الألبوم، انقله يدوياً`); } }
+        }
         ok++; kinds.add(k);
       } catch (e) { toast.error(`${f.name}: ${(e as Error).message}`); }
       setProg({ done: i + 1, total: list.length });
     }
     setTitle(""); setCode(""); setBusy(false); setProg(null);
-    toast.success(`انرفع ${ok} من ${list.length} ✅${folder ? ` داخل «${folder}»` : ""}`);
+    toast.success(`انرفع ${ok} من ${list.length} ✅${dest ? ` داخل «${dest}»` : ""}`);
     void loadCounts();
-    if (kinds.size === 1 && !kinds.has(kind)) setKind([...kinds][0] as typeof kind); else await load();
+    if (dest) { setFolder(dest); if (kind !== "all") setKind("all"); else await load(); }
+    else if (kinds.size === 1 && !kinds.has(kind) && kind !== "all") setKind([...kinds][0] as typeof kind); else await load();
   };
 
   // ألبومات جديدة (فاضية) تنحفظ لين ينرفع فيها أول ملف
