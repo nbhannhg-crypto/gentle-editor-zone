@@ -538,3 +538,65 @@ export const voiceStateSave = createServerFn({ method: "POST" })
     if (up.error) throw new Error(up.error.message);
     return { ok: true };
   });
+
+/** Media library: send any stored file (voice as native PTT, image/video as media) to a WhatsApp number. Additive. */
+export const mediaSendOne = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({
+    name: z.string().max(80),
+    number: z.string().regex(/^\+?\d{8,15}$/),
+    id: z.string().uuid(),
+    caption: z.string().max(1000).default(""),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const storeId = await myStore(context as Ctx);
+    if (!(await canManage(context as Ctx, data.name, storeId))) throw new Error("غير مسموح");
+    const { data: row } = await context.supabase.from("media_library").select("path, mime, kind, title").eq("id", data.id).maybeSingle();
+    if (!row) throw new Error("الملف غير موجود");
+    const dl = await context.supabase.storage.from("media-library").download(row.path);
+    if (dl.error || !dl.data) throw new Error("تعذر قراءة الملف");
+    const { error: spendErr } = await context.supabase.rpc("spend_points", { _store: storeId, _amount: 1, _reason: "إرسال من المكتبة" });
+    if (spendErr) throw new Error(spendErr.message.includes("insufficient") ? "رصيدك ما يكفي — اشحن من المحفظة" : spendErr.message);
+    const b64 = Buffer.from(await dl.data.arrayBuffer()).toString("base64");
+    const num = data.number.replace(/^\+/, "");
+    const inst = encodeURIComponent(data.name);
+    if (row.kind === "audio") {
+      await evo().call(`/message/sendWhatsAppAudio/${inst}`, "POST", { number: num, audio: b64, encoding: true, ptt: true });
+      if (data.caption.trim()) await evo().call(`/message/sendText/${inst}`, "POST", { number: num, text: data.caption });
+    } else {
+      await evo().call(`/message/sendMedia/${inst}`, "POST", {
+        number: num, mediatype: row.kind === "video" ? "video" : "image", mimetype: row.mime, media: b64,
+        caption: data.caption, fileName: row.path.split("/").pop(),
+      });
+    }
+    await context.supabase.from("channel_messages").insert({ store_id: storeId, channel: "whatsapp", customer_phone: num, direction: "out", text: data.caption || `📎 ${row.title}`, replied: true });
+    return { ok: true };
+  });
+
+/** Media library: AI understanding (OCR + description + tags + likely customer questions) via free Gemini keys only. */
+export const mediaAnalyze = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: row } = await context.supabase.from("media_library").select("path, mime, kind, transcript").eq("id", data.id).maybeSingle();
+    if (!row) throw new Error("الملف غير موجود");
+    const dl = await context.supabase.storage.from("media-library").download(row.path);
+    if (dl.error || !dl.data) throw new Error("تعذر قراءة الملف");
+    if (dl.data.size > 15_000_000) throw new Error("الملف كبير على التحليل (أكثر من 15MB)");
+    const { geminiMedia } = await import("./ai-keys.server");
+    const b64 = Buffer.from(await dl.data.arrayBuffer()).toString("base64");
+    const out = await geminiMedia(
+      `حلّل هذا الملف (${row.kind}) وأرجع JSON فقط بهذا الشكل:
+{"ocr":"كل نص مكتوب داخل الصورة/الفيديو حرفياً أو فارغ","summary":"وصف قصير بالعربي لمحتوى الملف","tags":["5-10 كلمات مفتاحية"],"questions":["5-8 أسئلة أو عبارات قد يكتبها زبون سعودي بلهجته ويكون هذا الملف هو الرد المناسب"]}`,
+      row.mime || "application/octet-stream", b64, { temperature: 0.2, responseMimeType: "application/json" },
+    );
+    if (!out) throw new Error("المفاتيح المجانية مشغولة الحين، جرّب بعد دقيقة");
+    let j: { ocr?: string; summary?: string; tags?: string[]; questions?: string[] } = {};
+    try { j = JSON.parse(out.replace(/^```(json)?|```$/g, "").trim()); } catch { j = { summary: out.slice(0, 500) }; }
+    return {
+      ocr: String(j.ocr ?? "").slice(0, 4000),
+      summary: String(j.summary ?? "").slice(0, 1000),
+      tags: (Array.isArray(j.tags) ? j.tags : []).map(String).slice(0, 15),
+      questions: (Array.isArray(j.questions) ? j.questions : []).map(String).slice(0, 12),
+    };
+  });
