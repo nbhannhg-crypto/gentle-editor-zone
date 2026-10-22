@@ -101,6 +101,7 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
       const k = file.type.startsWith("image") ? "image" : file.type.startsWith("video") ? "video" : "audio";
       const { data, error } = await supabase.from("media_library").insert({ store_id: storeId, kind: k, title: title || name, code, path, mime: file.type }).select("id").single();
       if (error) throw error;
+      if (data && folder) setM(data.id, { folder });
       setTitle(""); setCode("");
       toast.success("انحفظ في المكتبة ✅");
       void loadCounts();
@@ -110,6 +111,56 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
       }
       if (k !== kind) setKind(k); else await load();
     } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
+  };
+
+  // رفع جماعي: حتى 100 ملف دفعة وحدة، يدخلون المجلد المفتوح حالياً
+  const [prog, setProg] = useState<{ done: number; total: number } | null>(null);
+  const saveMany = async (files: File[]) => {
+    if (!storeId || !files.length) return;
+    const list = files.slice(0, 100);
+    if (files.length > 100) toast.message("بنرفع أول 100 ملف، والباقي ارفعه بعدها");
+    setBusy(true); setProg({ done: 0, total: list.length });
+    let ok = 0; const kinds = new Set<string>();
+    for (let i = 0; i < list.length; i++) {
+      const f = list[i]!;
+      try {
+        const ext = f.name.split(".").pop() || "bin";
+        const path = `${storeId}/${crypto.randomUUID()}.${ext}`;
+        const up = await supabase.storage.from("media-library").upload(path, f, { contentType: f.type });
+        if (up.error) throw up.error;
+        const k = f.type.startsWith("image") ? "image" : f.type.startsWith("video") ? "video" : "audio";
+        const nm = f.name.replace(/\.[^.]+$/, "");
+        const { data, error } = await supabase.from("media_library").insert({ store_id: storeId, kind: k, title: title ? `${title} ${i + 1}` : nm, code, path, mime: f.type }).select("id").single();
+        if (error) throw error;
+        if (data && folder) setM(data.id, { folder });
+        ok++; kinds.add(k);
+      } catch (e) { toast.error(`${f.name}: ${(e as Error).message}`); }
+      setProg({ done: i + 1, total: list.length });
+    }
+    setTitle(""); setCode(""); setBusy(false); setProg(null);
+    toast.success(`انرفع ${ok} من ${list.length} ✅${folder ? ` داخل «${folder}»` : ""}`);
+    void loadCounts();
+    if (kinds.size === 1 && !kinds.has(kind)) setKind([...kinds][0] as typeof kind); else await load();
+  };
+
+  // ألبومات جديدة (فاضية) تنحفظ لين ينرفع فيها أول ملف
+  const albumKey = `ml_albums:${storeId ?? ""}`;
+  const [extraAlbums, setExtraAlbums] = useState<string[]>([]);
+  useEffect(() => { try { setExtraAlbums(JSON.parse(localStorage.getItem(albumKey) || "[]")); } catch { /* */ } }, [albumKey]);
+  const addAlbum = () => {
+    const n = prompt("اسم الألبوم الجديد (مثلاً: صور العطور)")?.trim();
+    if (!n) return;
+    const next = [...new Set([...extraAlbums, n])];
+    setExtraAlbums(next); localStorage.setItem(albumKey, JSON.stringify(next));
+    setFolder(n); toast.success(`انفتح ألبوم «${n}» — ارفع فيه الحين`);
+  };
+  const renameAlbum = (old: string) => {
+    const n = prompt("الاسم الجديد للألبوم", old)?.trim();
+    if (!n || n === old) return;
+    items.filter((i) => m(i.id).folder === old).forEach((i) => setM(i.id, { folder: n }));
+    const next = extraAlbums.map((a) => (a === old ? n : a));
+    setExtraAlbums(next); localStorage.setItem(albumKey, JSON.stringify(next));
+    if (folder === old) setFolder(n);
   };
 
   const toggleRec = async () => {
@@ -168,8 +219,43 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
           <input type="file" hidden accept="audio/*,video/*,image/*" disabled={busy}
             onChange={(e) => { const f = e.target.files?.[0]; if (f) void save(f, f.name); e.target.value = ""; }} />
         </label>
+        <label className="cursor-pointer rounded-md bg-accent px-4 py-2 text-sm text-accent-foreground">
+          📚 رفع جماعي (حتى 100)
+          <input type="file" hidden multiple accept="audio/*,video/*,image/*" disabled={busy}
+            onChange={(e) => { const fs = Array.from(e.target.files ?? []); e.target.value = ""; void saveMany(fs); }} />
+        </label>
         <Button variant={rec ? "destructive" : "secondary"} onClick={toggleRec} disabled={busy}>{rec ? "⏹️ أوقف التسجيل" : "🔴 سجّل مباشر"}</Button>
-        {busy && <span className="self-center text-sm text-muted-foreground">جاري الحفظ…</span>}
+        {busy && !prog && <span className="self-center text-sm text-muted-foreground">جاري الحفظ…</span>}
+      </div>
+      {prog && (
+        <div className="space-y-1">
+          <p className="text-xs">جاري رفع {prog.done} من {prog.total}…{folder && ` داخل «${folder}»`}</p>
+          <div className="h-2 overflow-hidden rounded-full bg-secondary"><div className="h-full bg-primary transition-all" style={{ width: `${(prog.done / prog.total) * 100}%` }} /></div>
+        </div>
+      )}
+      <div className="space-y-2 rounded-xl border p-3">
+        <div className="flex items-center justify-between gap-2">
+          {folder
+            ? <><button className="text-sm" onClick={() => setFolder("")}>🔙 كل الألبومات</button><b className="truncate text-sm">📂 {folder}</b><button className="text-xs" onClick={() => renameAlbum(folder)}>✏️ تسمية</button></>
+            : <><b className="text-sm">🖼️ الألبومات</b><Button size="sm" variant="secondary" onClick={addAlbum}>➕ ألبوم جديد</Button></>}
+        </div>
+        {!folder && (
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {[...new Set([...folders, ...extraAlbums])].map((f) => {
+              const inside = items.filter((i) => m(i.id).folder === f);
+              const cover = inside.find((i) => i.kind === "image" && i.url);
+              return (
+                <button key={f} onClick={() => setFolder(f)} className="overflow-hidden rounded-lg border text-start">
+                  <div className="flex h-20 items-center justify-center bg-secondary text-2xl">
+                    {cover ? <img src={cover.url} alt={f} className="h-full w-full object-cover" /> : "📁"}
+                  </div>
+                  <div className="p-2"><b className="block truncate text-xs">{f}</b><span className="text-xs text-muted-foreground">{inside.length} ملف</span></div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {folder && <p className="text-xs text-muted-foreground">أي ملف ترفعه الحين يدخل هذا الألبوم تلقائياً.</p>}
       </div>
       <div className="flex gap-2">
         <Input placeholder="🔍 ابحث بالاسم أو الكود أو الكلام" value={q} onChange={(e) => setQ(e.target.value)} />
