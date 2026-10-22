@@ -396,6 +396,59 @@ export const campaignSend = createServerFn({ method: "POST" })
     return { sent, failed, cost };
   });
 
+// Contacts synced from the linked WhatsApp (names + numbers, multi-device)
+export const waContacts = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ name: z.string().max(80) }).parse(d))
+  .handler(async ({ data, context }) => {
+    if (!(await canManage(context as Ctx, data.name))) throw new Error("غير مسموح");
+    const inst = encodeURIComponent(data.name);
+    const out = new Map<string, string>();
+    const add = (jid: unknown, nm: unknown) => {
+      const j = String(jid ?? "");
+      if (!/@s\.whatsapp\.net$|@c\.us$/.test(j)) return;
+      const n = j.split("@")[0]!.replace(/\D/g, "");
+      if (n.length < 8 || n.length > 15) return;
+      const label = String(nm ?? "").trim();
+      if (!out.has(n) || (label && !out.get(n))) out.set(n, label);
+    };
+    try {
+      const c = await evo().call(`/chat/findContacts/${inst}`, "POST", {});
+      for (const x of Array.isArray(c) ? c : []) add(x?.remoteJid ?? x?.id, x?.pushName ?? x?.name);
+    } catch { /* try chats */ }
+    try {
+      const c = await evo().call(`/chat/findChats/${inst}`, "POST", {});
+      for (const x of Array.isArray(c) ? c : []) add(x?.remoteJid ?? x?.id, x?.pushName ?? x?.name);
+    } catch { /* ignore */ }
+    return { contacts: [...out].map(([phone, name]) => ({ phone, name })).slice(0, 5000) };
+  });
+
+// One recipient at a time (client paces with anti-ban delay + live log)
+export const campaignSendOne = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({
+    name: z.string().max(80),
+    number: z.string().regex(/^\+?\d{8,15}$/),
+    text: z.string().max(1000).default(""),
+    audioId: z.string().uuid().optional(),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const storeId = await myStore(context as Ctx);
+    if (!(await canManage(context as Ctx, data.name, storeId))) throw new Error("غير مسموح");
+    if (!data.text.trim() && !data.audioId) throw new Error("الرسالة فاضية");
+    const { error: spendErr } = await context.supabase.rpc("spend_points", { _store: storeId, _amount: 1, _reason: "حملة واتساب" });
+    if (spendErr) throw new Error(spendErr.message.includes("insufficient") ? "رصيدك ما يكفي — اشحن من المحفظة" : spendErr.message);
+    const num = data.number.replace(/^\+/, "");
+    const inst = encodeURIComponent(data.name);
+    if (data.text.trim()) await evo().call(`/message/sendText/${inst}`, "POST", { number: num, text: data.text });
+    if (data.audioId) {
+      const { b64 } = await audioBase64(context as Ctx, data.audioId);
+      await evo().call(`/message/sendWhatsAppAudio/${inst}`, "POST", { number: num, audio: b64, encoding: true, ptt: true });
+    }
+    await context.supabase.from("channel_messages").insert({ store_id: storeId, channel: "whatsapp", customer_phone: num, direction: "out", text: data.text || "🎙️ فويس", replied: true });
+    return { ok: true };
+  });
+
 export const waAutoList = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
