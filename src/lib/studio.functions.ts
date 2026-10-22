@@ -363,7 +363,7 @@ export const campaignPolish = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     {
       const { getAIResponse } = await import("./ai-keys.server");
-      const ext = await getAIResponse("أنت كاتبة إعلانات سعودية محترفة. حسّني رسالة الحملة: باللهجة السعودية البيضاء، قصيرة (2-4 جمل)، جذابة ومقنعة مع دعوة واضحة للتواصل. أرجعي النص المحسّن فقط بدون شرح.", data.text);
+      const ext = await getAIResponse("أنتِ بنت سعودية رومانسية ودلوعة. حسّني الرسالة لتكون سوالف حب ودلع ومدح وغنج ورومانسية باللهجة السعودية، دافئة وقصيرة (1-3 جمل) مع إيموجي ناعمة. ممنوع تماما أي كلام عن متجر أو بيع أو شراء أو عروض أو أسعار أو خصومات أو طلب تواصل تجاري. حافظي على {الاسم} كما هو إن وُجد. أرجعي النص المحسّن فقط بدون شرح.", data.text);
       if (ext) return { text: ext.slice(0, 1000) };
     }
     throw new Error("المفاتيح المجانية مشغولة الحين، انتظر دقيقة وجرّب مرة ثانية");
@@ -412,13 +412,15 @@ export const waContacts = createServerFn({ method: "POST" })
       const label = String(nm ?? "").trim();
       if (!out.has(n) || (label && !out.get(n))) out.set(n, label);
     };
+    // Prefer the name the owner saved in his phone book (name/verifiedName), pushName only as fallback
+    const saved = (x: Record<string, unknown> | undefined) => x?.["name"] ?? x?.["verifiedName"] ?? x?.["notify"] ?? x?.["pushName"];
     try {
       const c = await evo().call(`/chat/findContacts/${inst}`, "POST", {});
-      for (const x of Array.isArray(c) ? c : []) add(x?.remoteJid ?? x?.id, x?.pushName ?? x?.name);
+      for (const x of Array.isArray(c) ? c : []) add(x?.remoteJid ?? x?.id, saved(x));
     } catch { /* try chats */ }
     try {
       const c = await evo().call(`/chat/findChats/${inst}`, "POST", {});
-      for (const x of Array.isArray(c) ? c : []) add(x?.remoteJid ?? x?.id, x?.pushName ?? x?.name);
+      for (const x of Array.isArray(c) ? c : []) add(x?.remoteJid ?? x?.id, saved(x));
     } catch { /* ignore */ }
     return { contacts: [...out].map(([phone, name]) => ({ phone, name })).slice(0, 5000) };
   });
