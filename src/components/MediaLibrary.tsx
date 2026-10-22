@@ -184,6 +184,26 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
     await load();
   };
 
+  const [selMode, setSelMode] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
+  const togglePick = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+  const moveTo = async () => {
+    const names = [...new Set([...items.map((i) => m(i.id).folder).filter(Boolean), ...extraAlbums])];
+    const n = prompt(`اكتب اسم الألبوم اللي تبي تنقل له (أو اسم جديد):\n${names.join(" · ")}\n(اتركه فاضي = إخراج من الألبوم)`, folder)?.trim();
+    if (n === undefined) return;
+    const next = { ...meta };
+    picked.forEach((id) => { next[id] = { ...m(id), folder: n }; });
+    setMeta(next);
+    if (storeId) {
+      const r = await Promise.allSettled(picked.map((id) => pushMeta(storeId, id, next[id]!)));
+      const bad = r.filter((x) => x.status === "rejected").length;
+      if (bad) toast.error(`${bad} ملف ما انحفظ نقله بالسحابة، جرّب مرة ثانية`);
+    }
+    if (n && !extraAlbums.includes(n)) { const ea = [...extraAlbums, n]; setExtraAlbums(ea); localStorage.setItem(albumKey, JSON.stringify(ea)); }
+    toast.success(`انتقل ${picked.length} ملف ${n ? `إلى «${n}»` : "خارج الألبوم"} ✅`);
+    setPicked([]); setSelMode(false);
+  };
+
   const folders = [...new Set(items.map((i) => m(i.id).folder).filter(Boolean))];
   const shown = items.filter((i) => {
     const mm = m(i.id);
@@ -206,6 +226,7 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
       </div>
       <LibraryGuide />
       <div className="flex gap-2 overflow-x-auto">
+        <button onClick={() => setKind("all")} className={`shrink-0 rounded-full px-4 py-1.5 text-sm ${kind === "all" ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>📦 الكل ({(counts["audio"] ?? 0) + (counts["video"] ?? 0) + (counts["image"] ?? 0)})</button>
         {KINDS.map(([k, l]) => (
           <button key={k} onClick={() => setKind(k)} className={`shrink-0 rounded-full px-4 py-1.5 text-sm ${kind === k ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>{l} ({counts[k] ?? 0})</button>
         ))}
@@ -256,7 +277,16 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
             })}
           </div>
         )}
-        {folder && <p className="text-xs text-muted-foreground">أي ملف ترفعه الحين يدخل هذا الألبوم تلقائياً.</p>}
+        {folder && (
+          <div className="space-y-2">
+            <label className="block cursor-pointer rounded-md bg-primary px-4 py-2 text-center text-sm text-primary-foreground">
+              ⬆️ رفع صور/فيديو/أصوات داخل «{folder}» (حتى 100)
+              <input type="file" hidden multiple accept="audio/*,video/*,image/*" disabled={busy}
+                onChange={(e) => { const fs = Array.from(e.target.files ?? []); e.target.value = ""; void saveMany(fs, folder); }} />
+            </label>
+            <p className="text-xs text-muted-foreground">أي ملف ترفعه الحين يدخل هذا الألبوم تلقائياً — ويطلع هنا كل الأنواع مع بعض.</p>
+          </div>
+        )}
       </div>
       <div className="flex gap-2">
         <Input placeholder="🔍 ابحث بالاسم أو الكود أو الكلام" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -285,10 +315,21 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
           {top.length > 0 && <span className="self-center text-muted-foreground">🏆 الأكثر إرسالاً: {top.map((t) => `${t.title} (${m(t.id).sends})`).join(" · ")}</span>}
         </div>
       )}
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-dashed p-2 text-xs">
+        <Button size="sm" variant={selMode ? "default" : "secondary"} onClick={() => { setSelMode(!selMode); setPicked([]); }}>{selMode ? "✖️ إلغاء التحديد" : "☑️ تحديد متعدد"}</Button>
+        {selMode && <>
+          <Button size="sm" variant="secondary" onClick={() => setPicked(shown.map((i) => i.id))}>تحديد الكل ({shown.length})</Button>
+          <span>محدد: {picked.length}</span>
+          <Button size="sm" disabled={!picked.length} onClick={moveTo}>📂 نقل إلى ألبوم…</Button>
+        </>}
+      </div>
       {!shown.length && <p className="text-sm text-muted-foreground">ما فيه ملفات هنا للحين.</p>}
       <div className="grid gap-3 sm:grid-cols-2">
         {shown.map((it) => (
-          <div key={it.id} className="space-y-2 rounded-xl border p-3">
+          <div key={it.id} className={`space-y-2 rounded-xl border p-3 ${picked.includes(it.id) ? "ring-2 ring-primary" : ""}`}>
+            {selMode && (
+              <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={picked.includes(it.id)} onChange={() => togglePick(it.id)} /> حدد للنقل</label>
+            )}
             <div className="flex items-center justify-between gap-2">
               {renaming === it.id
                 ? <Input autoFocus defaultValue={it.title} className="h-8 text-sm" onBlur={(e) => void rename(it, e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} />
