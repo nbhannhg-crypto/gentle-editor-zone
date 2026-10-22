@@ -17,6 +17,7 @@ const KINDS = [["audio", "🎙️ أصوات"], ["video", "🎬 فيديو"], ["
 export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
   const [kind, setKind] = useState<string>("audio");
   const [items, setItems] = useState<Item[]>([]);
+  const [busyT, setBusyT] = useState("");
   const [q, setQ] = useState("");
   const [title, setTitle] = useState("");
   const [code, setCode] = useState("");
@@ -298,11 +299,13 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
             {it.url && it.kind === "video" && <video src={it.url} controls className="max-h-48 w-full rounded-lg" />}
             {it.url && it.kind === "audio" && <audio src={it.url} controls className="w-full" />}
             {it.kind !== "image" && (
-              <p className="text-xs text-muted-foreground">{it.transcript || "بدون تفريغ نصي"}</p>
+              it.transcript
+                ? <p className="rounded-md border border-border bg-muted px-2 py-1.5 text-sm font-semibold text-foreground">💬 {it.transcript}</p>
+                : <p className="text-xs text-muted-foreground">بدون تفريغ نصي</p>
             )}
             <div className="flex gap-2">
               {it.kind !== "image" && (
-                <Button size="sm" variant="secondary" onClick={async () => { try { await transcribe({ data: { id: it.id } }); await load(); } catch (e) { toast.error((e as Error).message); } }}>📝 حوّل لنص</Button>
+                <Button size="sm" variant="secondary" disabled={busyT === it.id} onClick={async () => { setBusyT(it.id); try { await transcribe({ data: { id: it.id } }); await load(); toast.success("تم تفريغ الصوت ✅"); } catch (e) { toast.error((e as Error).message); } finally { setBusyT(""); } }}>{busyT === it.id ? "⏳ جاري التحويل..." : "📝 حوّل لنص"}</Button>
               )}
               <Button size="sm" variant="ghost" onClick={() => { if (confirm("أكيد تحذف الملف؟")) void del(it); }}>🗑️</Button>
             </div>
