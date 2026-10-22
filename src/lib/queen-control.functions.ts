@@ -98,3 +98,29 @@ export const queenCopySection = createServerFn({ method: "POST" })
     }
     return { copied: n };
   });
+
+/** Queen only: who sent each complaint — account name, email, store name and WhatsApp. */
+export const queenComplaintSenders = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ userIds: z.array(z.string().uuid()).max(200) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const db = await queen(context);
+    const ids = [...new Set(data.userIds)];
+    if (!ids.length) return { senders: {} as Record<string, { name: string; email: string; store: string; storeId: string; whatsapp: string }> };
+    const [{ data: profs }, { data: stores }] = await Promise.all([
+      db.from("profiles").select("id, full_name").in("id", ids),
+      db.from("stores").select("id, name, whatsapp, owner_id").in("owner_id", ids),
+    ]);
+    const emails: Record<string, string> = {};
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      await Promise.all(ids.map(async (id) => { const { data: u } = await supabaseAdmin.auth.admin.getUserById(id); if (u?.user?.email) emails[id] = u.user.email; }));
+    } catch { /* email optional */ }
+    const senders: Record<string, { name: string; email: string; store: string; storeId: string; whatsapp: string }> = {};
+    for (const id of ids) {
+      const p = (profs ?? []).find((x: any) => x.id === id);
+      const s = (stores ?? []).find((x: any) => x.owner_id === id);
+      senders[id] = { name: p?.full_name ?? "", email: emails[id] ?? "", store: s?.name ?? "", storeId: s?.id ?? "", whatsapp: s?.whatsapp ?? "" };
+    }
+    return { senders };
+  });
