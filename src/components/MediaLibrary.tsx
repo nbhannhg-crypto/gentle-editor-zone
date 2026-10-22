@@ -128,6 +128,7 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
     await supabase.storage.from("media-library").remove([it.path]);
     await supabase.from("media_library").delete().eq("id", it.id);
     if (storeId) void removeMeta(storeId, it.id).catch(() => {});
+    void loadCounts();
     await load();
   };
 
@@ -136,7 +137,7 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
     const mm = m(i.id);
     if (folder && mm.folder !== folder) return false;
     if (!q) return true;
-    return `${i.title} ${i.code} ${i.transcript}`.includes(q) || normalizeArabic(`${i.title} ${i.code} ${i.transcript} ${mm.ocr} ${mm.summary} ${mm.tags.join(" ")} ${mm.triggers.join(" ")} ${mm.questions.join(" ")}`).includes(normalizeArabic(q));
+    return `${i.title} ${i.code} ${i.transcript}`.includes(q) || normalizeArabic(`${i.title} ${i.code} ${i.transcript} ${mm.folder} ${mm.ocr} ${mm.summary} ${mm.tags.join(" ")} ${mm.triggers.join(" ")} ${mm.questions.join(" ")}`).includes(normalizeArabic(q));
   });
   const simHit = sim.trim() ? bestMedia(sim, items.map((i) => ({ ...i, ...m(i.id) })), 40) : null;
   const top = [...items].sort((a, b) => m(b.id).sends - m(a.id).sends).filter((i) => m(i.id).sends > 0).slice(0, 3);
