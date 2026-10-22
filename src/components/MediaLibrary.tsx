@@ -147,10 +147,10 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
     <div className="space-y-4 rounded-2xl border bg-card p-4">
       <h2 className="text-lg font-bold">📚 مكتبة الأصوات والفيديو والتصاميم</h2>
       <div className="grid grid-cols-4 gap-2 text-center">
-        <div className="rounded-xl bg-secondary p-2"><b className="block text-lg">{(counts.audio ?? 0) + (counts.video ?? 0) + (counts.image ?? 0)}</b><span className="text-xs">📦 الكل</span></div>
-        <div className="rounded-xl bg-secondary p-2"><b className="block text-lg">{counts.audio ?? 0}</b><span className="text-xs">🎙️ مقاطع</span></div>
-        <div className="rounded-xl bg-secondary p-2"><b className="block text-lg">{counts.video ?? 0}</b><span className="text-xs">🎬 فيديو</span></div>
-        <div className="rounded-xl bg-secondary p-2"><b className="block text-lg">{counts.image ?? 0}</b><span className="text-xs">🖼️ صور</span></div>
+        <div className="rounded-xl bg-secondary p-2"><b className="block text-lg">{(counts["audio"] ?? 0) + (counts["video"] ?? 0) + (counts["image"] ?? 0)}</b><span className="text-xs">📦 الكل</span></div>
+        <div className="rounded-xl bg-secondary p-2"><b className="block text-lg">{counts["audio"] ?? 0}</b><span className="text-xs">🎙️ مقاطع</span></div>
+        <div className="rounded-xl bg-secondary p-2"><b className="block text-lg">{counts["video"] ?? 0}</b><span className="text-xs">🎬 فيديو</span></div>
+        <div className="rounded-xl bg-secondary p-2"><b className="block text-lg">{counts["image"] ?? 0}</b><span className="text-xs">🖼️ صور</span></div>
       </div>
       <LibraryGuide />
       <div className="flex gap-2 overflow-x-auto">
