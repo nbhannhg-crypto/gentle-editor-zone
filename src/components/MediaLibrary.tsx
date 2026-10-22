@@ -195,6 +195,8 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
     await load();
   };
 
+  // داخل الألبوم نعرض كل الأنواع مع بعض
+  useEffect(() => { if (folder) setKind("all"); }, [folder]);
   const [selMode, setSelMode] = useState(false);
   const [picked, setPicked] = useState<string[]>([]);
   const togglePick = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
