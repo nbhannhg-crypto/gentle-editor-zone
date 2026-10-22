@@ -81,7 +81,9 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
 
   const load = async () => {
     if (!storeId) return;
-    const { data } = await supabase.from("media_library").select("*").eq("store_id", storeId).eq("kind", kind).order("created_at", { ascending: false }).limit(300);
+    let qy = supabase.from("media_library").select("*").eq("store_id", storeId);
+    if (kind !== "all") qy = qy.eq("kind", kind);
+    const { data } = await qy.order("created_at", { ascending: false }).limit(kind === "all" ? 1000 : 300);
     const rows = (data ?? []) as Item[];
     if (rows.length) {
       const { data: urls } = await supabase.storage.from("media-library").createSignedUrls(rows.map((r) => r.path), 3600);
@@ -116,12 +118,14 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
 
   // رفع جماعي: حتى 100 ملف دفعة وحدة، يدخلون المجلد المفتوح حالياً
   const [prog, setProg] = useState<{ done: number; total: number } | null>(null);
-  const saveMany = async (files: File[]) => {
+  const saveMany = async (files: File[], target?: string) => {
     if (!storeId || !files.length) return;
+    const dest = target ?? folder;
     const list = files.slice(0, 100);
     if (files.length > 100) toast.message("بنرفع أول 100 ملف، والباقي ارفعه بعدها");
     setBusy(true); setProg({ done: 0, total: list.length });
     let ok = 0; const kinds = new Set<string>();
+    const newMeta: Record<string, MediaMeta> = {};
     for (let i = 0; i < list.length; i++) {
       const f = list[i]!;
       try {
@@ -133,15 +137,22 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
         const nm = f.name.replace(/\.[^.]+$/, "");
         const { data, error } = await supabase.from("media_library").insert({ store_id: storeId, kind: k, title: title ? `${title} ${i + 1}` : nm, code, path, mime: f.type }).select("id").single();
         if (error) throw error;
-        if (data && folder) setM(data.id, { folder });
+        if (data && dest) {
+          const mm = { ...emptyMeta(), folder: dest };
+          newMeta[data.id] = mm;
+          setMeta((x) => ({ ...x, [data.id]: mm }));
+          // حفظ مضمون بالسحابة مع محاولة ثانية
+          try { await pushMeta(storeId, data.id, mm); } catch { try { await pushMeta(storeId, data.id, mm); } catch { toast.error(`${f.name}: ما انحفظ الألبوم، انقله يدوياً`); } }
+        }
         ok++; kinds.add(k);
       } catch (e) { toast.error(`${f.name}: ${(e as Error).message}`); }
       setProg({ done: i + 1, total: list.length });
     }
     setTitle(""); setCode(""); setBusy(false); setProg(null);
-    toast.success(`انرفع ${ok} من ${list.length} ✅${folder ? ` داخل «${folder}»` : ""}`);
+    toast.success(`انرفع ${ok} من ${list.length} ✅${dest ? ` داخل «${dest}»` : ""}`);
     void loadCounts();
-    if (kinds.size === 1 && !kinds.has(kind)) setKind([...kinds][0] as typeof kind); else await load();
+    if (dest) { setFolder(dest); if (kind !== "all") setKind("all"); else await load(); }
+    else if (kinds.size === 1 && !kinds.has(kind) && kind !== "all") setKind([...kinds][0] as typeof kind); else await load();
   };
 
   // ألبومات جديدة (فاضية) تنحفظ لين ينرفع فيها أول ملف
@@ -184,6 +195,28 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
     await load();
   };
 
+  // داخل الألبوم نعرض كل الأنواع مع بعض
+  useEffect(() => { if (folder) setKind("all"); }, [folder]);
+  const [selMode, setSelMode] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
+  const togglePick = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+  const moveTo = async () => {
+    const names = [...new Set([...items.map((i) => m(i.id).folder).filter(Boolean), ...extraAlbums])];
+    const n = prompt(`اكتب اسم الألبوم اللي تبي تنقل له (أو اسم جديد):\n${names.join(" · ")}\n(اتركه فاضي = إخراج من الألبوم)`, folder)?.trim();
+    if (n === undefined) return;
+    const next = { ...meta };
+    picked.forEach((id) => { next[id] = { ...m(id), folder: n }; });
+    setMeta(next);
+    if (storeId) {
+      const r = await Promise.allSettled(picked.map((id) => pushMeta(storeId, id, next[id]!)));
+      const bad = r.filter((x) => x.status === "rejected").length;
+      if (bad) toast.error(`${bad} ملف ما انحفظ نقله بالسحابة، جرّب مرة ثانية`);
+    }
+    if (n && !extraAlbums.includes(n)) { const ea = [...extraAlbums, n]; setExtraAlbums(ea); localStorage.setItem(albumKey, JSON.stringify(ea)); }
+    toast.success(`انتقل ${picked.length} ملف ${n ? `إلى «${n}»` : "خارج الألبوم"} ✅`);
+    setPicked([]); setSelMode(false);
+  };
+
   const folders = [...new Set(items.map((i) => m(i.id).folder).filter(Boolean))];
   const shown = items.filter((i) => {
     const mm = m(i.id);
@@ -206,6 +239,7 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
       </div>
       <LibraryGuide />
       <div className="flex gap-2 overflow-x-auto">
+        <button onClick={() => setKind("all")} className={`shrink-0 rounded-full px-4 py-1.5 text-sm ${kind === "all" ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>📦 الكل ({(counts["audio"] ?? 0) + (counts["video"] ?? 0) + (counts["image"] ?? 0)})</button>
         {KINDS.map(([k, l]) => (
           <button key={k} onClick={() => setKind(k)} className={`shrink-0 rounded-full px-4 py-1.5 text-sm ${kind === k ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>{l} ({counts[k] ?? 0})</button>
         ))}
@@ -256,7 +290,16 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
             })}
           </div>
         )}
-        {folder && <p className="text-xs text-muted-foreground">أي ملف ترفعه الحين يدخل هذا الألبوم تلقائياً.</p>}
+        {folder && (
+          <div className="space-y-2">
+            <label className="block cursor-pointer rounded-md bg-primary px-4 py-2 text-center text-sm text-primary-foreground">
+              ⬆️ رفع صور/فيديو/أصوات داخل «{folder}» (حتى 100)
+              <input type="file" hidden multiple accept="audio/*,video/*,image/*" disabled={busy}
+                onChange={(e) => { const fs = Array.from(e.target.files ?? []); e.target.value = ""; void saveMany(fs, folder); }} />
+            </label>
+            <p className="text-xs text-muted-foreground">أي ملف ترفعه الحين يدخل هذا الألبوم تلقائياً — ويطلع هنا كل الأنواع مع بعض.</p>
+          </div>
+        )}
       </div>
       <div className="flex gap-2">
         <Input placeholder="🔍 ابحث بالاسم أو الكود أو الكلام" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -285,10 +328,21 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
           {top.length > 0 && <span className="self-center text-muted-foreground">🏆 الأكثر إرسالاً: {top.map((t) => `${t.title} (${m(t.id).sends})`).join(" · ")}</span>}
         </div>
       )}
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-dashed p-2 text-xs">
+        <Button size="sm" variant={selMode ? "default" : "secondary"} onClick={() => { setSelMode(!selMode); setPicked([]); }}>{selMode ? "✖️ إلغاء التحديد" : "☑️ تحديد متعدد"}</Button>
+        {selMode && <>
+          <Button size="sm" variant="secondary" onClick={() => setPicked(shown.map((i) => i.id))}>تحديد الكل ({shown.length})</Button>
+          <span>محدد: {picked.length}</span>
+          <Button size="sm" disabled={!picked.length} onClick={moveTo}>📂 نقل إلى ألبوم…</Button>
+        </>}
+      </div>
       {!shown.length && <p className="text-sm text-muted-foreground">ما فيه ملفات هنا للحين.</p>}
       <div className="grid gap-3 sm:grid-cols-2">
         {shown.map((it) => (
-          <div key={it.id} className="space-y-2 rounded-xl border p-3">
+          <div key={it.id} className={`space-y-2 rounded-xl border p-3 ${picked.includes(it.id) ? "ring-2 ring-primary" : ""}`}>
+            {selMode && (
+              <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={picked.includes(it.id)} onChange={() => togglePick(it.id)} /> حدد للنقل</label>
+            )}
             <div className="flex items-center justify-between gap-2">
               {renaming === it.id
                 ? <Input autoFocus defaultValue={it.title} className="h-8 text-sm" onBlur={(e) => void rename(it, e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} />
