@@ -219,8 +219,43 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
           <input type="file" hidden accept="audio/*,video/*,image/*" disabled={busy}
             onChange={(e) => { const f = e.target.files?.[0]; if (f) void save(f, f.name); e.target.value = ""; }} />
         </label>
+        <label className="cursor-pointer rounded-md bg-accent px-4 py-2 text-sm text-accent-foreground">
+          📚 رفع جماعي (حتى 100)
+          <input type="file" hidden multiple accept="audio/*,video/*,image/*" disabled={busy}
+            onChange={(e) => { const fs = Array.from(e.target.files ?? []); e.target.value = ""; void saveMany(fs); }} />
+        </label>
         <Button variant={rec ? "destructive" : "secondary"} onClick={toggleRec} disabled={busy}>{rec ? "⏹️ أوقف التسجيل" : "🔴 سجّل مباشر"}</Button>
-        {busy && <span className="self-center text-sm text-muted-foreground">جاري الحفظ…</span>}
+        {busy && !prog && <span className="self-center text-sm text-muted-foreground">جاري الحفظ…</span>}
+      </div>
+      {prog && (
+        <div className="space-y-1">
+          <p className="text-xs">جاري رفع {prog.done} من {prog.total}…{folder && ` داخل «${folder}»`}</p>
+          <div className="h-2 overflow-hidden rounded-full bg-secondary"><div className="h-full bg-primary transition-all" style={{ width: `${(prog.done / prog.total) * 100}%` }} /></div>
+        </div>
+      )}
+      <div className="space-y-2 rounded-xl border p-3">
+        <div className="flex items-center justify-between gap-2">
+          {folder
+            ? <><button className="text-sm" onClick={() => setFolder("")}>🔙 كل الألبومات</button><b className="truncate text-sm">📂 {folder}</b><button className="text-xs" onClick={() => renameAlbum(folder)}>✏️ تسمية</button></>
+            : <><b className="text-sm">🖼️ الألبومات</b><Button size="sm" variant="secondary" onClick={addAlbum}>➕ ألبوم جديد</Button></>}
+        </div>
+        {!folder && (
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {[...new Set([...folders, ...extraAlbums])].map((f) => {
+              const inside = items.filter((i) => m(i.id).folder === f);
+              const cover = inside.find((i) => i.kind === "image" && i.url);
+              return (
+                <button key={f} onClick={() => setFolder(f)} className="overflow-hidden rounded-lg border text-start">
+                  <div className="flex h-20 items-center justify-center bg-secondary text-2xl">
+                    {cover ? <img src={cover.url} alt={f} className="h-full w-full object-cover" /> : "📁"}
+                  </div>
+                  <div className="p-2"><b className="block truncate text-xs">{f}</b><span className="text-xs text-muted-foreground">{inside.length} ملف</span></div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {folder && <p className="text-xs text-muted-foreground">أي ملف ترفعه الحين يدخل هذا الألبوم تلقائياً.</p>}
       </div>
       <div className="flex gap-2">
         <Input placeholder="🔍 ابحث بالاسم أو الكود أو الكلام" value={q} onChange={(e) => setQ(e.target.value)} />
