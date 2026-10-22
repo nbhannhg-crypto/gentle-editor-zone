@@ -46,12 +46,34 @@ export async function shareItem(it: Media) {
   return "copied";
 }
 
+/** Copies the real picture to the clipboard so pasting drops the image itself (no link). */
+async function copyImage(it: Media) {
+  const pngPromise = (async () => {
+    const b = await blobOf(it);
+    const bmp = await createImageBitmap(b);
+    const c = document.createElement("canvas");
+    c.width = bmp.width; c.height = bmp.height;
+    c.getContext("2d")!.drawImage(bmp, 0, 0);
+    return await new Promise<Blob>((res, rej) => c.toBlob((x) => (x ? res(x) : rej(new Error("ما قدرنا ننسخ الصورة"))), "image/png"));
+  })();
+  if (typeof ClipboardItem === "undefined" || !navigator.clipboard?.write) throw new Error("متصفحك ما يدعم نسخ الصور — استخدم 📤 مشاركة");
+  await navigator.clipboard.write([new ClipboardItem({ "image/png": pngPromise })]);
+}
+
+/** Copy as the real thing: image → clipboard picture; video/audio → share sheet with the actual file. */
+async function copyReal(it: Media) {
+  if (it.kind === "image") { await copyImage(it); return "تم نسخ الصورة نفسها 📋 — الصقها في أي محادثة"; }
+  const r = await shareItem(it);
+  return r === "file" ? "" : "متصفحك ما يسمح ينسخ الفيديو/الصوت كملف — نسخنا الرابط بداله";
+}
+
 export function ShareBar({ it }: { it: Media }) {
   const run = (f: () => Promise<unknown>, ok?: string) => async () => {
     try { await f(); if (ok) toast.success(ok); } catch (e) { if ((e as Error).name !== "AbortError") toast.error((e as Error).message); }
   };
   return (
     <div className="flex flex-wrap gap-2">
+      <Button size="sm" onClick={run(async () => { const m = await copyReal(it); if (m) toast.success(m); })}>📋 نسخ {it.kind === "image" ? "الصورة" : "الملف"} نفسه</Button>
       <Button size="sm" variant="secondary" onClick={run(async () => { const r = await shareItem(it); if (r === "copied") toast.success("انسخ الرابط 📋"); })}>📤 مشاركة (سناب/تيك توك…)</Button>
       <Button size="sm" variant="secondary" onClick={run(() => downloadItem(it), "انحفظ في جهازك 💾")}>💾 حفظ بالجوال</Button>
       <Button size="sm" variant="secondary" onClick={run(async () => navigator.clipboard.writeText(await shareLink(it)), "انسخ الرابط — الصقه في أي محادثة 🔗")}>🔗 نسخ رابط</Button>
