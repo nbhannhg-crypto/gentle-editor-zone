@@ -103,6 +103,7 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
       if (error) throw error;
       setTitle(""); setCode("");
       toast.success("انحفظ في المكتبة ✅");
+      void loadCounts();
       if (k !== "image" && data) {
         toast.message("جاري تحويل الكلام لنص…");
         try { await transcribe({ data: { id: data.id } }); } catch (e) { toast.error((e as Error).message); }
@@ -141,11 +142,19 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
   const top = [...items].sort((a, b) => m(b.id).sends - m(a.id).sends).filter((i) => m(i.id).sends > 0).slice(0, 3);
 
   return (
+    <LibraryLock storeId={storeId}>
     <div className="space-y-4 rounded-2xl border bg-card p-4">
       <h2 className="text-lg font-bold">📚 مكتبة الأصوات والفيديو والتصاميم</h2>
+      <div className="grid grid-cols-4 gap-2 text-center">
+        <div className="rounded-xl bg-secondary p-2"><b className="block text-lg">{(counts.audio ?? 0) + (counts.video ?? 0) + (counts.image ?? 0)}</b><span className="text-xs">📦 الكل</span></div>
+        <div className="rounded-xl bg-secondary p-2"><b className="block text-lg">{counts.audio ?? 0}</b><span className="text-xs">🎙️ مقاطع</span></div>
+        <div className="rounded-xl bg-secondary p-2"><b className="block text-lg">{counts.video ?? 0}</b><span className="text-xs">🎬 فيديو</span></div>
+        <div className="rounded-xl bg-secondary p-2"><b className="block text-lg">{counts.image ?? 0}</b><span className="text-xs">🖼️ صور</span></div>
+      </div>
+      <LibraryGuide />
       <div className="flex gap-2 overflow-x-auto">
         {KINDS.map(([k, l]) => (
-          <button key={k} onClick={() => setKind(k)} className={`shrink-0 rounded-full px-4 py-1.5 text-sm ${kind === k ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>{l}</button>
+          <button key={k} onClick={() => setKind(k)} className={`shrink-0 rounded-full px-4 py-1.5 text-sm ${kind === k ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>{l} ({counts[k] ?? 0})</button>
         ))}
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
@@ -193,7 +202,9 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
         {shown.map((it) => (
           <div key={it.id} className="space-y-2 rounded-xl border p-3">
             <div className="flex items-center justify-between gap-2">
-              <b className="truncate text-sm">{it.title}</b>
+              {renaming === it.id
+                ? <Input autoFocus defaultValue={it.title} className="h-8 text-sm" onBlur={(e) => void rename(it, e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} />
+                : <b className="truncate text-sm">{it.title} <button className="text-xs" title="غيّر الاسم" onClick={() => setRenaming(it.id)}>✏️</button></b>}
               {it.code && <span className="rounded bg-secondary px-2 text-xs">#{it.code}</span>}
             </div>
             {it.url && it.kind === "image" && <img src={it.url} alt={it.title} className="max-h-48 w-full rounded-lg object-cover" />}
@@ -225,9 +236,13 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
                 {m(it.id).ocr && <p className="text-xs text-muted-foreground">🔤 النص داخل الملف: {m(it.id).ocr}</p>}
               </div>
             )}
+            <ShareBar it={it} />
+            <Button size="sm" variant="outline" onClick={() => setEditing(editing === it.id ? null : it.id)}>✂️ قص وتعديل</Button>
+            {editing === it.id && <MediaEditor it={it} onSave={save} onClose={() => setEditing(null)} />}
           </div>
         ))}
       </div>
     </div>
+    </LibraryLock>
   );
 }
