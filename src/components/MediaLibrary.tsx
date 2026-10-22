@@ -9,6 +9,7 @@ import { MicButton } from "@/components/MicButton";
 import { mediaAnalyze, mediaSendOne, waList } from "@/lib/studio.functions";
 import { emptyMeta, pullMeta, pushMeta, removeMeta, type MediaMeta } from "@/lib/media-meta";
 import { bestMedia, normalizeArabic } from "@/lib/media-match";
+import { LibraryGuide, LibraryLock, MediaEditor, ShareBar } from "@/components/MediaTools";
 
 type Item = { id: string; kind: string; title: string; code: string; transcript: string; path: string; mime: string; url?: string | undefined };
 const KINDS = [["audio", "🎙️ أصوات"], ["video", "🎬 فيديو"], ["image", "🎨 تصاميم"]] as const;
@@ -34,6 +35,20 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
   const [open, setOpen] = useState<string | null>(null);
   const [aiBusy, setAiBusy] = useState<string | null>(null);
   useEffect(() => { if (storeId) void pullMeta(storeId).then(setMeta).catch(() => {}); }, [storeId]);
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [editing, setEditing] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const loadCounts = async () => {
+    if (!storeId) return;
+    const r = await Promise.all(KINDS.map(([k]) => supabase.from("media_library").select("id", { count: "exact", head: true }).eq("store_id", storeId).eq("kind", k)));
+    setCounts(Object.fromEntries(KINDS.map(([k], i) => [k, r[i]?.count ?? 0])));
+  };
+  const rename = async (it: Item, t: string) => {
+    setRenaming(null);
+    const v = t.trim(); if (!v || v === it.title) return;
+    const { error } = await supabase.from("media_library").update({ title: v }).eq("id", it.id);
+    if (error) toast.error(error.message); else { setItems((x) => x.map((i) => (i.id === it.id ? { ...i, title: v } : i))); toast.success("انحفظ الاسم ✅"); }
+  };
   useEffect(() => {
     waList().then((l) => { const o = l.filter((i) => i.status === "open").map((i) => i.name); setSessions(o); if (o[0]) setSession((s) => s || o[0]!); }).catch(() => {});
   }, []);
@@ -73,7 +88,7 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
     }
     setItems(rows);
   };
-  useEffect(() => { void load(); }, [storeId, kind]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { void load(); void loadCounts(); }, [storeId, kind]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = async (file: Blob, name: string) => {
     if (!storeId) return;
