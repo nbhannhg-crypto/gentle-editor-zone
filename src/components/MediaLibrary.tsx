@@ -101,6 +101,7 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
       const k = file.type.startsWith("image") ? "image" : file.type.startsWith("video") ? "video" : "audio";
       const { data, error } = await supabase.from("media_library").insert({ store_id: storeId, kind: k, title: title || name, code, path, mime: file.type }).select("id").single();
       if (error) throw error;
+      if (data && folder) setM(data.id, { folder });
       setTitle(""); setCode("");
       toast.success("انحفظ في المكتبة ✅");
       void loadCounts();
@@ -110,6 +111,56 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
       }
       if (k !== kind) setKind(k); else await load();
     } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
+  };
+
+  // رفع جماعي: حتى 100 ملف دفعة وحدة، يدخلون المجلد المفتوح حالياً
+  const [prog, setProg] = useState<{ done: number; total: number } | null>(null);
+  const saveMany = async (files: File[]) => {
+    if (!storeId || !files.length) return;
+    const list = files.slice(0, 100);
+    if (files.length > 100) toast.message("بنرفع أول 100 ملف، والباقي ارفعه بعدها");
+    setBusy(true); setProg({ done: 0, total: list.length });
+    let ok = 0; const kinds = new Set<string>();
+    for (let i = 0; i < list.length; i++) {
+      const f = list[i]!;
+      try {
+        const ext = f.name.split(".").pop() || "bin";
+        const path = `${storeId}/${crypto.randomUUID()}.${ext}`;
+        const up = await supabase.storage.from("media-library").upload(path, f, { contentType: f.type });
+        if (up.error) throw up.error;
+        const k = f.type.startsWith("image") ? "image" : f.type.startsWith("video") ? "video" : "audio";
+        const nm = f.name.replace(/\.[^.]+$/, "");
+        const { data, error } = await supabase.from("media_library").insert({ store_id: storeId, kind: k, title: title ? `${title} ${i + 1}` : nm, code, path, mime: f.type }).select("id").single();
+        if (error) throw error;
+        if (data && folder) setM(data.id, { folder });
+        ok++; kinds.add(k);
+      } catch (e) { toast.error(`${f.name}: ${(e as Error).message}`); }
+      setProg({ done: i + 1, total: list.length });
+    }
+    setTitle(""); setCode(""); setBusy(false); setProg(null);
+    toast.success(`انرفع ${ok} من ${list.length} ✅${folder ? ` داخل «${folder}»` : ""}`);
+    void loadCounts();
+    if (kinds.size === 1 && !kinds.has(kind)) setKind([...kinds][0] as typeof kind); else await load();
+  };
+
+  // ألبومات جديدة (فاضية) تنحفظ لين ينرفع فيها أول ملف
+  const albumKey = `ml_albums:${storeId ?? ""}`;
+  const [extraAlbums, setExtraAlbums] = useState<string[]>([]);
+  useEffect(() => { try { setExtraAlbums(JSON.parse(localStorage.getItem(albumKey) || "[]")); } catch { /* */ } }, [albumKey]);
+  const addAlbum = () => {
+    const n = prompt("اسم الألبوم الجديد (مثلاً: صور العطور)")?.trim();
+    if (!n) return;
+    const next = [...new Set([...extraAlbums, n])];
+    setExtraAlbums(next); localStorage.setItem(albumKey, JSON.stringify(next));
+    setFolder(n); toast.success(`انفتح ألبوم «${n}» — ارفع فيه الحين`);
+  };
+  const renameAlbum = (old: string) => {
+    const n = prompt("الاسم الجديد للألبوم", old)?.trim();
+    if (!n || n === old) return;
+    items.filter((i) => m(i.id).folder === old).forEach((i) => setM(i.id, { folder: n }));
+    const next = extraAlbums.map((a) => (a === old ? n : a));
+    setExtraAlbums(next); localStorage.setItem(albumKey, JSON.stringify(next));
+    if (folder === old) setFolder(n);
   };
 
   const toggleRec = async () => {
