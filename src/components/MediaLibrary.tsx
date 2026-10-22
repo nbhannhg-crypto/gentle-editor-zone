@@ -54,8 +54,8 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
   };
   const sendItem = async (it: Item) => {
     const num = sendTo.replace(/\D/g, "").replace(/^05/, "9665");
-    if (!session) return toast.error("ما فيه رقم واتساب مربوط ومفتوح");
-    if (!/^\d{8,15}$/.test(num)) return toast.error("اكتب رقم الزبون صح");
+    if (!session) { toast.error("ما فيه رقم واتساب مربوط ومفتوح"); return; }
+    if (!/^\d{8,15}$/.test(num)) { toast.error("اكتب رقم الزبون صح"); return; }
     try {
       await sendOne({ data: { name: session, number: num, id: it.id, caption: "" } });
       setM(it.id, { sends: m(it.id).sends + 1 });
