@@ -819,22 +819,24 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
     }
     const ready = findLinkedClip(text) ?? findLinkedClip(spoken);
     if (ready) { void playAudio(ready); return; }
-    setSpeaking(true);
+    setSpeaking(true); micHold();
     try {
       const audio = await tts(spoken, { emotion });
       audioRef.current?.pause();
       const a = new Audio(audio); audioRef.current = a;
       applyTuning(a);
-      a.onended = () => setSpeaking(false);
+      a.onended = () => { setSpeaking(false); micRelease(); };
+      a.onerror = () => { setSpeaking(false); micRelease(); };
       await a.play();
-    } catch (e) { toast.error((e as Error).message); setSpeaking(false); }
+    } catch (e) { toast.error((e as Error).message); setSpeaking(false); micRelease(); }
   };
   const playAudio = async (src: string) => {
     audioRef.current?.pause();
+    micHold();
     const a = new Audio(src); audioRef.current = a;
     a.volume = loud ? 1 : 0.3; setSpeaking(true);
-    a.onended = () => setSpeaking(false);
-    try { await a.play(); } catch { setSpeaking(false); }
+    a.onended = () => { setSpeaking(false); micRelease(); };
+    try { await a.play(); } catch { setSpeaking(false); micRelease(); }
   };
   const sendPlus = async ({ text, voice, audio }: { text: string; voice: boolean; audio?: string }) => {
     const inst = waFrom || accounts.find((a) => a.status === "open")?.name;

@@ -143,10 +143,10 @@ export function LiveCockpit(p: {
       <CallBrainsBar cfg={cfg} set={set} pill={pill} rulesCount={p.rulesCount ?? 0} />
 
       <div className="mb-3 space-y-2 rounded-xl bg-secondary p-3">
-        <p className="text-xs text-muted-foreground">👂 طريقة فهم كلامك (تتطبق من المكالمة الجاية):</p>
+        <p className="text-xs text-muted-foreground">👂 الاستماع:</p>
         <div className="flex flex-wrap gap-2">
-          <button className={pill((cfg.stt ?? "cloud") === "cloud")} onClick={() => set({ stt: "cloud" })}>🎙️ الفهم الحالي (تسجيل سحابي)</button>
-          <button className={pill(cfg.stt === "chrome")} onClick={() => set({ stt: "chrome" })}>⚡ فهم سريع مثل مكالمة المملكة</button>
+          <button className={pill((cfg.stt ?? "cloud") === "cloud")} onClick={() => set({ stt: "cloud" })}>🎯 عادي</button>
+          <button className={pill(cfg.stt === "chrome")} onClick={() => set({ stt: "chrome" })}>⚡ فوري</button>
         </div>
         <label className="block text-xs text-muted-foreground">🎚️ حساسية المايك: <b dir="ltr">{(cfg.sens ?? 0.012).toFixed(3)}</b> (أقل = يسمع أهدأ صوت، أعلى = يعزل الضجيج)</label>
         <input type="range" min={0.005} max={0.05} step={0.001} value={cfg.sens ?? 0.012} onChange={(e) => set({ sens: Number(e.target.value) })} className="w-full accent-primary" aria-label="حساسية المايك" />
