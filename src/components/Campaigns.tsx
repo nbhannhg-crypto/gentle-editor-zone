@@ -72,6 +72,7 @@ export function Campaigns({ storeId }: { storeId?: string | undefined }) {
     if (storeId) supabase.from("stores").select("*").eq("id", storeId).maybeSingle()
       .then(({ data }) => { const b = (data as any)?.points ?? (data as any)?.balance; if (typeof b === "number") setBalance(b); });
     try { setLog(JSON.parse(localStorage.getItem("campaign_log") || "[]")); } catch { /* ignore */ }
+    try { const d = localStorage.getItem("campaign_draft"); if (d) { setText(d); localStorage.removeItem("campaign_draft"); toast.success("وصلت رسالة من فريق البوتات 🤖"); } } catch { /* ignore */ }
   }, [storeId]);
 
   useEffect(() => { try { localStorage.setItem("campaign_log", JSON.stringify(log.slice(0, 300))); } catch { /* ignore */ } }, [log]);
