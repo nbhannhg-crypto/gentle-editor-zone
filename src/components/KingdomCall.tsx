@@ -65,6 +65,15 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
     };
     img.src = URL.createObjectURL(f);
   };
+  // لوحة التحكم — محفوظة بالجهاز
+  const [ctl, setCtl] = useState({ autoSay: true, echoGuard: true, dedupe: true, showInterim: true, waitMs: 600 });
+  const ctlRef = useRef(ctl);
+  const speakingRef = useRef(false);
+  const lastHeard = useRef<{ t: string; at: number }>({ t: "", at: 0 });
+  const pendingRef = useRef<{ text: string; timer: ReturnType<typeof setTimeout> | null }>({ text: "", timer: null });
+  useEffect(() => { try { const s = localStorage.getItem("kingdom_call_ctl"); if (s) setCtl((c) => ({ ...c, ...JSON.parse(s) })); } catch { /* ignore */ } }, []);
+  useEffect(() => { ctlRef.current = ctl; localStorage.setItem("kingdom_call_ctl", JSON.stringify(ctl)); }, [ctl]);
+  useEffect(() => { speakingRef.current = speaking; }, [speaking]);
   useEffect(() => { mutedRef.current = muted; }, [muted]);
   useEffect(() => {
     if (!live) return;
@@ -73,6 +82,7 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
   }, [live]);
   useEffect(() => () => { liveRef.current = false; recRef.current?.stop(); audioRef.current?.pause(); }, []);
 
+  const norm = (s: string) => s.replace(/[\u064B-\u0652.,!?؟،]/g, "").replace(/\s+/g, " ").trim();
   const handleCustomer = async (text: string) => {
     setCustomer(text); setBusy(true);
     setLog((l) => [...l, { who: "c", t: text }]);
@@ -82,8 +92,31 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
       const others = r.matches.filter((m) => m.rule.response_text !== r.answer).map((m) => m.rule.response_text);
       setAlts([...new Set(others)].slice(0, 3));
       recordUse(text, r.rule).then(reload);
+      if (ctlRef.current.autoSay && r.answer && liveRef.current) sayRef.current(r.answer);
     } catch (e) { toast.error((e as Error).message); }
     setBusy(false);
+  };
+
+  // يجمع الكلام النهائي وينتظر لحظة صمت قصيرة قبل الرد — يمنع تقطيع الجملة وتكرارها
+  const queueHeard = (fin: string) => {
+    const c = ctlRef.current;
+    const n = norm(fin);
+    if (!n) return;
+    if (c.dedupe) {
+      const last = lastHeard.current;
+      if (Date.now() - last.at < 4000 && (last.t === n || last.t.includes(n))) return;
+    }
+    const p = pendingRef.current;
+    const pn = norm(p.text);
+    p.text = pn && n.startsWith(pn) ? fin : pn && pn.includes(n) ? p.text : (p.text ? p.text + " " : "") + fin;
+    if (p.timer) clearTimeout(p.timer);
+    p.timer = setTimeout(() => {
+      const full = p.text.trim(); p.text = ""; p.timer = null;
+      if (!full) return;
+      lastHeard.current = { t: norm(full), at: Date.now() };
+      setInterim("");
+      handleCustomer(full);
+    }, c.waitMs);
   };
 
   const start = () => {
@@ -94,17 +127,19 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
     rec.lang = "ar-SA"; rec.continuous = true; rec.interimResults = true;
     rec.onresult = (e: any) => {
       if (mutedRef.current) return;
+      if (ctlRef.current.echoGuard && speakingRef.current) return; // لا تسمع صوت الموظفة نفسها
       let fin = "", tmp = "";
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const t = e.results[i][0].transcript;
         if (e.results[i].isFinal) fin += t; else tmp += t;
       }
-      setInterim(tmp);
-      if (fin.trim()) handleCustomer(fin.trim());
+      if (ctlRef.current.showInterim) setInterim(tmp);
+      if (fin.trim()) queueHeard(fin.trim());
     };
+    rec.onerror = (ev: any) => { if (ev?.error === "not-allowed") { toast.error("🎙️ اسمح للمايك من إعدادات المتصفح"); stop(); } };
     rec.onend = () => { if (liveRef.current) try { rec.start(); } catch { /* ignore */ } };
     recRef.current = rec; liveRef.current = true;
-    rec.start();
+    try { rec.start(); } catch { /* ignore */ }
     setLive(true); setSeconds(0); setDeal(null); setLog([]); setAnswer(""); setCustomer("");
   };
 
