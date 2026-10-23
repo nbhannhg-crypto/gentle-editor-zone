@@ -121,7 +121,7 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
       lastHeard.current = { t: norm(full), at: Date.now() };
       setInterim("");
       handleCustomer(full);
-    }, c.waitMs);
+    }, Math.min(c.waitMs, 300));
   };
 
   const start = () => {
@@ -167,15 +167,19 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
       if (liveRef.current && recRef.current) try { recRef.current.start(); } catch { /* already running */ }
     }, 400);
   };
+  const saySeqK = useRef(0);
   const say = async (text: string) => {
     if (!text.trim()) return;
     const guard = ctlRef.current.echoGuard;
+    const my = ++saySeqK.current;
     setSpeaking(true);
-    if (guard) micOff();
     lastSaid.current = { t: norm(text), at: Date.now() };
     setLog((l) => [...l, { who: "a", t: text }]);
     try {
       const audio = await tts(text, { emotion });
+      if (my !== saySeqK.current) return; // رد أحدث وصل
+      // المايك يبقى مفتوح وقت تجهيز الصوت، وينقفل فقط لحظة خروج الصوت
+      if (guard) micOff();
       audioRef.current?.pause();
       const a = new Audio(audio); audioRef.current = a;
       a.volume = loud ? 1 : 0.3;
