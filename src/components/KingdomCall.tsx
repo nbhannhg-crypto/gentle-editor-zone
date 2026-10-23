@@ -67,6 +67,7 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
   };
   // لوحة التحكم — محفوظة بالجهاز
   const [ctl, setCtl] = useState({ autoSay: true, echoGuard: true, dedupe: true, showInterim: true, waitMs: 600 });
+  const sayRef = useRef<(t: string) => void>(() => {});
   const ctlRef = useRef(ctl);
   const speakingRef = useRef(false);
   const lastHeard = useRef<{ t: string; at: number }>({ t: "", at: 0 });
@@ -162,6 +163,8 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
     } catch (e) { toast.error((e as Error).message); setSpeaking(false); }
   };
 
+  sayRef.current = say;
+
   const sendCustom = async () => {
     const t = custom.trim();
     if (!t) return;
@@ -244,6 +247,30 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
           )}
         </div>
         {recording && live && <p className="pb-4 text-center text-xs text-rose-300">⏺️ جاري تسجيل المكالمة</p>}
+      </section>
+
+      {/* 🎛️ لوحة تحكم مكالمة المملكة */}
+      <section className="mt-4 rounded-2xl border bg-card p-4">
+        <h3 className="font-display mb-3 text-lg">🎛️ لوحة تحكم مكالمة المملكة</h3>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {([
+            ["autoSay", "🗣️ ترد بالصوت تلقائياً (بدون موافقة)"],
+            ["echoGuard", "🔇 ما تسمع نفسها وهي تتكلم (منع الصدى)"],
+            ["dedupe", "🧹 منع تكرار الكلمات والجمل"],
+            ["showInterim", "👀 أشوف الكلام وهو ينكتب"],
+          ] as const).map(([k, l]) => (
+            <label key={k} className="flex cursor-pointer items-center justify-between gap-2 rounded-xl bg-secondary px-3 py-2 text-sm">
+              <span>{l}</span>
+              <input type="checkbox" className="h-5 w-5 accent-primary" checked={ctl[k]} onChange={(e) => setCtl((c) => ({ ...c, [k]: e.target.checked }))} />
+            </label>
+          ))}
+        </div>
+        <label className="mt-3 block text-sm">
+          ⏱️ تنتظر بعد ما تخلص كلامك: <b dir="ltr">{(ctl.waitMs / 1000).toFixed(1)}s</b>
+          <input type="range" min={200} max={2000} step={100} value={ctl.waitMs} onChange={(e) => setCtl((c) => ({ ...c, waitMs: Number(e.target.value) }))} className="mt-1 w-full accent-primary" />
+          <span className="text-xs text-muted-foreground">أقل = أسرع رد، أكثر = ما تقاطعك وسط الجملة</span>
+        </label>
+        {log.length > 0 && <Button variant="outline" size="sm" className="mt-3" onClick={() => { setLog([]); setCustomer(""); setAnswer(""); }}>🗑️ مسح المحادثة</Button>}
       </section>
 
       {/* إدخال كلام الزبون يدوياً */}
