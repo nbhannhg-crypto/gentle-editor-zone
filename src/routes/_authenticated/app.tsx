@@ -652,6 +652,20 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
   const lastHeardRef = useRef<{ t: string; at: number }>({ t: "", at: 0 });
   const askAgainAt = useRef(0);
   const lastSaidRef = useRef("");
+  const holdRef = useRef(false);
+  const saidAtRef = useRef(0);
+  const spawnRef = useRef<() => void>(() => {});
+  // الفهم السريع: قفل المايك كلياً وقت نطقها، ويرجع بعد نص ثانية من انتهائها
+  const micHold = () => {
+    if (cfgRef.current.stt !== "chrome" || !liveRef.current) return;
+    holdRef.current = true;
+    try { (recRef.current as any)?.abort?.(); } catch { /* ignore */ }
+  };
+  const micRelease = () => {
+    saidAtRef.current = Date.now();
+    if (!holdRef.current) return;
+    setTimeout(() => { holdRef.current = false; if (liveRef.current) spawnRef.current(); }, 500);
+  };
   const isEcho = (heard: string) => {
     const h = normalize(heard).split(" ").filter((w) => w.length > 1);
     const s = normalize(lastSaidRef.current);
@@ -679,8 +693,12 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
       rec.lang = "ar-SA"; rec.continuous = true; rec.interimResults = true;
       rec.onresult = (e) => {
         if (mutedRef.current) return;
-        // الفهم السريع: وهي تتكلم ما نسمع (يمنع تكرار صوتها)
-        if (cfgRef.current.stt === "chrome" && (speakingRef.current || (!!audioRef.current && !audioRef.current.paused))) return;
+        // الفهم السريع: وهي تتكلم ما نسمع (يمنع تكرار صوتها وتقطيعه)
+        if (cfgRef.current.stt === "chrome") {
+          if (holdRef.current || speakingRef.current || (!!audioRef.current && !audioRef.current.paused)) return;
+          const h0 = (Array.from(e.results as any).slice(e.resultIndex).map((r: any) => r[0].transcript).join(" ")).trim();
+          if (h0 && Date.now() - saidAtRef.current < 6000 && isEcho(h0)) return;
+        }
         let fin = "", tmp = "";
         for (let i = e.resultIndex; i < e.results.length; i++) {
           const t = e.results[i][0].transcript;
@@ -701,8 +719,9 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
         silence = setTimeout(flush, (cfgRef.current.instant ?? true) ? 400 : 900);
       };
       (rec as any).onerror = () => { /* لا نوقف المكالمة — onend يعيد التشغيل تلقائياً */ };
-      rec.onend = () => { if (pending.trim()) flush(); if (liveRef.current) setTimeout(spawn, 200); };
+      rec.onend = () => { if (holdRef.current) { pending = ""; return; } if (pending.trim()) flush(); if (liveRef.current) setTimeout(spawn, 200); };
       recRef.current = rec;
+      spawnRef.current = spawn;
       try { rec.start(); } catch { setTimeout(spawn, 500); }
     };
     liveRef.current = true;
@@ -800,22 +819,24 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
     }
     const ready = findLinkedClip(text) ?? findLinkedClip(spoken);
     if (ready) { void playAudio(ready); return; }
-    setSpeaking(true);
+    setSpeaking(true); micHold();
     try {
       const audio = await tts(spoken, { emotion });
       audioRef.current?.pause();
       const a = new Audio(audio); audioRef.current = a;
       applyTuning(a);
-      a.onended = () => setSpeaking(false);
+      a.onended = () => { setSpeaking(false); micRelease(); };
+      a.onerror = () => { setSpeaking(false); micRelease(); };
       await a.play();
-    } catch (e) { toast.error((e as Error).message); setSpeaking(false); }
+    } catch (e) { toast.error((e as Error).message); setSpeaking(false); micRelease(); }
   };
   const playAudio = async (src: string) => {
     audioRef.current?.pause();
+    micHold();
     const a = new Audio(src); audioRef.current = a;
     a.volume = loud ? 1 : 0.3; setSpeaking(true);
-    a.onended = () => setSpeaking(false);
-    try { await a.play(); } catch { setSpeaking(false); }
+    a.onended = () => { setSpeaking(false); micRelease(); };
+    try { await a.play(); } catch { setSpeaking(false); micRelease(); }
   };
   const sendPlus = async ({ text, voice, audio }: { text: string; voice: boolean; audio?: string }) => {
     const inst = waFrom || accounts.find((a) => a.status === "open")?.name;
