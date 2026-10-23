@@ -653,6 +653,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
   const askAgainAt = useRef(0);
   const lastSaidRef = useRef("");
   const holdRef = useRef(false);
+  const saySeq = useRef(0);
   const saidAtRef = useRef(0);
   const spawnRef = useRef<() => void>(() => {});
   // الفهم السريع: قفل المايك كلياً وقت نطقها، ويرجع بعد نص ثانية من انتهائها
@@ -707,16 +708,14 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
         const heard = (fin || tmp).trim();
         if (!heard) return;
         const playing = !!audioRef.current && !audioRef.current.paused;
-        // صدى صوت الموظفة من السماعة → نتجاهله فقط وهي تتكلم
-        if (playing && isEcho(heard)) return;
-        // كاشف المقاطعة
-        if (playing) { audioRef.current!.pause(); setSpeaking(false); }
+        // وهي تتكلم ما نسمع ولا نقطع صوتها (ألغينا كاشف المقاطعة العشوائي)
+        if (playing || speakingRef.current) return;
         if (fin.trim()) { pending = ""; if (silence) clearTimeout(silence); silence = null; setInterim(""); deliver(fin); return; }
         // مطابقة لحظية أثناء النطق: كلمة تشغيل لمقطع مسجل → نطلقه فوراً
         if (findTriggerClip(tmp)) { pending = ""; if (silence) clearTimeout(silence); silence = null; setInterim(""); deliver(tmp); return; }
         pending = tmp; setInterim(tmp);
         if (silence) clearTimeout(silence);
-        silence = setTimeout(flush, (cfgRef.current.instant ?? true) ? 400 : 900);
+        silence = setTimeout(flush, cfgRef.current.reply ?? ((cfgRef.current.instant ?? true) ? 400 : 900));
       };
       (rec as any).onerror = () => { /* لا نوقف المكالمة — onend يعيد التشغيل تلقائياً */ };
       rec.onend = () => { if (holdRef.current) { pending = ""; return; } if (pending.trim()) flush(); if (liveRef.current) setTimeout(spawn, 200); };
@@ -730,7 +729,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
     if (cfgRef.current.stt === "chrome" && C) { spawn(); return; }
     // المحرك الأقوى: تسجيل المايك + تفريغ Gemini (يشتغل في كل المتصفحات)
     startVadRecorder({
-      silenceMs: (cfgRef.current.instant ?? true) ? 400 : 900,
+      silenceMs: cfgRef.current.reply ?? ((cfgRef.current.instant ?? true) ? 400 : 900),
       minRms: () => cfgRef.current.sens ?? 0.012,
       // كتم الاستماع وهي تتكلم: ما يلتقط صوت الموظفة من السماعة
       isPaused: () => mutedRef.current || (!!audioRef.current && !audioRef.current.paused) || speakingRef.current,
@@ -759,8 +758,8 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
             return;
           }
           const playing = !!audioRef.current && !audioRef.current.paused;
-          if (playing && isEcho(heard)) return;
-          if (playing) { audioRef.current!.pause(); setSpeaking(false); }
+          // وهي تتكلم ما نقطع صوتها (منع التقطيع)
+          if (playing || speakingRef.current) return;
           deliver(heard);
         } catch { setInterim(""); }
       },
@@ -819,9 +818,12 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
     }
     const ready = findLinkedClip(text) ?? findLinkedClip(spoken);
     if (ready) { void playAudio(ready); return; }
+    const mySay = ++saySeq.current;
     setSpeaking(true); micHold();
     try {
       const audio = await tts(spoken, { emotion });
+      // رد أحدث وصل → نتجاهل هذا القديم (يمنع تصادم ردين فوق بعض)
+      if (mySay !== saySeq.current) return;
       audioRef.current?.pause();
       const a = new Audio(audio); audioRef.current = a;
       applyTuning(a);

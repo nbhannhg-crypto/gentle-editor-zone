@@ -83,7 +83,7 @@ export type Cockpit = {
   fast: boolean; route: Route;
   brains: { mine: boolean; queen: boolean; clips: boolean; ai: boolean };
   extra: string[]; persona: string; banned: string[]; fixes: { from: string; to: string }[]; blocked: string[];
-  match?: number; secs?: string[]; kbrains?: string[]; voff?: string[]; rulesOff?: boolean; sens?: number; instant?: boolean; stt?: "cloud" | "chrome";
+  match?: number; secs?: string[]; kbrains?: string[]; voff?: string[]; rulesOff?: boolean; sens?: number; instant?: boolean; stt?: "cloud" | "chrome"; reply?: number;
 };
 export const COCKPIT_KEY = "live_cockpit";
 export const DEFAULT_COCKPIT: Cockpit = {
@@ -155,6 +155,8 @@ export function LiveCockpit(p: {
           <button className={pill(!(cfg.instant ?? true))} onClick={() => set({ instant: false })}>⏳ انتظار وتأكيد الكلام</button>
           <button className={pill(false)} onClick={() => set({ sens: 0.012 })}>↺ الافتراضي 0.012</button>
         </div>
+        <label className="block text-xs text-muted-foreground">⏱️ متى ترد بعد ما تسكت: <b dir="ltr">{cfg.reply ?? ((cfg.instant ?? true) ? 400 : 900)}ms</b> (يسار = فوري، يمين = هادئ)</label>
+        <input type="range" min={200} max={1500} step={50} value={cfg.reply ?? ((cfg.instant ?? true) ? 400 : 900)} onChange={(e) => set({ reply: Number(e.target.value) })} className="w-full accent-primary" aria-label="توقيت الرد" />
       </div>
       <div className="flex flex-wrap gap-2">
         <button className={pill(p.live)} onClick={p.onToggle}>{p.live ? "🟢 المكالمة شغّالة" : "⚪ متوقفة — اضغط للتشغيل"}</button>
