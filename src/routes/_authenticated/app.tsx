@@ -610,8 +610,9 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
     for (const s of pool) { const n = normalize(s); const sc = q.filter((w) => n.includes(w)).length / q.length; if (sc > score) { score = sc; best = s; } }
     return score >= 0.5 ? best : "";
   };
-
+  const custSeq = useRef(0);
   const handleCustomer = async (text: string) => {
+    const myCust = ++custSeq.current;
     cancelCountdown();
     setCustomer(text); setAiSugs([]); setBusy(true);
     setLog((l) => [...l, { who: "c", t: text }]);
@@ -644,6 +645,8 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
       }
       setAnswer(ans);
       recordUse(text, rule).then(reload);
+      // كلام أحدث وصل وهذا الرد قديم → لا ننطقه (يمنع تصادم ردين)
+      if (myCust !== custSeq.current) { setBusy(false); return; }
       if (liveRef.current && ans) autoSay(ans);
     } catch (e) { toast.error((e as Error).message); }
     setBusy(false);
@@ -683,6 +686,8 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
       const n = normalize(f);
       // نفس الجملة خلال 4 ثواني (مسودة ثم نهائية) → مرة وحدة بس
       if (n === lastHeardRef.current.t && Date.now() - lastHeardRef.current.at < 4000) return;
+      // جزء من جملة سبق وصلت (مسودة متأخرة) → تجاهل
+      if (lastHeardRef.current.t.startsWith(n) && Date.now() - lastHeardRef.current.at < 4000) return;
       lastHeardRef.current = { t: n, at: Date.now() };
       handleCustomer(f);
     };
