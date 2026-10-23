@@ -66,13 +66,13 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
     img.src = URL.createObjectURL(f);
   };
   // لوحة التحكم — محفوظة بالجهاز
-  const [ctl, setCtl] = useState({ autoSay: true, echoGuard: true, dedupe: true, showInterim: true, waitMs: 600 });
+  const [ctl, setCtl] = useState({ autoSay: true, echoGuard: true, dedupe: true, showInterim: true, waitMs: 300 });
   const sayRef = useRef<(t: string) => void>(() => {});
   const ctlRef = useRef(ctl);
   const speakingRef = useRef(false);
   const lastHeard = useRef<{ t: string; at: number }>({ t: "", at: 0 });
   const pendingRef = useRef<{ text: string; timer: ReturnType<typeof setTimeout> | null }>({ text: "", timer: null });
-  useEffect(() => { try { const s = localStorage.getItem("kingdom_call_ctl"); if (s) setCtl((c) => ({ ...c, ...JSON.parse(s) })); } catch { /* ignore */ } }, []);
+  useEffect(() => { try { const s = localStorage.getItem("kingdom_call_ctl"); if (s) { const j = JSON.parse(s); if (j.waitMs === 600) j.waitMs = 300; setCtl((c) => ({ ...c, ...j })); } } catch { /* ignore */ } }, []);
   useEffect(() => { ctlRef.current = ctl; localStorage.setItem("kingdom_call_ctl", JSON.stringify(ctl)); }, [ctl]);
   useEffect(() => { speakingRef.current = speaking; }, [speaking]);
   useEffect(() => { mutedRef.current = muted; }, [muted]);
@@ -121,7 +121,7 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
       lastHeard.current = { t: norm(full), at: Date.now() };
       setInterim("");
       handleCustomer(full);
-    }, Math.min(c.waitMs, 300));
+    }, c.waitMs);
   };
 
   const start = () => {
@@ -172,13 +172,13 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
     if (!text.trim()) return;
     const guard = ctlRef.current.echoGuard;
     const my = ++saySeqK.current;
-    setSpeaking(true);
     lastSaid.current = { t: norm(text), at: Date.now() };
     setLog((l) => [...l, { who: "a", t: text }]);
     try {
       const audio = await tts(text, { emotion });
       if (my !== saySeqK.current) return; // رد أحدث وصل
       // المايك يبقى مفتوح وقت تجهيز الصوت، وينقفل فقط لحظة خروج الصوت
+      setSpeaking(true);
       if (guard) micOff();
       audioRef.current?.pause();
       const a = new Audio(audio); audioRef.current = a;
