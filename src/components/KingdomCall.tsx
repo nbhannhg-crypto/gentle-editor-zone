@@ -103,6 +103,10 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
     const c = ctlRef.current;
     const n = norm(fin);
     if (!n) return;
+    if (c.echoGuard) {
+      const s = lastSaid.current;
+      if (s.t && Date.now() - s.at < 6000 && (s.t.includes(n) || n.includes(s.t))) return; // صدى كلامها هي
+    }
     if (c.dedupe) {
       const last = lastHeard.current;
       if (Date.now() - last.at < 4000 && (last.t === n || last.t.includes(n))) return;
@@ -138,7 +142,7 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
       if (fin.trim()) queueHeard(fin.trim());
     };
     rec.onerror = (ev: any) => { if (ev?.error === "not-allowed") { toast.error("🎙️ اسمح للمايك من إعدادات المتصفح"); stop(); } };
-    rec.onend = () => { if (liveRef.current) try { rec.start(); } catch { /* ignore */ } };
+    rec.onend = () => { if (liveRef.current && !speakingRef.current) try { rec.start(); } catch { /* ignore */ } };
     recRef.current = rec; liveRef.current = true;
     try { rec.start(); } catch { /* ignore */ }
     setLive(true); setSeconds(0); setDeal(null); setLog([]); setAnswer(""); setCustomer("");
@@ -149,18 +153,36 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
     setLive(false); setInterim(""); audioRef.current?.pause(); setSpeaking(false); setRecording(false);
   };
 
+  // تبادل أدوار: وهي تتكلم المايك مقفل كلياً، وبعد ما تخلص يرجع يسمع
+  const lastSaid = useRef<{ t: string; at: number }>({ t: "", at: 0 });
+  const micOff = () => {
+    speakingRef.current = true;
+    const p = pendingRef.current; if (p.timer) clearTimeout(p.timer); p.text = ""; p.timer = null;
+    setInterim("");
+    try { recRef.current?.abort?.(); } catch { /* ignore */ }
+  };
+  const micOn = () => {
+    setTimeout(() => {
+      speakingRef.current = false; setSpeaking(false);
+      if (liveRef.current && recRef.current) try { recRef.current.start(); } catch { /* already running */ }
+    }, 400);
+  };
   const say = async (text: string) => {
     if (!text.trim()) return;
+    const guard = ctlRef.current.echoGuard;
     setSpeaking(true);
+    if (guard) micOff();
+    lastSaid.current = { t: norm(text), at: Date.now() };
     setLog((l) => [...l, { who: "a", t: text }]);
     try {
       const audio = await tts(text, { emotion });
       audioRef.current?.pause();
       const a = new Audio(audio); audioRef.current = a;
       a.volume = loud ? 1 : 0.3;
-      a.onended = () => setSpeaking(false);
+      const done = () => { lastSaid.current.at = Date.now(); if (guard) micOn(); else setSpeaking(false); };
+      a.onended = done; a.onerror = done;
       await a.play();
-    } catch (e) { toast.error((e as Error).message); setSpeaking(false); }
+    } catch (e) { toast.error((e as Error).message); if (guard) micOn(); else setSpeaking(false); }
   };
 
   sayRef.current = say;
