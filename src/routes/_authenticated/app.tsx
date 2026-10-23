@@ -610,8 +610,9 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
     for (const s of pool) { const n = normalize(s); const sc = q.filter((w) => n.includes(w)).length / q.length; if (sc > score) { score = sc; best = s; } }
     return score >= 0.5 ? best : "";
   };
-
+  const custSeq = useRef(0);
   const handleCustomer = async (text: string) => {
+    const myCust = ++custSeq.current;
     cancelCountdown();
     setCustomer(text); setAiSugs([]); setBusy(true);
     setLog((l) => [...l, { who: "c", t: text }]);
