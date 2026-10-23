@@ -314,7 +314,7 @@ export const fishSpeak = createServerFn({ method: "POST" })
         text: data.emotion ? `(${data.emotion}) ${data.text}` : data.text,
         reference_id: voiceId,
         format: "mp3",
-        latency: "normal", mp3_bitrate: 192,
+        latency: "balanced", mp3_bitrate: 128,
         prosody: { speed: data.speed, volume: data.volume },
       }),
     });
