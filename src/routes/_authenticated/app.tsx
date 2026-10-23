@@ -679,6 +679,8 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
       rec.lang = "ar-SA"; rec.continuous = true; rec.interimResults = true;
       rec.onresult = (e) => {
         if (mutedRef.current) return;
+        // الفهم السريع: وهي تتكلم ما نسمع (يمنع تكرار صوتها)
+        if (cfgRef.current.stt === "chrome" && (speakingRef.current || (!!audioRef.current && !audioRef.current.paused))) return;
         let fin = "", tmp = "";
         for (let i = e.resultIndex; i < e.results.length; i++) {
           const t = e.results[i][0].transcript;
@@ -705,6 +707,8 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
     };
     liveRef.current = true;
     setLive(true); setSeconds(0); setDeal(null);
+    // ⚡ خيار الفهم السريع (مثل مكالمة المملكة): استماع كروم المباشر فقط
+    if (cfgRef.current.stt === "chrome" && C) { spawn(); return; }
     // المحرك الأقوى: تسجيل المايك + تفريغ Gemini (يشتغل في كل المتصفحات)
     startVadRecorder({
       silenceMs: (cfgRef.current.instant ?? true) ? 400 : 900,
