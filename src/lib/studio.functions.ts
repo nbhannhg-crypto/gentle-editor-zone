@@ -600,3 +600,86 @@ export const mediaAnalyze = createServerFn({ method: "POST" })
       questions: (Array.isArray(j.questions) ? j.questions : []).map(String).slice(0, 12),
     };
   });
+
+// ===== Live WhatsApp inbox (real chats from the connected numbers) =====
+const msgText = (m: any): string => {
+  const x = m?.message ?? {};
+  return String(x.conversation ?? x.extendedTextMessage?.text ?? x.imageMessage?.caption ?? x.videoMessage?.caption ?? "")
+    || (x.audioMessage ? "🎙️ رسالة صوتية" : x.imageMessage ? "📷 صورة" : x.videoMessage ? "🎬 فيديو" : x.documentMessage ? "📄 ملف" : x.stickerMessage ? "🌟 ملصق" : "");
+};
+
+export const inboxChats = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ name: z.string().min(1).max(80) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const storeId = await myStore(context as Ctx).catch(() => "");
+    if (!(await canManage(context as Ctx, data.name, storeId))) throw new Error("غير مسموح");
+    const inst = encodeURIComponent(data.name);
+    const names = new Map<string, string>();
+    try {
+      const c = await evo().call(`/chat/findContacts/${inst}`, "POST", {});
+      for (const x of Array.isArray(c) ? c : []) { const n = x?.name ?? x?.verifiedName ?? x?.notify ?? x?.pushName; if (n && x?.remoteJid) names.set(x.remoteJid, String(n)); }
+    } catch { /* names optional */ }
+    const c = await evo().call(`/chat/findChats/${inst}`, "POST", {});
+    const rows = (Array.isArray(c) ? c : []).filter((x: any) => /@(s\.whatsapp\.net|lid)$/.test(String(x?.remoteJid ?? "")));
+    return rows.map((x: any) => {
+      const jid = String(x.remoteJid);
+      const alt = String(x.lastMessage?.key?.remoteJidAlt ?? "");
+      const phone = (jid.endsWith("@s.whatsapp.net") ? jid : alt).split("@")[0] ?? "";
+      const lm = x.lastMessage;
+      return {
+        jid, phone,
+        name: names.get(jid) ?? (alt ? names.get(alt) : undefined) ?? (lm && !lm.key?.fromMe ? lm.pushName : null) ?? x.pushName ?? "",
+        pic: x.profilePicUrl ?? "",
+        last: lm ? msgText(lm).slice(0, 120) : "",
+        fromMe: !!lm?.key?.fromMe,
+        at: Number(lm?.messageTimestamp ?? 0) * 1000 || Date.parse(x.updatedAt ?? "") || 0,
+        unread: Number(x.unreadCount ?? 0),
+      };
+    }).sort((a: any, b: any) => b.at - a.at).slice(0, 500);
+  });
+
+export const inboxMessages = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ name: z.string().min(1).max(80), jid: z.string().min(5).max(80) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const storeId = await myStore(context as Ctx).catch(() => "");
+    if (!(await canManage(context as Ctx, data.name, storeId))) throw new Error("غير مسموح");
+    const r = await evo().call(`/chat/findMessages/${encodeURIComponent(data.name)}`, "POST", { where: { key: { remoteJid: data.jid } }, limit: 60 });
+    const recs = (r?.messages?.records ?? (Array.isArray(r) ? r : [])) as any[];
+    return recs.map((m) => {
+      const ups = (m.MessageUpdate ?? []) as { status: string }[];
+      return {
+        id: String(m.key?.id ?? m.id),
+        me: !!m.key?.fromMe,
+        text: msgText(m),
+        at: Number(m.messageTimestamp ?? 0) * 1000,
+        read: ups.some((u) => u.status === "READ" || u.status === "PLAYED"),
+      };
+    }).sort((a, b) => a.at - b.at);
+  });
+
+export const inboxSend = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ name: z.string().min(1).max(80), to: z.string().min(5).max(80), text: z.string().min(1).max(3000), voice: z.boolean().default(false) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const storeId = await myStore(context as Ctx).catch(() => "");
+    if (!(await canManage(context as Ctx, data.name, storeId))) throw new Error("غير مسموح");
+    const number = data.to.endsWith("@lid") ? data.to : data.to.replace(/\D/g, "");
+    const inst = encodeURIComponent(data.name);
+    if (data.voice) {
+      const { fishTts } = await import("@/lib/autoreply.server");
+      await evo().call(`/message/sendWhatsAppAudio/${inst}`, "POST", { number, audio: await fishTts(data.text), encoding: true, ptt: true });
+    } else await evo().call(`/message/sendText/${inst}`, "POST", { number, text: data.text });
+    return { ok: true };
+  });
+
+export const inboxSuggest = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ history: z.string().max(4000) }).parse(d))
+  .handler(async ({ data }) => {
+    const { aiReplyWith } = await import("@/lib/autoreply.server");
+    const text = (await aiReplyWith(`هذي آخر المحادثة:\n${data.history}\n\nاكتبي ردًا واحدًا قصيرًا ودودًا باللهجة السعودية على آخر رسالة من العميل. الرد فقط.`, "", { system_prompt: "أنتِ موظفة سعودية لبقة ودودة." })).trim();
+    if (!text) throw new Error("المفاتيح مشغولة، جرّب بعد شوي");
+    return { text };
+  });
