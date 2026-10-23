@@ -644,6 +644,8 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
       }
       setAnswer(ans);
       recordUse(text, rule).then(reload);
+      // كلام أحدث وصل وهذا الرد قديم → لا ننطقه (يمنع تصادم ردين)
+      if (myCust !== custSeq.current) { setBusy(false); return; }
       if (liveRef.current && ans) autoSay(ans);
     } catch (e) { toast.error((e as Error).message); }
     setBusy(false);
@@ -683,6 +685,8 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
       const n = normalize(f);
       // نفس الجملة خلال 4 ثواني (مسودة ثم نهائية) → مرة وحدة بس
       if (n === lastHeardRef.current.t && Date.now() - lastHeardRef.current.at < 4000) return;
+      // جزء من جملة سبق وصلت (مسودة متأخرة) → تجاهل
+      if (lastHeardRef.current.t.startsWith(n) && Date.now() - lastHeardRef.current.at < 4000) return;
       lastHeardRef.current = { t: n, at: Date.now() };
       handleCustomer(f);
     };
