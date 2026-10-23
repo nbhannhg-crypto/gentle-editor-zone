@@ -1,13 +1,15 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { BOTS, BUSINESS_TYPES } from "@/lib/bots";
+import { BOTS, BUSINESS_TYPES, TONES } from "@/lib/bots";
 
 export const botRun = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({
     bot: z.enum(["auto", ...BOTS.map((b) => b.id)] as [string, ...string[]]),
-    order: z.string().trim().min(2).max(1500),
+    order: z.string().trim().min(2).max(3000),
+    tone: z.string().max(20).optional(),
+    spoil: z.boolean().optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: st } = await context.supabase.from("stores").select("id, name, business_type, bio").eq("owner_id", context.userId).limit(1).maybeSingle();
@@ -15,14 +17,15 @@ export const botRun = createServerFn({ method: "POST" })
     const { error } = await context.supabase.rpc("spend_points", { _store: st.id, _amount: 2, _reason: "فريق البوتات" });
     if (error) throw new Error(error.message.includes("insufficient") ? "رصيدك ما يكفي — اشحن من المحفظة" : error.message);
     const { data: products } = await context.supabase.from("products").select("name, price").eq("store_id", st.id).limit(30);
-    const bot = BOTS.find((b) => b.id === data.bot) ?? { name: "الملكة، قائدة فريق البوتات", job: "تفهمين أي طلب وتنفذينه بنفسك باختيار الخبرة المناسبة: بيع، متابعة، تسويق، منشورات، دعم، تصميم، تسعير، تدريب" };
+    const bot = BOTS.find((b) => b.id === data.bot) ?? { name: "الملكة، قائدة فريق البوتات", job: "تفهمين أي طلب وتنفذينه بنفسك باختيار الخبرة المناسبة: بيع، متابعة، تسويق، منشورات، دعم، تصميم، تسعير، تدريب، سوالف ودلع، فرفشة، خواطر، ورسائل صوتية" };
     const type = BUSINESS_TYPES.find((t) => t[0] === st.business_type)?.[1] ?? "";
+    const tone = TONES.find((t) => t[0] === data.tone)?.[2] ?? "";
     const { aiText } = await import("@/lib/autoreply.server");
-    const text = await aiText(
-      `أنتِ ${bot.name}، ضمن فريق بوتات منصة "مملكة المبيعات". مهمتك: ${bot.job}. تخدمين بائعة سعودية. نفّذي الأمر مباشرة وبشكل عملي وجاهز للنسخ، باللهجة السعودية البيضاء، مع تنسيق واضح بنقاط قصيرة. لا تقولي إنك ذكاء اصطناعي.\nالمتجر: ${st.name} — ${type}. ${st.bio}\nالمنتجات: ${(products ?? []).map((p) => `${p.name} (${p.price} ريال)`).join("، ") || "غير مضافة"}`,
-      data.order,
-    );
-    if (!text) throw new Error("ما وصل رد، جرّب مرة ثانية");
+    const sys = data.spoil
+      ? `أعيدي صياغة النص التالي باللهجة السعودية بلمسة دلع وأنوثة ولطافة أكبر وإيموجي ناعمة، بنفس المعنى وطول قريب. أرجعي النص فقط بدون شرح. لا تقولي إنك ذكاء اصطناعي.`
+      : `أنتِ ${bot.name}، ضمن فريق بوتات منصة "مملكة المبيعات". مهمتك: ${bot.job}. نفّذي الأمر مباشرة وبشكل عملي وجاهز للنسخ والإرسال، باللهجة السعودية البيضاء${tone ? `، بنبرة ${tone}` : ""}. لا تقولي إنك ذكاء اصطناعي.\nالمتجر: ${st.name} — ${type}. ${st.bio}\nالمنتجات: ${(products ?? []).map((p) => `${p.name} (${p.price} ريال)`).join("، ") || "غير مضافة"}`;
+    const text = await aiText(sys, data.order).catch(() => "");
+    if (!text) throw new Error("المفاتيح المجانية مشغولة الحين، جرّب بعد شوي");
     return { text };
   });
 
