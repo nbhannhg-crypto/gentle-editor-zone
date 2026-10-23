@@ -68,7 +68,9 @@ export function SellerProfile({ storeId }: { storeId?: string | undefined }) {
     setBusy(kind);
     try {
       const path = `${storeId}/persona-${kind}-${Date.now()}.${ext}`;
-      const up = await supabase.storage.from(BUCKET).upload(path, file, file.type ? { contentType: file.type } : {});
+      const opts: { contentType?: string } = {};
+      if (file.type) opts.contentType = file.type;
+      const up = await supabase.storage.from(BUCKET).upload(path, file, opts);
       if (up.error) throw up.error;
       const next = { ...p, [kind]: path };
       setP(next);
