@@ -51,7 +51,7 @@ export const designImage = createServerFn({ method: "POST" })
     style: z.string().max(60).optional(),
   }).parse(d))
   .handler(async ({ data }) => {
-    const s = SIZES[data.size];
+    const s = SIZES[data.size] ?? SIZES["square"]!;
     const body: Record<string, unknown> = { prompt: data.prompt, num_images: data.count, enable_safety_checker: true };
     if (data.seed !== undefined) body["seed"] = data.seed;
     if (data.model === "flux-pro") { body["aspect_ratio"] = s.aspect; body["raw"] = false; }
