@@ -240,7 +240,7 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
     if (!q) return true;
     return `${i.title} ${i.code} ${i.transcript}`.includes(q) || normalizeArabic(`${i.title} ${i.code} ${i.transcript} ${mm.folder} ${mm.ocr} ${mm.summary} ${mm.tags.join(" ")} ${mm.triggers.join(" ")} ${mm.questions.join(" ")}`).includes(normalizeArabic(q));
   });
-  const simHit = sim.trim() ? bestMedia(sim, items.map((i) => ({ ...i, ...m(i.id) })), 40) : null;
+  const simHit = sim.trim() ? bestMedia(sim, items.map((i) => ({ ...i, ...m(i.id), active: m(i.id).active && !m(i.id).deletedAt })), 40) : null;
   const top = [...items].sort((a, b) => m(b.id).sends - m(a.id).sends).filter((i) => m(i.id).sends > 0).slice(0, 3);
 
   return (
