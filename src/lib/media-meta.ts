@@ -12,6 +12,8 @@ export type MediaMeta = {
   summary: string;
   sends: number;
   plays: number;
+  /** وقت الحذف (سلة المحذوفات) — 0 = غير محذوف */
+  deletedAt?: number;
 };
 export const emptyMeta = (): MediaMeta => ({ active: true, folder: "", triggers: [], tags: [], questions: [], ocr: "", summary: "", sends: 0, plays: 0 });
 
