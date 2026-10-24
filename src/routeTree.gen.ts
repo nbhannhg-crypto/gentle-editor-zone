@@ -21,6 +21,7 @@ import { Route as AuthenticatedAdminKingdomRouteImport } from './routes/_authent
 import { Route as ApiPublicApproveRouteImport } from './routes/api/public/approve'
 import { Route as ApiPublicEvolutionRouteImport } from './routes/api/public/evolution'
 import { Route as ApiPublicFactoryDailyRouteImport } from './routes/api/public/factory-daily'
+import { Route as ApiPublicSyncRouteImport } from './routes/api/public/sync'
 import { Route as ApiPublicWhatsappRouteImport } from './routes/api/public/whatsapp'
 
 const IndexRoute = IndexRouteImport.update({
@@ -83,6 +84,11 @@ const ApiPublicFactoryDailyRoute = ApiPublicFactoryDailyRouteImport.update({
   path: '/api/public/factory-daily',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicSyncRoute = ApiPublicSyncRouteImport.update({
+  id: '/api/public/sync',
+  path: '/api/public/sync',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicWhatsappRoute = ApiPublicWhatsappRouteImport.update({
   id: '/api/public/whatsapp',
   path: '/api/public/whatsapp',
@@ -101,6 +107,7 @@ export interface FileRoutesByFullPath {
   '/api/public/approve': typeof ApiPublicApproveRoute
   '/api/public/evolution': typeof ApiPublicEvolutionRoute
   '/api/public/factory-daily': typeof ApiPublicFactoryDailyRoute
+  '/api/public/sync': typeof ApiPublicSyncRoute
   '/api/public/whatsapp': typeof ApiPublicWhatsappRoute
 }
 export interface FileRoutesByTo {
@@ -115,6 +122,7 @@ export interface FileRoutesByTo {
   '/api/public/approve': typeof ApiPublicApproveRoute
   '/api/public/evolution': typeof ApiPublicEvolutionRoute
   '/api/public/factory-daily': typeof ApiPublicFactoryDailyRoute
+  '/api/public/sync': typeof ApiPublicSyncRoute
   '/api/public/whatsapp': typeof ApiPublicWhatsappRoute
 }
 export interface FileRoutesById {
@@ -131,6 +139,7 @@ export interface FileRoutesById {
   '/api/public/approve': typeof ApiPublicApproveRoute
   '/api/public/evolution': typeof ApiPublicEvolutionRoute
   '/api/public/factory-daily': typeof ApiPublicFactoryDailyRoute
+  '/api/public/sync': typeof ApiPublicSyncRoute
   '/api/public/whatsapp': typeof ApiPublicWhatsappRoute
 }
 export interface FileRouteTypes {
@@ -147,6 +156,7 @@ export interface FileRouteTypes {
     | '/api/public/approve'
     | '/api/public/evolution'
     | '/api/public/factory-daily'
+    | '/api/public/sync'
     | '/api/public/whatsapp'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -161,6 +171,7 @@ export interface FileRouteTypes {
     | '/api/public/approve'
     | '/api/public/evolution'
     | '/api/public/factory-daily'
+    | '/api/public/sync'
     | '/api/public/whatsapp'
   id:
     | '__root__'
@@ -176,6 +187,7 @@ export interface FileRouteTypes {
     | '/api/public/approve'
     | '/api/public/evolution'
     | '/api/public/factory-daily'
+    | '/api/public/sync'
     | '/api/public/whatsapp'
   fileRoutesById: FileRoutesById
 }
@@ -188,6 +200,7 @@ export interface RootRouteChildren {
   ApiPublicApproveRoute: typeof ApiPublicApproveRoute
   ApiPublicEvolutionRoute: typeof ApiPublicEvolutionRoute
   ApiPublicFactoryDailyRoute: typeof ApiPublicFactoryDailyRoute
+  ApiPublicSyncRoute: typeof ApiPublicSyncRoute
   ApiPublicWhatsappRoute: typeof ApiPublicWhatsappRoute
 }
 
@@ -277,6 +290,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicFactoryDailyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/sync': {
+      id: '/api/public/sync'
+      path: '/api/public/sync'
+      fullPath: '/api/public/sync'
+      preLoaderRoute: typeof ApiPublicSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/whatsapp': {
       id: '/api/public/whatsapp'
       path: '/api/public/whatsapp'
@@ -313,6 +333,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicApproveRoute: ApiPublicApproveRoute,
   ApiPublicEvolutionRoute: ApiPublicEvolutionRoute,
   ApiPublicFactoryDailyRoute: ApiPublicFactoryDailyRoute,
+  ApiPublicSyncRoute: ApiPublicSyncRoute,
   ApiPublicWhatsappRoute: ApiPublicWhatsappRoute,
 }
 export const routeTree = rootRouteImport

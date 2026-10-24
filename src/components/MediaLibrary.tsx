@@ -10,6 +10,8 @@ import { mediaAnalyze, mediaSendOne, waList } from "@/lib/studio.functions";
 import { emptyMeta, pullMeta, pushMeta, removeMeta, type MediaMeta } from "@/lib/media-meta";
 import { bestMedia, normalizeArabic } from "@/lib/media-match";
 import { LibraryGuide, LibraryLock, MediaEditor, ShareBar } from "@/components/MediaTools";
+import { MediaLightbox } from "@/components/MediaLightbox";
+import { BackupPanel, StorageDashboard } from "@/components/LibraryVault";
 
 type Item = { id: string; kind: string; title: string; code: string; transcript: string; path: string; mime: string; url?: string | undefined };
 const KINDS = [["audio", "🎙️ أصوات"], ["video", "🎬 فيديو"], ["image", "🎨 تصاميم"]] as const;
@@ -187,6 +189,13 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
     } catch { toast.error("اسمح للموقع باستخدام الميكروفون"); }
   };
 
+  // سلة المحذوفات: الحذف العادي ينقل للسلة 30 يوم، والحذف النهائي من السلة فقط
+  const [showTrash, setShowTrash] = useState(false);
+  const [lb, setLb] = useState<number | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const TRASH_DAYS = 30;
+  const softDel = (it: Item) => { setM(it.id, { deletedAt: Date.now() }); toast.success("انتقل لسلة المحذوفات 🗑️ (تقدر ترجعه خلال 30 يوم)"); };
+  const restoreItem = (it: Item) => { setM(it.id, { deletedAt: 0 }); toast.success("رجع الملف مكانه 🔄"); };
   const del = async (it: Item) => {
     await supabase.storage.from("media-library").remove([it.path]);
     await supabase.from("media_library").delete().eq("id", it.id);
@@ -217,9 +226,16 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
     setPicked([]); setSelMode(false);
   };
 
-  const folders = [...new Set(items.map((i) => m(i.id).folder).filter(Boolean))];
+  const trashed = items.filter((i) => (m(i.id).deletedAt ?? 0) > 0);
+  // تفريغ تلقائي لما يتعدى 30 يوم
+  useEffect(() => {
+    const old = trashed.filter((i) => Date.now() - (m(i.id).deletedAt ?? 0) > TRASH_DAYS * 864e5);
+    old.forEach((i) => void del(i));
+  }, [items.length, meta]); // eslint-disable-line react-hooks/exhaustive-deps
+  const folders = [...new Set(items.filter((i) => !m(i.id).deletedAt).map((i) => m(i.id).folder).filter(Boolean))];
   const shown = items.filter((i) => {
     const mm = m(i.id);
+    if (showTrash ? !mm.deletedAt : mm.deletedAt) return false;
     if (folder && mm.folder !== folder) return false;
     if (!q) return true;
     return `${i.title} ${i.code} ${i.transcript}`.includes(q) || normalizeArabic(`${i.title} ${i.code} ${i.transcript} ${mm.folder} ${mm.ocr} ${mm.summary} ${mm.tags.join(" ")} ${mm.triggers.join(" ")} ${mm.questions.join(" ")}`).includes(normalizeArabic(q));
@@ -237,12 +253,15 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
         <div className="rounded-xl bg-secondary p-2"><b className="block text-lg">{counts["video"] ?? 0}</b><span className="text-xs">🎬 فيديو</span></div>
         <div className="rounded-xl bg-secondary p-2"><b className="block text-lg">{counts["image"] ?? 0}</b><span className="text-xs">🖼️ صور</span></div>
       </div>
+      <StorageDashboard storeId={storeId} counts={counts} trash={trashed.length} refreshKey={refreshKey} />
+      <BackupPanel storeId={storeId} onRestored={() => { void load(); void loadCounts(); if (storeId) void pullMeta(storeId).then(setMeta); setRefreshKey((k) => k + 1); }} />
       <LibraryGuide />
       <div className="flex gap-2 overflow-x-auto">
         <button onClick={() => setKind("all")} className={`shrink-0 rounded-full px-4 py-1.5 text-sm ${kind === "all" ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>📦 الكل ({(counts["audio"] ?? 0) + (counts["video"] ?? 0) + (counts["image"] ?? 0)})</button>
         {KINDS.map(([k, l]) => (
           <button key={k} onClick={() => setKind(k)} className={`shrink-0 rounded-full px-4 py-1.5 text-sm ${kind === k ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>{l} ({counts[k] ?? 0})</button>
         ))}
+        <button onClick={() => setShowTrash(!showTrash)} className={`shrink-0 rounded-full px-4 py-1.5 text-sm ${showTrash ? "bg-destructive text-destructive-foreground" : "bg-secondary"}`}>🗑️ سلة المحذوفات ({trashed.length})</button>
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
         <Input placeholder="اسم الملف (اختياري)" value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -336,6 +355,7 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
           <Button size="sm" disabled={!picked.length} onClick={moveTo}>📂 نقل إلى ألبوم…</Button>
         </>}
       </div>
+      {showTrash && <p className="rounded-lg bg-secondary p-2 text-xs">🗑️ هنا الملفات المحذوفة — ترجعها بضغطة، أو تنحذف نهائياً تلقائياً بعد {TRASH_DAYS} يوم.</p>}
       {!shown.length && <p className="text-sm text-muted-foreground">ما فيه ملفات هنا للحين.</p>}
       <div className="grid gap-3 sm:grid-cols-2">
         {shown.map((it) => (
@@ -349,6 +369,14 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
                 : <b className="truncate text-sm">{it.title} <button className="text-xs" title="غيّر الاسم" onClick={() => setRenaming(it.id)}>✏️</button></b>}
               {it.code && <span className="rounded bg-secondary px-2 text-xs">#{it.code}</span>}
             </div>
+            {it.url && <Button size="sm" variant="outline" onClick={() => setLb(shown.findIndex((x) => x.id === it.id))}>👁️ عرض مكبّر</Button>}
+            {showTrash && (
+              <div className="flex flex-wrap items-center gap-2 rounded-lg bg-secondary/60 p-2 text-xs">
+                <span>باقي {Math.max(0, TRASH_DAYS - Math.floor((Date.now() - (m(it.id).deletedAt ?? 0)) / 864e5))} يوم</span>
+                <Button size="sm" onClick={() => restoreItem(it)}>🔄 استرجاع</Button>
+                <Button size="sm" variant="destructive" onClick={() => { if (confirm("حذف نهائي؟ ما يرجع بعدها أبداً")) void del(it); }}>❌ حذف نهائي</Button>
+              </div>
+            )}
             {it.url && it.kind === "image" && <img src={it.url} alt={it.title} className="max-h-48 w-full rounded-lg object-cover" />}
             {it.url && it.kind === "video" && <video src={it.url} controls className="max-h-48 w-full rounded-lg" />}
             {it.url && it.kind === "audio" && <audio src={it.url} controls className="w-full" />}
@@ -361,7 +389,7 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
               {it.kind !== "image" && (
                 <Button size="sm" variant="secondary" disabled={busyT === it.id} onClick={async () => { setBusyT(it.id); try { await transcribe({ data: { id: it.id } }); await load(); toast.success("تم تفريغ الصوت ✅"); } catch (e) { toast.error((e as Error).message); } finally { setBusyT(""); } }}>{busyT === it.id ? "⏳ جاري التحويل..." : "📝 حوّل لنص"}</Button>
               )}
-              <Button size="sm" variant="ghost" onClick={() => { if (confirm("أكيد تحذف الملف؟")) void del(it); }}>🗑️</Button>
+              {!showTrash && <Button size="sm" variant="ghost" onClick={() => softDel(it)}>🗑️</Button>}
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Button size="sm" onClick={() => sendItem(it)}>📲 إرسال</Button>
@@ -386,6 +414,7 @@ export function MediaLibrary({ storeId }: { storeId?: string | undefined }) {
           </div>
         ))}
       </div>
+      {lb != null && shown[lb] && <MediaLightbox items={shown} index={lb} onIndex={setLb} onClose={() => setLb(null)} />}
     </div>
     </LibraryLock>
   );
