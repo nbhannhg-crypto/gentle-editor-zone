@@ -75,25 +75,31 @@ export function QueenBrain({ storeId, onTab }: { storeId?: string | undefined; o
         className="fixed bottom-4 left-4 z-50 flex h-12 w-12 text-2xl sm:bottom-5 sm:left-5 sm:h-16 sm:w-16 sm:text-3xl items-center justify-center rounded-full bg-gold shadow-soft transition hover:scale-105"
         aria-label="عقل الملكة">👑</button>
       {open && (
-        <div className="fixed bottom-16 sm:bottom-24 left-2 right-2 sm:left-4 sm:right-auto z-50 flex h-[min(70vh,calc(100dvh-6rem))] sm:w-[400px] flex-col overflow-hidden rounded-2xl border bg-card shadow-soft">
-          <div className="bg-royal px-4 py-3 text-primary-foreground">
-            <p className="font-display text-lg">👑 عقل الملكة</p>
-            <p className="text-xs opacity-80">تفهمك بالصوت والكتابة وتنفذ فوراً</p>
+        <>
+        <div className="fixed inset-0 z-[60] bg-foreground/40 sm:hidden" onClick={() => setOpen(false)} />
+        <div className="fixed inset-x-0 bottom-0 z-[61] flex h-[85dvh] flex-col overflow-hidden rounded-t-2xl border bg-card shadow-soft sm:inset-x-auto sm:bottom-24 sm:left-4 sm:h-[70vh] sm:w-[400px] sm:rounded-2xl">
+          <div className="flex shrink-0 items-center gap-2 bg-royal px-4 py-3 text-primary-foreground">
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-display text-lg">👑 عقل الملكة</p>
+              <p className="truncate text-xs opacity-80">تفهمك بالصوت والكتابة وتنفذ فوراً</p>
+            </div>
+            <button onClick={() => setOpen(false)} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary-foreground/20 text-lg" aria-label="إغلاق">✕</button>
           </div>
-          <div className="flex-1 space-y-2 overflow-y-auto p-3 text-sm">
+          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3 text-sm">
             {msgs.map((m, i) => (
               <div key={i} className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 ${m.role === "user" ? "mr-auto bg-primary text-primary-foreground" : "bg-secondary"}`}>{m.content.replace(/\*\*/g, "")}</div>
             ))}
             {busy && <div className="w-fit rounded-2xl bg-secondary px-3 py-2">تفكر… 🤔</div>}
             <div ref={endRef} />
           </div>
-          <div className="flex gap-2 border-t p-2">
-            <button onClick={listen} className={`rounded-full px-3 ${listening ? "bg-destructive text-destructive-foreground" : "bg-secondary"}`} aria-label="تكلم">🎤</button>
-            <input className="flex-1 rounded-full border bg-background px-3 py-2 text-sm outline-none" placeholder="اكتب أمرك…"
+          <div className="flex shrink-0 items-center gap-2 border-t p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+            <button onClick={listen} className={`h-10 w-10 shrink-0 rounded-full ${listening ? "bg-destructive text-destructive-foreground" : "bg-secondary"}`} aria-label="تكلم">🎤</button>
+            <input className="h-10 min-w-0 flex-1 rounded-full border bg-background px-3 text-sm outline-none" placeholder="اكتب أمرك…"
               value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()} />
-            <Button size="sm" disabled={busy} onClick={() => send()}>إرسال</Button>
+            <Button className="h-10 shrink-0 rounded-full px-4" disabled={busy} onClick={() => send()}>أرسل</Button>
           </div>
         </div>
+        </>
       )}
     </>
   );
