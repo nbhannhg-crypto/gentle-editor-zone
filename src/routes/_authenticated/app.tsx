@@ -37,6 +37,7 @@ import { BrainFactory } from "@/components/BrainFactory";
 import { MotherBrain } from "@/components/MotherBrain";
 import { KingdomBrains } from "@/components/KingdomBrains";
 import { MediaLibrary } from "@/components/MediaLibrary";
+import { DesignStudio } from "@/components/DesignStudio";
 import { Complaints } from "@/components/Complaints";
 import { WaInbox } from "@/components/WaInbox";
 import { VoiceAssistant } from "@/components/VoiceAssistant";
@@ -58,7 +59,7 @@ export const Route = createFileRoute("/_authenticated/app")({
 });
 
 export type Mode = "learn" | "smart";
-type Tab = "train" | "call" | "kcall" | "voice" | "channels" | "customers" | "products" | "wallet" | "dash" | "bots" | "profile" | "deals" | "campaigns" | "appointments" | "brains" | "magic" | "mother" | "library" | "inbox" | "complaints";
+type Tab = "train" | "call" | "kcall" | "voice" | "channels" | "customers" | "products" | "wallet" | "dash" | "bots" | "profile" | "deals" | "campaigns" | "appointments" | "brains" | "magic" | "mother" | "library" | "inbox" | "complaints" | "design";
 
 function App() {
   const [tab, setTab] = useState<Tab>("brains");
@@ -106,7 +107,7 @@ function App() {
             </div>
           </div>
           <nav className="-mx-3 mt-3 flex gap-1 overflow-x-auto px-3 sm:mx-0 sm:mt-5 sm:gap-2 sm:px-0 [scrollbar-width:none]">
-            {([["mother", "🧠 مملكة العقول"], ["brains", "🏭 مصنع العقول"], ["magic", "✨ عقول الإلهام"], ["bots", "🤖 فريق البوتات"], ["profile", "🏪 ملفي"], ["train", "علّم الموظفة"], ["call", "المكالمة المباشرة"], ["kcall", "📱 مكالمة المملكة"], ["voice", "🎙️ الصوت"], ["channels", "📡 القنوات"], ["inbox", "💬 المحادثات"], ["library", "📚 المكتبة"], ["complaints", "📮 الشكاوى"], ["customers", "👥 الزبائن"], ["campaigns", "📣 الحملات"], ["deals", "👁️ عين الصفقة"], ["appointments", "📅 المواعيد"], ["products", "🛍️ المنتجات"], ["wallet", "💰 المحفظة"], ["dash", "لوحة الأداء"]] as const).map(([k, l]) => (
+            {([["mother", "🧠 مملكة العقول"], ["brains", "🏭 مصنع العقول"], ["magic", "✨ عقول الإلهام"], ["bots", "🤖 فريق البوتات"], ["profile", "🏪 ملفي"], ["train", "علّم الموظفة"], ["call", "المكالمة المباشرة"], ["kcall", "📱 مكالمة المملكة"], ["voice", "🎙️ الصوت"], ["channels", "📡 القنوات"], ["inbox", "💬 المحادثات"], ["library", "📚 المكتبة"], ["design", "🎨 التصميم"], ["complaints", "📮 الشكاوى"], ["customers", "👥 الزبائن"], ["campaigns", "📣 الحملات"], ["deals", "👁️ عين الصفقة"], ["appointments", "📅 المواعيد"], ["products", "🛍️ المنتجات"], ["wallet", "💰 المحفظة"], ["dash", "لوحة الأداء"]] as const).map(([k, l]) => (
               <button key={k} onClick={() => setTab(k)}
                 className={`shrink-0 rounded-t-xl px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm font-medium transition ${tab === k ? "bg-background text-foreground" : k === "mother" ? "animate-pulse bg-gold text-accent-foreground" : "text-primary-foreground/80 hover:bg-primary-foreground/10"}`}>{l}</button>
             ))}
@@ -134,6 +135,7 @@ function App() {
         {tab === "magic" && <MagicBrains />}
         {tab === "mother" && <div className="space-y-6"><KingdomBrains admin={admin} storeId={store?.id} /><MotherBrain storeId={store?.id} /></div>}
         {tab === "library" && <MediaLibrary storeId={store?.id} />}
+        {tab === "design" && <DesignStudio storeId={store?.id} />}
         {tab === "inbox" && <WaInbox storeId={store?.id} />}
         {tab === "complaints" && <Complaints storeId={store?.id} admin={admin} />}
         <VoiceAssistant onTab={(t) => setTab(t as Tab)} />
