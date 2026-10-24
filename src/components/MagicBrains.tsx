@@ -4,17 +4,18 @@ import ReactMarkdown from "react-markdown";
 import { magicBrain } from "@/lib/ai.functions";
 
 const KINDS = [
-  { k: "intent", e: "🔮", n: "قارئة النية", d: "الصقي رسالة الزبون — تقولك يشتري ولا يستهبل", p: "هلااااا كم سعره؟ 😍" },
-  { k: "objection", e: "💍", n: "حلّالة الأعذار", d: "عذر الزبون (زوجي ما يخليني، بفكر…) وتعطيك 3 ردود لطيفة", p: "زوجي ما يخليني اشتري" },
-  { k: "dream", e: "🌙", n: "الحالمة", d: "قولي مزاجك أو حلمك وتحوله لخطة بيع اليوم", p: "حلمت اني اطير" },
-  { k: "meeting", e: "🏛️", n: "اجتماع العقول اليومي", d: "اكتبي منتجاتك ووضعك — العقول تجتمع وتقرر خطة اليوم", p: "عندي عطور وبخور، المبيعات هالأسبوع ضعيفة" },
-  { k: "tutor", e: "📚", n: "ربّي ولدك", d: "اكتبي واجب ولدك وتشرحه له بلهجة سعودية", p: "رياضيات صف ثالث: 24 ÷ 6 = ؟" },
+  { k: "attract", e: "🧲", n: "جاذب القلوب", d: "قولي وش تبين — تعطيك رسائل تشويق تخليه يشتاق ويتعلق", p: "أبيه يشتاق لي ويسأل عني" },
+  { k: "excuse", e: "🥺", n: "أعذار الدلع", d: "اكتبي الموقف — تعطيك أعذار رومانسية تذوب زعله", p: "تأخرت بالرد يومين وزعل" },
+  { k: "feel", e: "🔮", n: "كاشف المشاعر", d: "الصقي رسالته — تقولك وش يحس وأفضل رد", p: "اوكي براحتك 🙂" },
+  { k: "cold", e: "💋", n: "كاسر البرود", d: "رد ببرود أو زعل؟ تعطيك 3 ردود غنج تلينه", p: "مشغول" },
+  { k: "spark", e: "🔥", n: "مشعل السوالف", d: "السوالف هدت؟ مواضيع وأسئلة تشعلها", p: "سوالف ليلية بالمكالمة" },
+  { k: "flirt", e: "🌹", n: "الغزل والخواطر", d: "رسائل غزل صباحية ومسائية واشتياق", p: "رسائل صباح الخير بدلع" },
 ] as const;
-const LV: Record<string, string> = { hot: "🔥 بيشتري — اضغطي عليه", warm: "🙂 مهتم — كمّلي معه", cold: "🧊 غالباً يستهبل — لا تضيعين وقتك" };
+const LV: Record<string, string> = { hot: "🔥 مشتاق ومتعلق فيك", warm: "🙂 يتغلى ويبي اهتمام", cold: "🧊 بارد أو زعلان — دلّعيه" };
 
 export function MagicBrains() {
   const run = useServerFn(magicBrain);
-  const [kind, setKind] = useState<(typeof KINDS)[number]["k"]>("intent");
+  const [kind, setKind] = useState<(typeof KINDS)[number]["k"]>("attract");
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [res, setRes] = useState<{ level: string; label: string; why: string; reply: string } | null>(null);
