@@ -144,7 +144,9 @@ ${active ? `\n⚠️ التاجر الآن يكلم عقله الخاص "${activ
     let j: Out;
     try { j = JSON.parse(raw) as Out; } catch { throw new Error("ما وصل رد واضح، جرّب مرة ثانية"); }
     let created: { id: string; name: string; replies: number } | null = null;
-    if (j.create_brain) {
+    const lastUser = [...data.history].reverse().find((m) => m.role === "user")?.content ?? "";
+    const wantsCreate = /(أنشئ|انشئ|انشأ|أنشأ|اصنع|سو[يّ]?\s*(لي\s*)?(عقل|مكتبة)|ابي\s*(عقل|مكتبة)\s*(جديد|خاص)|عبّ?ه|عبي)/.test(lastUser);
+    if (j.create_brain && wantsCreate) {
       const b = j.create_brain;
       const tag = String(b.name || "عقل").trim().slice(0, 40);
       const { data: row, error: e2 } = await sb.from("brains").insert({
