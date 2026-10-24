@@ -71,7 +71,7 @@ function ResultActions({ url, prompt, storeId, onEdit }: { url: string; prompt: 
   );
 }
 
-export function DesignStudio({ storeId }: { storeId?: string }) {
+export function DesignStudio({ storeId }: { storeId?: string | undefined }) {
   const [tab, setTab] = useState<Tab>("image");
   const [posterBg, setPosterBg] = useState<string | null>(null);
   const [videoFrom, setVideoFrom] = useState<string | null>(null);
