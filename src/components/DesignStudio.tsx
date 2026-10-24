@@ -318,7 +318,7 @@ function PosterTab({ storeId, initialBg }: { storeId?: string | undefined; initi
       const s = Math.max(W / bgImg.width, H / bgImg.height); const w = bgImg.width * s, h = bgImg.height * s;
       x.drawImage(bgImg, (W - w) / 2, (H - h) / 2, w, h);
     } else {
-      const g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, GRADS[grad][0]); g.addColorStop(1, GRADS[grad][1]); x.fillStyle = g; x.fillRect(0, 0, W, H);
+      const g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, (GRADS[grad]?.[0] ?? "#000")); g.addColorStop(1, (GRADS[grad]?.[1] ?? "#333")); x.fillStyle = g; x.fillRect(0, 0, W, H);
     }
     x.filter = "none";
     if (f.dark) { x.fillStyle = `rgba(0,0,0,${f.dark / 100})`; x.fillRect(0, 0, W, H); }
