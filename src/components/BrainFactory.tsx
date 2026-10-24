@@ -111,7 +111,7 @@ export function BrainFactory({ onTab }: { onTab: (t: string) => void }) {
           {msgs.length === 0 && (
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-6 [&_button]:min-w-0">
               {SPECIALISTS.map((s) => (
-                <button key={s.id} onClick={() => send(`ابي ${s.name}`)} className="rounded-xl border bg-background p-2 text-center text-xs hover:border-primary">
+                <button key={s.id} onClick={() => (s.tab ? open(s.tab) : send("ابي انشئ عقل جديد خاص فيني"))} className="rounded-xl border bg-background p-2 text-center text-xs hover:border-primary">
                   <div className="text-2xl">{s.emoji}</div>{s.name.replace("عقل ", "")}
                 </button>
               ))}
