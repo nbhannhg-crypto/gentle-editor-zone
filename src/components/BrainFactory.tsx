@@ -5,7 +5,7 @@ import ReactMarkdown from "react-markdown";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { brainChat, brainVoice } from "@/lib/brains.functions";
-import { SPECIALISTS, SOURCES } from "@/lib/brains";
+import { SPECIALISTS } from "@/lib/brains";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { BrainUsageSummary } from "@/components/KingdomBrains";
