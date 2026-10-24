@@ -59,7 +59,7 @@ function Chip({ on, children, onClick }: { on: boolean; children: React.ReactNod
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return <div className="space-y-1.5"><div className="flex items-baseline justify-between gap-2"><label className="text-sm font-semibold">{label}</label>{hint && <span className="text-[11px] text-muted-foreground">{hint}</span>}</div>{children}</div>;
 }
-function ResultActions({ url, prompt, storeId, onEdit }: { url: string; prompt: string; storeId?: string; onEdit?: () => void }) {
+function ResultActions({ url, prompt, storeId, onEdit }: { url: string; prompt: string; storeId?: string | undefined; onEdit?: (() => void) | undefined }) {
   const [busy, setBusy] = useState(false);
   return (
     <div className="flex flex-wrap gap-1.5 p-2">
@@ -71,7 +71,7 @@ function ResultActions({ url, prompt, storeId, onEdit }: { url: string; prompt: 
   );
 }
 
-export function DesignStudio({ storeId }: { storeId?: string }) {
+export function DesignStudio({ storeId }: { storeId?: string | undefined }) {
   const [tab, setTab] = useState<Tab>("image");
   const [posterBg, setPosterBg] = useState<string | null>(null);
   const [videoFrom, setVideoFrom] = useState<string | null>(null);
@@ -100,7 +100,7 @@ export function DesignStudio({ storeId }: { storeId?: string }) {
 }
 
 /* ================= الصور ================= */
-function ImageTab({ storeId, onEdit, onAnimate }: { storeId?: string; onEdit: (u: string) => void; onAnimate: (u: string) => void }) {
+function ImageTab({ storeId, onEdit, onAnimate }: { storeId?: string | undefined; onEdit: (u: string) => void; onAnimate: (u: string) => void }) {
   const gen = useServerFn(designImage);
   const enh = useServerFn(designEnhance);
   const [prompt, setPrompt] = useState("");
@@ -118,13 +118,13 @@ function ImageTab({ storeId, onEdit, onAnimate }: { storeId?: string; onEdit: (u
   const [out, setOut] = useState<string[]>([]);
 
   const enhance = async () => {
-    if (prompt.trim().length < 2) return toast.error("اكتب فكرتك أول");
+    if (prompt.trim().length < 2) { toast.error("اكتب فكرتك أول"); return; }
     setEnhBusy(true);
     try { const r = await enh({ data: { idea: prompt, kind: "image" } }); if (r.error) toast.error(r.error); else if (r.text) { setPrompt(r.text); toast.success("تم تحسين الوصف ✨"); } }
     catch (e) { toast.error((e as Error).message); } finally { setEnhBusy(false); }
   };
   const run = async () => {
-    if (prompt.trim().length < 2) return toast.error("اكتب وصف الصورة");
+    if (prompt.trim().length < 2) { toast.error("اكتب وصف الصورة"); return; }
     setBusy(true); setOut([]);
     try {
       const full = style ? `${prompt}, ${style}` : prompt;
@@ -155,12 +155,12 @@ function ImageTab({ storeId, onEdit, onAnimate }: { storeId?: string; onEdit: (u
         <Field label="النمط الفني">
           <div className="flex flex-wrap gap-1.5">{STYLES.map(([v, l]) => <Chip key={l} on={style === v} onClick={() => setStyle(v)}>{l}</Chip>)}</div>
         </Field>
-        <Field label="عدد الصور" hint={`${count}`}><Slider min={1} max={4} step={1} value={[count]} onValueChange={(v) => setCount(v[0])} /></Field>
+        <Field label="عدد الصور" hint={`${count}`}><Slider min={1} max={4} step={1} value={[count]} onValueChange={(v) => setCount(v[0] ?? 0)} /></Field>
         <button type="button" className="text-xs text-primary underline" onClick={() => setAdv(!adv)}>{adv ? "إخفاء التحكم المتقدم" : "⚙️ تحكم متقدم"}</button>
         {adv && (
           <div className="space-y-4 rounded-xl bg-muted/50 p-3">
-            <Field label="خطوات الدقة" hint={`${steps} — أكثر = أدق وأبطأ`}><Slider min={4} max={50} step={1} value={[steps]} onValueChange={(v) => setSteps(v[0])} /></Field>
-            <Field label="الالتزام بالوصف" hint={`${guidance} — أعلى = حرفي أكثر`}><Slider min={1} max={15} step={0.5} value={[guidance]} onValueChange={(v) => setGuidance(v[0])} /></Field>
+            <Field label="خطوات الدقة" hint={`${steps} — أكثر = أدق وأبطأ`}><Slider min={4} max={50} step={1} value={[steps]} onValueChange={(v) => setSteps(v[0] ?? 0)} /></Field>
+            <Field label="الالتزام بالوصف" hint={`${guidance} — أعلى = حرفي أكثر`}><Slider min={1} max={15} step={0.5} value={[guidance]} onValueChange={(v) => setGuidance(v[0] ?? 0)} /></Field>
             <Field label="أشياء ما تبيها" hint="Ideogram"><Input value={negative} onChange={(e) => setNegative(e.target.value)} placeholder="blurry, text, watermark" /></Field>
             <Field label="رقم البذرة (Seed)" hint="نفس الرقم = نفس النتيجة"><Input inputMode="numeric" value={seed} onChange={(e) => setSeed(e.target.value.replace(/\D/g, ""))} placeholder="عشوائي" /></Field>
           </div>
@@ -185,7 +185,7 @@ function ImageTab({ storeId, onEdit, onAnimate }: { storeId?: string; onEdit: (u
 }
 
 /* ================= الفيديو ================= */
-function VideoTab({ storeId, from, clearFrom }: { storeId?: string; from: string | null; clearFrom: () => void }) {
+function VideoTab({ storeId, from, clearFrom }: { storeId?: string | undefined; from: string | null; clearFrom: () => void }) {
   const start = useServerFn(designVideoStart);
   const check = useServerFn(designVideoCheck);
   const enh = useServerFn(designEnhance);
@@ -208,16 +208,16 @@ function VideoTab({ storeId, from, clearFrom }: { storeId?: string; from: string
     if (!storeId) return;
     const path = `${storeId}/design-src-${crypto.randomUUID()}.${f.name.split(".").pop() || "jpg"}`;
     const up = await supabase.storage.from("media-library").upload(path, f, { contentType: f.type });
-    if (up.error) return toast.error(up.error.message);
+    if (up.error) { toast.error(up.error.message); return; }
     const { data } = await supabase.storage.from("media-library").createSignedUrl(path, 3600);
     if (data?.signedUrl) setImg(data.signedUrl);
   };
   const enhance = async () => {
-    if (prompt.trim().length < 2) return toast.error("اكتب فكرتك أول");
+    if (prompt.trim().length < 2) { toast.error("اكتب فكرتك أول"); return; }
     try { const r = await enh({ data: { idea: prompt, kind: "video" } }); if (r.error) toast.error(r.error); else if (r.text) setPrompt(r.text); } catch (e) { toast.error((e as Error).message); }
   };
   const run = async () => {
-    if (prompt.trim().length < 2) return toast.error("اكتب وصف المشهد");
+    if (prompt.trim().length < 2) { toast.error("اكتب وصف المشهد"); return; }
     setBusy(true); setUrl(null); setState("جاري الإرسال للمحرك…");
     try {
       const full = camera ? `${prompt}. Camera: ${camera}` : prompt;
@@ -256,7 +256,7 @@ function VideoTab({ storeId, from, clearFrom }: { storeId?: string; from: string
           <div className="flex flex-wrap gap-1.5">{([["", "تلقائي"], ["slow dolly in", "تقرّب ببطء"], ["slow dolly out", "تبعد ببطء"], ["orbit around subject", "دوران"], ["pan left to right", "تحريك أفقي"], ["static tripod shot", "ثابتة"], ["drone aerial shot", "درون"]] as const).map(([v, l]) => <Chip key={l} on={camera === v} onClick={() => setCamera(v)}>{l}</Chip>)}</div>
         </Field>
         {model !== "hailuo" && <>
-          <Field label="الالتزام بالوصف" hint={cfg.toFixed(2)}><Slider min={0} max={1} step={0.05} value={[cfg]} onValueChange={(v) => setCfg(v[0])} /></Field>
+          <Field label="الالتزام بالوصف" hint={cfg.toFixed(2)}><Slider min={0} max={1} step={0.05} value={[cfg]} onValueChange={(v) => setCfg(v[0] ?? 0)} /></Field>
           <Field label="أشياء ما تبيها"><Input value={negative} onChange={(e) => setNegative(e.target.value)} placeholder="blur, distort, low quality" /></Field>
         </>}
         <Button className="w-full" size="lg" disabled={busy} onClick={run}>{busy ? "🎬 جاري الإنتاج…" : "🎬 أنتج الفيديو"}</Button>
@@ -279,7 +279,7 @@ const GRADS = [
 ];
 const newLayer = (text = "اكتب خاطرتك هنا", y = 0.5): Layer => ({ id: crypto.randomUUID(), text, font: "Aref Ruqaa", size: 90, color: "#ffffff", x: 0.5, y, align: "center", weight: 700, shadow: 12, glow: "#ff4d8d", stroke: 0, strokeColor: "#000000", opacity: 1, lh: 1.5 });
 
-function PosterTab({ storeId, initialBg }: { storeId?: string; initialBg: string | null }) {
+function PosterTab({ storeId, initialBg }: { storeId?: string | undefined; initialBg: string | null }) {
   const enh = useServerFn(designEnhance);
   const ref = useRef<HTMLCanvasElement>(null);
   const [fmt, setFmt] = useState<keyof typeof CANVAS>("story");
@@ -318,7 +318,7 @@ function PosterTab({ storeId, initialBg }: { storeId?: string; initialBg: string
       const s = Math.max(W / bgImg.width, H / bgImg.height); const w = bgImg.width * s, h = bgImg.height * s;
       x.drawImage(bgImg, (W - w) / 2, (H - h) / 2, w, h);
     } else {
-      const g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, GRADS[grad][0]); g.addColorStop(1, GRADS[grad][1]); x.fillStyle = g; x.fillRect(0, 0, W, H);
+      const g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, (GRADS[grad]?.[0] ?? "#000")); g.addColorStop(1, (GRADS[grad]?.[1] ?? "#333")); x.fillStyle = g; x.fillRect(0, 0, W, H);
     }
     x.filter = "none";
     if (f.dark) { x.fillStyle = `rgba(0,0,0,${f.dark / 100})`; x.fillRect(0, 0, W, H); }
@@ -351,7 +351,7 @@ function PosterTab({ storeId, initialBg }: { storeId?: string; initialBg: string
   };
   const getBlob = () => new Promise<Blob>((res, rej) => ref.current!.toBlob((b) => (b ? res(b) : rej(new Error("تعذّر التصدير — جرّب خلفية من جهازك"))), "image/png"));
   const genIdeas = async () => {
-    if (idea.trim().length < 2) return toast.error("اكتب موضوع الخاطرة");
+    if (idea.trim().length < 2) { toast.error("اكتب موضوع الخاطرة"); return; }
     setBusy(true);
     try { const r = await enh({ data: { idea, kind: "quote" } }); if (r.error) toast.error(r.error); else setIdeas((r.text || "").split("\n").map((s) => s.trim()).filter(Boolean)); }
     catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
@@ -395,11 +395,11 @@ function PosterTab({ storeId, initialBg }: { storeId?: string; initialBg: string
         {L && <div className="space-y-3 rounded-xl bg-muted/50 p-3">
           <Textarea rows={3} value={L.text} onChange={(e) => upd({ text: e.target.value })} />
           <div className="flex flex-wrap gap-1.5">{FONTS.map(([fn, l]) => <button key={fn} type="button" onClick={() => upd({ font: fn })} className={`rounded-lg border px-2 py-1 text-sm ${L.font === fn ? "border-primary bg-primary/10" : "bg-card"}`} style={{ fontFamily: fn }}>{l}</button>)}</div>
-          <Field label="الحجم" hint={`${L.size}`}><Slider min={24} max={220} step={2} value={[L.size]} onValueChange={(v) => upd({ size: v[0] })} /></Field>
-          <Field label="تباعد الأسطر" hint={L.lh.toFixed(1)}><Slider min={1} max={2.5} step={0.1} value={[L.lh]} onValueChange={(v) => upd({ lh: v[0] })} /></Field>
-          <Field label="التوهج" hint={`${L.shadow}`}><Slider min={0} max={40} step={1} value={[L.shadow]} onValueChange={(v) => upd({ shadow: v[0] })} /></Field>
-          <Field label="الحدود" hint={`${L.stroke}`}><Slider min={0} max={12} step={1} value={[L.stroke]} onValueChange={(v) => upd({ stroke: v[0] })} /></Field>
-          <Field label="الشفافية" hint={`${Math.round(L.opacity * 100)}%`}><Slider min={0.1} max={1} step={0.05} value={[L.opacity]} onValueChange={(v) => upd({ opacity: v[0] })} /></Field>
+          <Field label="الحجم" hint={`${L.size}`}><Slider min={24} max={220} step={2} value={[L.size]} onValueChange={(v) => upd({ size: v[0] ?? 0 })} /></Field>
+          <Field label="تباعد الأسطر" hint={L.lh.toFixed(1)}><Slider min={1} max={2.5} step={0.1} value={[L.lh]} onValueChange={(v) => upd({ lh: v[0] ?? 0 })} /></Field>
+          <Field label="التوهج" hint={`${L.shadow}`}><Slider min={0} max={40} step={1} value={[L.shadow]} onValueChange={(v) => upd({ shadow: v[0] ?? 0 })} /></Field>
+          <Field label="الحدود" hint={`${L.stroke}`}><Slider min={0} max={12} step={1} value={[L.stroke]} onValueChange={(v) => upd({ stroke: v[0] ?? 0 })} /></Field>
+          <Field label="الشفافية" hint={`${Math.round(L.opacity * 100)}%`}><Slider min={0.1} max={1} step={0.05} value={[L.opacity]} onValueChange={(v) => upd({ opacity: v[0] ?? 0 })} /></Field>
           <div className="grid grid-cols-3 gap-2 text-xs">
             <label className="space-y-1"><span>لون النص</span><input type="color" value={L.color} onChange={(e) => upd({ color: e.target.value })} className="h-9 w-full rounded" /></label>
             <label className="space-y-1"><span>التوهج</span><input type="color" value={L.glow} onChange={(e) => upd({ glow: e.target.value })} className="h-9 w-full rounded" /></label>
@@ -413,7 +413,7 @@ function PosterTab({ storeId, initialBg }: { storeId?: string; initialBg: string
         <Field label="فلاتر الصورة">
           <div className="space-y-3">
             {([["brightness", "الإضاءة", 50, 150], ["contrast", "التباين", 50, 150], ["saturate", "التشبع", 0, 200], ["sepia", "دافئ قديم", 0, 100], ["blur", "تغبيش", 0, 20], ["dark", "تعتيم للنص", 0, 80]] as const).map(([k, l, mn, mx]) => (
-              <div key={k}><div className="flex justify-between text-xs"><span>{l}</span><span>{f[k]}</span></div><Slider min={mn} max={mx} step={1} value={[f[k]]} onValueChange={(v) => setF({ ...f, [k]: v[0] })} /></div>
+              <div key={k}><div className="flex justify-between text-xs"><span>{l}</span><span>{f[k]}</span></div><Slider min={mn} max={mx} step={1} value={[f[k]]} onValueChange={(v) => setF({ ...f, [k]: v[0] ?? 0 })} /></div>
             ))}
           </div>
         </Field>
@@ -434,7 +434,7 @@ function wrap(x: CanvasRenderingContext2D, text: string, max: number) {
 }
 
 /* ================= أعمالي ================= */
-function Gallery({ storeId, onEdit, onAnimate }: { storeId?: string; onEdit: (u: string) => void; onAnimate: (u: string) => void }) {
+function Gallery({ storeId, onEdit, onAnimate }: { storeId?: string | undefined; onEdit: (u: string) => void; onAnimate: (u: string) => void }) {
   const [items, setItems] = useState<Item[]>([]);
   useEffect(() => { setItems(loadHist()); }, []);
   if (!items.length) return <div className="rounded-2xl border bg-card p-10 text-center text-muted-foreground">لسا ما صممت شي — أعمالك بتنحفظ هنا تلقائياً</div>;
