@@ -127,3 +127,36 @@ export const designEnhance = createServerFn({ method: "POST" })
     if (!out) return { text: null as string | null, error: "المفاتيح المجانية مشغولة، جرّب بعد شوي" };
     return { text: out.trim(), error: null as string | null };
   });
+
+// ⚡ أدوات سريعة — تفريغ الخلفية، رفع الدقة، تبديل الوجوه، مزامنة الشفاه (إضافة، لا تغيّر القائم)
+const media = z.string().max(15_000_000).refine((u) => u.startsWith("https://") || u.startsWith("data:"), "رابط غير صالح");
+export const designTool = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({
+    tool: z.enum(["bg", "upscale", "faceswap", "lipsync"]),
+    image: media.optional(),
+    face: media.optional(),
+    video: media.optional(),
+    audio: media.optional(),
+    scale: z.number().int().min(2).max(4).optional(),
+  }).parse(d))
+  .handler(async ({ data }) => {
+    const h = { Authorization: `Key ${key()}`, "Content-Type": "application/json" };
+    const need = (v: string | undefined, m: string) => { if (!v) throw new Error(m); return v; };
+    if (data.tool === "lipsync") {
+      const body = { video_url: need(data.video, "ارفع فيديو"), audio_url: need(data.audio, "ارفع صوت"), sync_mode: "cut_off" };
+      const r = await fetch("https://queue.fal.run/fal-ai/sync-lipsync", { method: "POST", headers: h, body: JSON.stringify(body) });
+      if (!r.ok) return { url: null as string | null, status_url: "", response_url: "", error: await falErr(r) };
+      const j = (await r.json()) as { status_url: string; response_url: string };
+      return { url: null, status_url: j.status_url, response_url: j.response_url, error: null as string | null };
+    }
+    let ep = ""; let body: Record<string, unknown> = {};
+    if (data.tool === "bg") { ep = "fal-ai/birefnet"; body = { image_url: need(data.image, "ارفع صورة"), output_format: "png" }; }
+    else if (data.tool === "upscale") { ep = "fal-ai/esrgan"; body = { image_url: need(data.image, "ارفع صورة"), scale: data.scale ?? 2, face: true }; }
+    else { ep = "fal-ai/face-swap"; body = { base_image_url: need(data.image, "ارفع الصورة الأساسية"), swap_image_url: need(data.face, "ارفع صورة الوجه") }; }
+    const r = await fetch(`https://fal.run/${ep}`, { method: "POST", headers: h, body: JSON.stringify(body) });
+    if (!r.ok) return { url: null as string | null, status_url: "", response_url: "", error: await falErr(r) };
+    const j = (await r.json()) as { image?: { url: string }; images?: { url: string }[] };
+    const url = j.image?.url ?? j.images?.[0]?.url ?? null;
+    return { url, status_url: "", response_url: "", error: url ? null as string | null : "ما رجعت نتيجة" };
+  });
