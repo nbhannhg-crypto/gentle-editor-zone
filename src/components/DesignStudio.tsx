@@ -7,8 +7,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { supabase } from "@/integrations/supabase/client";
 import { designImage, designVideoStart, designVideoCheck, designEnhance } from "@/lib/design.functions";
+import { MagicTools } from "@/components/MagicTools";
 
-type Tab = "image" | "video" | "poster" | "gallery" | "guide";
+type Tab = "image" | "video" | "tools" | "poster" | "gallery" | "guide";
 type Item = { url: string; kind: "image" | "video"; prompt: string; at: number };
 const HIST = "design_studio_history";
 
@@ -86,12 +87,13 @@ export function DesignStudio({ storeId }: { storeId?: string | undefined }) {
         <p className="mt-1 text-sm opacity-90">صور خيالية • فيديوهات سينمائية • بطاقات غزل وخواطر بخطوط عربية فاخرة</p>
       </div>
       <nav className="flex gap-2 overflow-x-auto pb-1">
-        {([["image", "🖼️ صور"], ["video", "🎬 فيديو"], ["poster", "✍️ بطاقات وخواطر"], ["gallery", "🗂️ أعمالي"], ["guide", "📖 الدليل"]] as const).map(([k, l]) => (
+        {([["image", "🖼️ صور"], ["video", "🎬 فيديو"], ["tools", "⚡ أدوات سريعة"], ["poster", "✍️ بطاقات وخواطر"], ["gallery", "🗂️ أعمالي"], ["guide", "📖 الدليل"]] as const).map(([k, l]) => (
           <Chip key={k} on={tab === k} onClick={() => setTab(k)}>{l}</Chip>
         ))}
       </nav>
       {tab === "image" && <ImageTab storeId={storeId} onEdit={editOnPoster} onAnimate={animate} />}
       {tab === "video" && <VideoTab storeId={storeId} from={videoFrom} clearFrom={() => setVideoFrom(null)} />}
+      {tab === "tools" && <MagicTools storeId={storeId} onEdit={editOnPoster} onSave={async (u: string, t: string) => { try { await saveToLibrary(storeId, await urlToBlob(u), t); } catch (e) { toast.error((e as Error).message); } }} />}
       {tab === "poster" && <PosterTab storeId={storeId} initialBg={posterBg} />}
       {tab === "gallery" && <Gallery storeId={storeId} onEdit={editOnPoster} onAnimate={animate} />}
       {tab === "guide" && <Guide />}
