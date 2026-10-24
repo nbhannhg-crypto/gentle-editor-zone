@@ -39,6 +39,7 @@ export function BrainFactory({ onTab }: { onTab: (t: string) => void }) {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [activeId, setActiveId] = useState<string | undefined>();
   const [playing, setPlaying] = useState<number | null>(null);
+  const [hidden, setHidden] = useState(false);
   const box = useRef<HTMLTextAreaElement>(null);
   const end = useRef<HTMLDivElement>(null);
   const KEY = (id?: string) => `bf_chat_${id ?? "main"}`;
@@ -94,12 +95,19 @@ export function BrainFactory({ onTab }: { onTab: (t: string) => void }) {
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
       <BrainUsageSummary />
-      <section className="flex min-h-[70vh] min-w-0 flex-col sm:min-h-[560px] rounded-2xl border bg-card shadow-soft">
-        <div className="border-b p-4">
-          <h2 className="font-display text-xl text-primary">🧠 مصنع العقول</h2>
-          <p className="text-sm text-muted-foreground">{active ? `تكلم الحين ${active.emoji} ${active.name}` : "اكتب أي شي بكلامك — يطلع لك العقل المتخصص وينفذ. ارسل صورة محادثة ويكملها عنك."}</p>
+      <section className="flex min-w-0 flex-col rounded-2xl border bg-card shadow-soft">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 border-b p-3 sm:p-4">
+          <div className="min-w-0">
+            <h2 className="font-display text-lg text-primary sm:text-xl">🧠 مصنع العقول</h2>
+            <p className="text-xs text-muted-foreground sm:text-sm">{active ? `تكلم الحين ${active.emoji} ${active.name}` : "اكتب أي شي بكلامك — يطلع لك العقل المتخصص وينفذ."}</p>
+          </div>
+          <div className="flex shrink-0 gap-1">
+            <button onClick={() => setHidden(!hidden)} className="rounded-lg border px-2 py-1 text-xs">{hidden ? "🔼 إظهار" : "🔽 إخفاء"}</button>
+            {msgs.length > 0 && <button onClick={() => { if (confirm("تمسح المحادثة؟")) setMsgs([]); }} className="rounded-lg border px-2 py-1 text-xs text-destructive">🗑️ مسح</button>}
+          </div>
         </div>
-        <div className="flex-1 space-y-4 overflow-y-auto p-4">
+        {!hidden && <>
+        <div className="max-h-[55vh] min-h-[200px] flex-1 space-y-4 overflow-y-auto p-3 sm:max-h-[520px] sm:p-4">
           {msgs.length === 0 && (
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-6 [&_button]:min-w-0">
               {SPECIALISTS.map((s) => (
@@ -120,11 +128,11 @@ export function BrainFactory({ onTab }: { onTab: (t: string) => void }) {
               <div key={i} className="max-w-[95%]">
                 {sp && <p className="mb-1 text-xs font-semibold text-gold">{sp.emoji} {sp.name}</p>}
                 <div className="prose prose-sm max-w-none text-foreground"><ReactMarkdown>{m.content}</ReactMarkdown></div>
-                <div className="mt-2 flex flex-wrap gap-2">
+                <div className="mt-2 flex flex-wrap gap-1 [&_button]:h-7 [&_button]:px-2 [&_button]:text-xs">
                   <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(m.content); toast.success("نسخ"); }}>📋 نسخ</Button>
-                  {m.voice && <Button size="sm" variant="outline" disabled={playing === i} onClick={() => play(i, m.voice!)}>{playing === i ? "…" : "🔊 سمّعني الصوت"}</Button>}
-                  {m.voice && <Button size="sm" variant="outline" onClick={() => open("studio")}>📤 أرسله واتس</Button>}
-                  {m.tab && <Button size="sm" onClick={() => open(m.tab!)}>افتح الصفحة ←</Button>}
+                  {m.voice && <Button size="sm" variant="outline" disabled={playing === i} onClick={() => play(i, m.voice!)}>{playing === i ? "…" : "🔊 سمّعني"}</Button>}
+                  {m.voice && <Button size="sm" variant="outline" onClick={() => open("studio")}>📤 واتس</Button>}
+                  {m.tab && <Button size="sm" onClick={() => open(m.tab!)}>افتح ←</Button>}
                   <Button size="sm" variant="ghost" onClick={() => send("عدّله وخلّه أقوى")}>✏️ عدّله</Button>
                 </div>
                 {m.created && <p className="mt-2 rounded-lg bg-secondary px-3 py-1 text-sm">✅ انضاف {m.created} لعقولك</p>}
@@ -134,21 +142,22 @@ export function BrainFactory({ onTab }: { onTab: (t: string) => void }) {
           {busy && <p className="animate-pulse text-sm text-muted-foreground">🧠 العقل يفكر…</p>}
           <div ref={end} />
         </div>
-        <div className="border-t p-3">
-          <div className="mb-2 flex gap-2 overflow-x-auto">
-            {QUICK.map((q) => <button key={q} onClick={() => send(q)} className="shrink-0 rounded-full border px-3 py-1 text-xs hover:border-primary">{q}</button>)}
+        <div className="border-t p-2 sm:p-3">
+          <div className="mb-2 flex gap-1 overflow-x-auto">
+            {QUICK.map((q) => <button key={q} onClick={() => send(q)} className="shrink-0 rounded-full border px-2 py-0.5 text-[11px] hover:border-primary sm:px-3 sm:py-1 sm:text-xs">{q}</button>)}
           </div>
           {img && <div className="mb-2 flex items-center gap-2"><img src={img} alt="مرفق" className="h-14 rounded" /><button onClick={() => setImg(undefined)} className="text-xs text-destructive">إزالة</button></div>}
-          <div className="flex items-end gap-2">
-            <label className="cursor-pointer rounded-xl border px-3 py-2 text-lg" title="صورة محادثة">📷
+          <div className="flex items-end gap-1 sm:gap-2">
+            <label className="shrink-0 cursor-pointer rounded-xl border px-2 py-2 text-base" title="صورة محادثة">📷
               <input type="file" accept="image/*" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (f) setImg(await shrink(f)); e.target.value = ""; }} />
             </label>
-            <Textarea ref={box} value={text} onChange={(e) => setText(e.target.value)} rows={2} placeholder="مثال: ادخل واتس ورد على هذا الزبون واعطه السعر…"
-              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} className="flex-1" />
-            <Button onClick={() => send()} disabled={busy}>أرسل</Button>
+            <Textarea ref={box} value={text} onChange={(e) => setText(e.target.value)} rows={1} placeholder="اكتب أمرك…"
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} className="min-h-[40px] min-w-0 flex-1 text-sm" />
+            <Button className="shrink-0" onClick={() => send()} disabled={busy}>أرسل</Button>
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">كل أمر = 2 نقطة • مع صورة = 3 • الصوت = 1</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">كل أمر = 2 نقطة • مع صورة = 3 • الصوت = 1</p>
         </div>
+        </>}
       </section>
 
       <aside className="space-y-3 rounded-2xl border bg-card p-4 shadow-soft">
