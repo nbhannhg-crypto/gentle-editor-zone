@@ -138,22 +138,96 @@ ${active ? `\n⚠️ التاجر الآن يكلم عقله الخاص "${activ
       if (last && data.image) { const mm = /^data:([^;]+);base64,(.*)$/.exec(data.image); if (mm) parts.push({ inlineData: { mimeType: mm[1]!, data: mm[2]! } }); }
       return { role: m.role === "assistant" ? "model" as const : "user" as const, parts };
     });
-    const jsonHint = `\n\nأخرج JSON فقط بهذا الشكل: {"specialist": واحد من [${SPECIALISTS.map((s) => s.id).join(", ")}], "reply": نص, "tab": نص, "voice_text": نص, "create_brain": null أو {"name","emoji","specialty","source": "ai"|"library"|"both","instructions","knowledge"}}`;
+    const jsonHint = `\n\nمهم جداً: إذا طلب إنشاء عقل أو مكتبة (حتى لو قال "عبّه سوالف/ردود") أنشئه فوراً بدون أسئلة إضافية إذا الموضوع واضح، واملأ "replies" بـ 25 سالفة/رد سعودي واقعي (سؤال الزبون وردك) مطابقة لشخصية العقل.\nأخرج JSON فقط بهذا الشكل: {"specialist": واحد من [${SPECIALISTS.map((s) => s.id).join(", ")}], "reply": نص, "tab": نص, "voice_text": نص, "create_brain": null أو {"name","emoji","specialty","source": "ai"|"library"|"both","instructions","knowledge","replies":[{"q":"...","a":"..."}]}}`;
     const raw = (await geminiJson(instructions + jsonHint, gContents)) ?? (() => { void input; throw new Error("المفاتيح المجانية مشغولة الحين، انتظر دقيقة وجرّب مرة ثانية"); })();
-    type Out = { specialist: string; reply: string; tab: string; voice_text: string; create_brain: null | { name: string; emoji: string; specialty: string; source: string; instructions: string; knowledge: string } };
+    type Out = { specialist: string; reply: string; tab: string; voice_text: string; create_brain: null | { name: string; emoji: string; specialty: string; source: string; instructions: string; knowledge: string; replies?: { q: string; a: string }[] } };
     let j: Out;
     try { j = JSON.parse(raw) as Out; } catch { throw new Error("ما وصل رد واضح، جرّب مرة ثانية"); }
-    let created: { id: string; name: string } | null = null;
+    let created: { id: string; name: string; replies: number } | null = null;
     if (j.create_brain) {
       const b = j.create_brain;
+      const tag = String(b.name || "عقل").trim().slice(0, 40);
       const { data: row, error: e2 } = await sb.from("brains").insert({
-        store_id: st.id, name: b.name.slice(0, 60), emoji: b.emoji.slice(0, 4) || "🧠", specialty: b.specialty.slice(0, 40),
-        source: ["ai", "library", "both"].includes(b.source) ? b.source : "both", instructions: b.instructions.slice(0, 4000), knowledge: b.knowledge.slice(0, 6000),
+        store_id: st.id, name: String(b.name || "عقل جديد").slice(0, 60), emoji: String(b.emoji || "🧠").slice(0, 4) || "🧠", specialty: String(b.specialty || "").slice(0, 40),
+        source: ["ai", "library", "both"].includes(b.source) ? b.source : "both", instructions: String(b.instructions || "").slice(0, 4000), knowledge: String(b.knowledge || "").slice(0, 6000), library_tag: tag,
       }).select("id, name").single();
       if (e2) throw new Error(e2.message);
-      created = row;
+      let n = 0;
+      let reps = cleanPairs(b.replies);
+      if (reps.length < 5) reps = await genPairs(String(b.name), `${b.instructions}\n${b.knowledge}`, 25).catch(() => reps);
+      if (reps.length) { const { error: e3 } = await sb.from("reply_library").insert(reps.map((r) => ({ store_id: st.id, tag, trigger_text: r.q, reply_text: r.a }))); if (!e3) n = reps.length; }
+      created = { ...row, replies: n };
     }
     return { specialist: j.specialist, reply: j.reply, tab: j.tab, voice_text: j.voice_text, created };
+  });
+
+function cleanPairs(x: unknown): { q: string; a: string }[] {
+  if (!Array.isArray(x)) return [];
+  const seen = new Set<string>();
+  return x.flatMap((r) => {
+    const q = String((r as { q?: unknown })?.q ?? "").trim().slice(0, 500), a = String((r as { a?: unknown })?.a ?? "").trim().slice(0, 2000);
+    const k = q.replace(/\s+/g, " ");
+    if (!q || !a || seen.has(k)) return [];
+    seen.add(k); return [{ q, a }];
+  });
+}
+
+async function genPairs(name: string, persona: string, count: number, topic = ""): Promise<{ q: string; a: string }[]> {
+  const sys = `أنت كاتب ردود سعودي محترف. تكتب سوالف وردود واقعية باللهجة السعودية لعقل اسمه "${name}". شخصيته: ${persona.slice(0, 1500) || "سعودية لطيفة"}. نوّع: ترحيب، سوالف ودية، دلع، أسئلة شائعة، اعتراضات، أسعار عامة بدون اختراع أرقام، توديع. كل سؤال بكلام الزبون الطبيعي، وكل رد قصير وحي.`;
+  const raw = await geminiJson(`${sys}\nأخرج JSON فقط: {"replies":[{"q":"كلام الزبون","a":"الرد"}]}`, [{ role: "user", parts: [{ text: `اكتب ${count} سالفة/رد مختلفة${topic ? ` عن: ${topic}` : ""}.` }] }]);
+  if (!raw) throw new Error("المفاتيح المجانية مشغولة الحين، جرّب بعد دقيقة");
+  try { return cleanPairs((JSON.parse(raw) as { replies?: unknown }).replies).slice(0, count); } catch { return []; }
+}
+
+async function myBrain(sb: any, userId: string, brainId: string) {
+  const { data: st } = await sb.from("stores").select("id").eq("owner_id", userId).limit(1).maybeSingle();
+  if (!st) throw new Error("ما لقينا متجرك");
+  const { data: b } = await sb.from("brains").select("id, name, instructions, knowledge, library_tag, store_id, uses").eq("id", brainId).eq("store_id", st.id).maybeSingle();
+  if (!b) throw new Error("العقل مو موجود");
+  return { st, b: b as { id: string; name: string; instructions: string; knowledge: string; library_tag: string; store_id: string; uses: number } };
+}
+
+/** Fill a brain's library with AI-written Saudi Q/A pairs (skips duplicates). */
+export const brainFill = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ brainId: z.string().uuid(), topic: z.string().max(200).default(""), count: z.number().int().min(5).max(50).default(25) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const sb = context.supabase;
+    const { st, b } = await myBrain(sb, context.userId, data.brainId);
+    const { error } = await sb.rpc("spend_points", { _store: st.id, _amount: 2, _reason: "تعبئة عقل" });
+    if (error) throw new Error(error.message.includes("insufficient") ? "رصيدك ما يكفي — اشحن من المحفظة" : error.message);
+    const tag = b.library_tag || b.name.slice(0, 40);
+    if (!b.library_tag) await sb.from("brains").update({ library_tag: tag }).eq("id", b.id);
+    const pairs = await genPairs(b.name, `${b.instructions}\n${b.knowledge}`, data.count, data.topic);
+    const { data: old } = await sb.from("reply_library").select("trigger_text").eq("store_id", st.id).eq("tag", tag).limit(5000);
+    const have = new Set((old ?? []).map((r: { trigger_text: string }) => r.trigger_text.replace(/\s+/g, " ").trim()));
+    const fresh = pairs.filter((p) => !have.has(p.q.replace(/\s+/g, " ")));
+    if (fresh.length) { const { error: e2 } = await sb.from("reply_library").insert(fresh.map((p) => ({ store_id: st.id, tag, trigger_text: p.q, reply_text: p.a }))); if (e2) throw new Error(e2.message); }
+    return { added: fresh.length, skipped: pairs.length - fresh.length, tag };
+  });
+
+/** Test a brain: answers in its persona, library first. */
+export const brainTest = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ brainId: z.string().uuid(), text: z.string().trim().min(1).max(1000) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const sb = context.supabase;
+    const { st, b } = await myBrain(sb, context.userId, data.brainId);
+    const tag = b.library_tag || b.name.slice(0, 40);
+    const words = data.text.replace(/[%_,()؟?!.]/g, " ").split(/\s+/).filter((w) => w.length > 1).slice(0, 6);
+    let q = sb.from("reply_library").select("trigger_text, reply_text").eq("store_id", st.id).eq("tag", tag).limit(40);
+    if (words.length) q = q.or(words.map((w) => `trigger_text.ilike.%${w}%`).join(","));
+    const lib = ((await q).data ?? []) as { trigger_text: string; reply_text: string }[];
+    const norm = (s: string) => s.replace(/[؟?!.،,\s]+/g, " ").trim();
+    const exact = lib.find((r) => norm(r.trigger_text) === norm(data.text));
+    await sb.from("brains").update({ uses: (b.uses ?? 0) + 1 }).eq("id", b.id);
+    if (exact) return { reply: exact.reply_text, source: "library" as const };
+    const { error } = await sb.rpc("spend_points", { _store: st.id, _amount: 2, _reason: "تجربة عقل" });
+    if (error) throw new Error(error.message.includes("insufficient") ? "رصيدك ما يكفي — اشحن من المحفظة" : error.message);
+    const sys = `أنت "${b.name}". التزم بشخصيتك: ${b.instructions.slice(0, 1500)}\nمعرفتك: ${b.knowledge.slice(0, 1500)}\nردود محفوظة استخدمها إذا تناسب: ${lib.slice(0, 25).map((r) => `[${r.trigger_text} ← ${r.reply_text}]`).join(" ")}\nافهم نبرة الكلام (جاد، مستفسر، عاتب، يمزح، يبي دلع) ورد بنفس الأسلوب، سعودي قصير وطبيعي. لا تخترع أسعاراً. أخرج JSON: {"reply":"..."}`;
+    const raw = await geminiJson(sys, [{ role: "user", parts: [{ text: data.text }] }]);
+    if (!raw) throw new Error("المفاتيح المجانية مشغولة الحين، جرّب بعد دقيقة");
+    try { return { reply: String((JSON.parse(raw) as { reply?: unknown }).reply ?? ""), source: "ai" as const }; } catch { return { reply: raw, source: "ai" as const }; }
   });
 
 export const brainVoice = createServerFn({ method: "POST" })

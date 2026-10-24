@@ -5,13 +5,13 @@ import ReactMarkdown from "react-markdown";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { brainChat, brainVoice } from "@/lib/brains.functions";
-import { SPECIALISTS, SOURCES } from "@/lib/brains";
+import { SPECIALISTS } from "@/lib/brains";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { BrainUsageSummary } from "@/components/KingdomBrains";
+import { BrainCard, type CardBrain } from "@/components/BrainCard";
 
 type Msg = { role: "user" | "assistant"; content: string; image?: string; sp?: string; tab?: string; voice?: string; created?: string };
-type Brain = { id: string; name: string; emoji: string; specialty: string; source: string; instructions: string; uses: number };
 
 const QUICK = ["ابي عقل يبيع منتجاتي", "ابي اربط الواتس تبعي", "ابي عقل يشحن موقعي", "ابي اربط تيك توك وارد على التعليقات", "ابي ارسل مساء الخير صوت لزبوني", "ابي عقل يدير البث المباشر", "صمم لي بوستر عرض", "ابي عقل يتصل واتس لرقم"];
 
@@ -31,18 +31,33 @@ export function BrainFactory({ onTab }: { onTab: (t: string) => void }) {
   const chat = useServerFn(brainChat);
   const voice = useServerFn(brainVoice);
   const navigate = useNavigate();
-  const [msgs, setMsgs] = useState<Msg[]>([]);
+  const [msgs, setMsgsRaw] = useState<Msg[]>([]);
   const [text, setText] = useState("");
   const [img, setImg] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
-  const [brains, setBrains] = useState<Brain[]>([]);
+  const [brains, setBrains] = useState<CardBrain[]>([]);
+  const [counts, setCounts] = useState<Record<string, number>>({});
   const [activeId, setActiveId] = useState<string | undefined>();
   const [playing, setPlaying] = useState<number | null>(null);
   const box = useRef<HTMLTextAreaElement>(null);
   const end = useRef<HTMLDivElement>(null);
+  const KEY = (id?: string) => `bf_chat_${id ?? "main"}`;
+  // Conversation survives tab switches / reloads (saved per brain, images dropped to save space)
+  const setMsgs = (m: Msg[]) => { setMsgsRaw(m); try { localStorage.setItem(KEY(activeId), JSON.stringify(m.slice(-40).map(({ image: _i, ...r }) => r))); } catch { /* full */ } };
+  useEffect(() => { try { setMsgsRaw(JSON.parse(localStorage.getItem(KEY(activeId)) || "[]")); } catch { setMsgsRaw([]); } }, [activeId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const loadBrains = () => supabase.from("brains").select("id, name, emoji, specialty, source, instructions, uses").order("created_at", { ascending: false }).then(({ data }) => setBrains((data ?? []) as Brain[]));
-  useEffect(() => { loadBrains(); box.current?.focus(); }, []);
+  const loadBrains = async () => {
+    const { data } = await supabase.from("brains").select("id, name, emoji, specialty, source, instructions, uses, library_tag, scopes, store_id").order("created_at", { ascending: false });
+    const list = (data ?? []) as CardBrain[];
+    setBrains(list);
+    const c: Record<string, number> = {};
+    await Promise.all(list.map(async (b) => {
+      const { count } = await supabase.from("reply_library").select("id", { count: "exact", head: true }).eq("store_id", b.store_id).eq("tag", b.library_tag || b.name.slice(0, 40));
+      c[b.id] = count ?? 0;
+    }));
+    setCounts(c);
+  };
+  useEffect(() => { void loadBrains(); box.current?.focus(); }, []);
   useEffect(() => { end.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }); }, [msgs, busy]);
 
   const send = async (t = text) => {
@@ -52,8 +67,9 @@ export function BrainFactory({ onTab }: { onTab: (t: string) => void }) {
     setMsgs(next); setText(""); const image = img; setImg(undefined); setBusy(true);
     try {
       const r = await chat({ data: { history: next.slice(-20).map((m) => ({ role: m.role, content: m.content })), ...(image ? { image } : {}), ...(activeId ? { brainId: activeId } : {}) } });
-      setMsgs([...next, { role: "assistant", content: r.reply, sp: r.specialist, tab: r.tab, voice: r.voice_text, ...(r.created ? { created: r.created.name } : {}) }]);
-      if (r.created) { toast.success(`🧠 تم إنشاء ${r.created.name}`); loadBrains(); }
+      setMsgs([...next, { role: "assistant", content: r.reply, sp: r.specialist, tab: r.tab, voice: r.voice_text, ...(r.created ? { created: `${r.created.name} ومعه ${r.created.replies} سالفة` } : {}) }]);
+      if (r.created) { toast.success(`🧠 تم إنشاء ${r.created.name} + ${r.created.replies} سالفة`); void loadBrains(); }
+      window.dispatchEvent(new Event("data-changed"));
     } catch (e) { toast.error((e as Error).message); setMsgs(next); }
     finally { setBusy(false); box.current?.focus(); }
   };
@@ -66,7 +82,13 @@ export function BrainFactory({ onTab }: { onTab: (t: string) => void }) {
   };
 
   const open = (t: string) => (t === "studio" ? navigate({ to: "/studio" }) : onTab(t));
-  const del = async (id: string) => { await supabase.from("brains").delete().eq("id", id); if (activeId === id) setActiveId(undefined); loadBrains(); };
+  const del = async (id: string) => { if (!confirm("تحذف هذا العقل؟ (ردوده تبقى في المكتبة)")) return; await supabase.from("brains").delete().eq("id", id); if (activeId === id) setActiveId(undefined); void loadBrains(); };
+  const cleanEmpty = async () => {
+    const empty = brains.filter((b) => !counts[b.id]);
+    if (!empty.length || !confirm(`تحذف ${empty.length} عقل فاضي (بدون أي رد)؟`)) return;
+    await supabase.from("brains").delete().in("id", empty.map((b) => b.id));
+    toast.success(`🧹 انحذف ${empty.length} عقل فاضي`); setActiveId(undefined); void loadBrains();
+  };
   const active = brains.find((b) => b.id === activeId);
 
   return (
@@ -131,14 +153,11 @@ export function BrainFactory({ onTab }: { onTab: (t: string) => void }) {
 
       <aside className="space-y-3 rounded-2xl border bg-card p-4 shadow-soft">
         <h3 className="font-display text-primary">🧬 عقولي الخاصة</h3>
+        <p className="text-xs text-muted-foreground">{brains.length} عقل • {Object.values(counts).reduce((a, c) => a + c, 0).toLocaleString()} رد • {brains.filter((b) => !counts[b.id]).length} فاضي</p>
         <button onClick={() => setActiveId(undefined)} className={`w-full rounded-xl border p-2 text-right text-sm ${!activeId ? "border-primary bg-secondary" : ""}`}>🧠 مصنع العقول (يختار تلقائي)</button>
+        {brains.some((b) => !counts[b.id]) && <Button size="sm" variant="ghost" className="w-full text-destructive" onClick={cleanEmpty}>🧹 احذف العقول الفاضية</Button>}
         {brains.map((b) => (
-          <div key={b.id} className={`flex items-center gap-2 rounded-xl border p-2 text-sm ${activeId === b.id ? "border-primary bg-secondary" : ""}`}>
-            <button className="flex-1 text-right" onClick={() => { setActiveId(b.id); setMsgs([]); }}>
-              {b.emoji} {b.name}<span className="block text-xs text-muted-foreground">{SOURCES.find((s) => s[0] === b.source)?.[1]} • {b.uses} استخدام</span>
-            </button>
-            <button onClick={() => del(b.id)} className="text-xs text-destructive" aria-label="حذف">🗑️</button>
-          </div>
+          <BrainCard key={b.id} b={b} count={counts[b.id] ?? 0} active={activeId === b.id} onPick={() => setActiveId(b.id)} onDelete={() => del(b.id)} onChanged={loadBrains} />
         ))}
         {brains.length === 0 && <p className="text-xs text-muted-foreground">اكتب "ابي عقل يبيع عطوري" ويبنيه لك ويسألك الباقي.</p>}
         <Button variant="outline" className="w-full" onClick={() => { setActiveId(undefined); send("ابي انشئ عقل جديد خاص فيني"); }}>➕ أنشئ عقل جديد</Button>

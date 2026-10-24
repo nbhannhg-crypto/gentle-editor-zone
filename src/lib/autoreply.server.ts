@@ -234,7 +234,7 @@ export async function evoSend(path: string, body: unknown) {
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function kingdomAutoReply(db: any, ownerId: string, text: string, platform = "whatsapp"): Promise<{ reply: string; textOnly: boolean } | null> {
-  const { data: brains } = await db.from("brains").select("id, store_id, library_tag").eq("is_kingdom", true).neq("library_tag", "").limit(20);
+  const { data: brains } = await db.from("brains").select("id, store_id, library_tag").eq("is_kingdom", true).neq("library_tag", "").not("scopes", "cs", "{paused}").limit(20);
   if (!brains?.length) return null;
   const { data: usage } = await db.from("merchant_brain_usage").select("toggle_key, is_active").eq("merchant_id", ownerId);
   const u: Record<string, boolean> = Object.fromEntries((usage ?? []).map((r: { toggle_key: string; is_active: boolean }) => [r.toggle_key, r.is_active]));
