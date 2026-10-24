@@ -7,6 +7,7 @@ export const Route = createFileRoute("/api/public/sync")({
       GET: async ({ request }) => {
         const tok = (request.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
         if (!/^[a-f0-9]{64}$/.test(tok)) return new Response("unauthorized", { status: 401 });
+        try {
         const { supabaseAdmin: sb } = await import("@/integrations/supabase/client.server");
         const { data: row } = await sb.from("training_rules").select("trigger_text").eq("response_text", tok).like("trigger_text", "sync_token:%").limit(1).maybeSingle();
         const storeId = row?.trigger_text.slice("sync_token:".length);
@@ -25,6 +26,7 @@ export const Route = createFileRoute("/api/public/sync")({
           stores: st.data ?? [], training_rules: tr.data ?? [], media_meta: mm.data ?? [], customers: cu.data ?? [], media_library: ml.data ?? [],
           media: (ml.data ?? []).map((m, i) => ({ id: m.id, path: m.path, title: m.title, url: urls?.[i]?.signedUrl ?? null })),
         }, { headers: { "Cache-Control": "no-store" } });
+        } catch (e) { console.error("sync error", e); return new Response("error", { status: 500 }); }
       },
     },
   },
