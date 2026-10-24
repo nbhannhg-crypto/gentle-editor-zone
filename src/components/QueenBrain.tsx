@@ -75,7 +75,7 @@ export function QueenBrain({ storeId, onTab }: { storeId?: string | undefined; o
         className="fixed bottom-4 left-4 z-50 flex h-12 w-12 text-2xl sm:bottom-5 sm:left-5 sm:h-16 sm:w-16 sm:text-3xl items-center justify-center rounded-full bg-gold shadow-soft transition hover:scale-105"
         aria-label="عقل الملكة">👑</button>
       {open && (
-        <div className="fixed bottom-20 sm:bottom-24 left-4 z-50 flex h-[70vh] w-[min(92vw,400px)] flex-col overflow-hidden rounded-2xl border bg-card shadow-soft">
+        <div className="fixed bottom-16 sm:bottom-24 left-2 right-2 sm:left-4 sm:right-auto z-50 flex h-[min(70vh,calc(100dvh-6rem))] sm:w-[400px] flex-col overflow-hidden rounded-2xl border bg-card shadow-soft">
           <div className="bg-royal px-4 py-3 text-primary-foreground">
             <p className="font-display text-lg">👑 عقل الملكة</p>
             <p className="text-xs opacity-80">تفهمك بالصوت والكتابة وتنفذ فوراً</p>
