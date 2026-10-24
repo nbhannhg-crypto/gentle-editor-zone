@@ -53,14 +53,14 @@ export const designImage = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const s = SIZES[data.size];
     const body: Record<string, unknown> = { prompt: data.prompt, num_images: data.count, enable_safety_checker: true };
-    if (data.seed !== undefined) body.seed = data.seed;
-    if (data.model === "flux-pro") { body.aspect_ratio = s.aspect; body.raw = false; }
-    else if (data.model === "ideogram") { body.image_size = s.image_size; if (data.negative) body.negative_prompt = data.negative; }
-    else if (data.model === "recraft") { body.image_size = s.image_size; body.style = data.style || "realistic_image"; delete body.num_images; }
+    if (data.seed !== undefined) body["seed"] = data.seed;
+    if (data.model === "flux-pro") { body["aspect_ratio"] = s.aspect; body["raw"] = false; }
+    else if (data.model === "ideogram") { body["image_size"] = s.image_size; if (data.negative) body["negative_prompt"] = data.negative; }
+    else if (data.model === "recraft") { body["image_size"] = s.image_size; body["style"] = data.style || "realistic_image"; delete body["num_images"]; }
     else {
-      body.image_size = s.image_size;
-      if (data.steps) body.num_inference_steps = data.model === "flux-schnell" ? Math.min(12, data.steps) : data.steps;
-      if (data.guidance) body.guidance_scale = data.guidance;
+      body["image_size"] = s.image_size;
+      if (data.steps) body["num_inference_steps"] = data.model === "flux-schnell" ? Math.min(12, data.steps) : data.steps;
+      if (data.guidance) body["guidance_scale"] = data.guidance;
     }
     const r = await fetch(`https://fal.run/${IMAGE_MODELS[data.model]}`, {
       method: "POST", headers: { Authorization: `Key ${key()}`, "Content-Type": "application/json" }, body: JSON.stringify(body),
@@ -85,9 +85,9 @@ export const designVideoStart = createServerFn({ method: "POST" })
     const m = VIDEO_MODELS[data.model];
     const ep = data.image ? m.i2v : m.t2v;
     const body: Record<string, unknown> = { prompt: data.prompt };
-    if (data.model === "hailuo") { body.duration = data.duration === "10" ? "10" : "6"; body.prompt_optimizer = true; }
-    else { body.duration = data.duration; body.aspect_ratio = data.aspect; if (data.negative) body.negative_prompt = data.negative; if (data.cfg !== undefined) body.cfg_scale = data.cfg; }
-    if (data.image) body.image_url = data.image;
+    if (data.model === "hailuo") { body["duration"] = data.duration === "10" ? "10" : "6"; body["prompt_optimizer"] = true; }
+    else { body["duration"] = data.duration; body["aspect_ratio"] = data.aspect; if (data.negative) body["negative_prompt"] = data.negative; if (data.cfg !== undefined) body["cfg_scale"] = data.cfg; }
+    if (data.image) body["image_url"] = data.image;
     const r = await fetch(`https://queue.fal.run/${ep}`, {
       method: "POST", headers: { Authorization: `Key ${key()}`, "Content-Type": "application/json" }, body: JSON.stringify(body),
     });
