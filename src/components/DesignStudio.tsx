@@ -93,7 +93,7 @@ export function DesignStudio({ storeId }: { storeId?: string | undefined }) {
       </nav>
       {tab === "image" && <ImageTab storeId={storeId} onEdit={editOnPoster} onAnimate={animate} />}
       {tab === "video" && <VideoTab storeId={storeId} from={videoFrom} clearFrom={() => setVideoFrom(null)} />}
-      {tab === "tools" && <MagicTools storeId={storeId} onEdit={editOnPoster} onSave={async (u, t) => { try { await saveToLibrary(storeId, await urlToBlob(u), t); } catch (e) { toast.error((e as Error).message); } }} />}
+      {tab === "tools" && <MagicTools storeId={storeId} onEdit={editOnPoster} onSave={async (u: string, t: string) => { try { await saveToLibrary(storeId, await urlToBlob(u), t); } catch (e) { toast.error((e as Error).message); } }} />}
       {tab === "poster" && <PosterTab storeId={storeId} initialBg={posterBg} />}
       {tab === "gallery" && <Gallery storeId={storeId} onEdit={editOnPoster} onAnimate={animate} />}
       {tab === "guide" && <Guide />}
