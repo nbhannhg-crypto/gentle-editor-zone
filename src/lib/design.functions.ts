@@ -93,6 +93,21 @@ export const designImage = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const s = SIZES[data.size] ?? SIZES["square"]!;
     const edit = !!data.refs?.length;
+    if (data.model === "novita" && edit) {
+      // Novita لا يدعم الصور المرجعية حالياً — التعديل الحر عبر FLUX Dev image-to-image بدون فحص
+      const images: string[] = [];
+      let lastErr = "تعذّر تعديل الصورة";
+      for (const ref of data.refs!) {
+        const b: Record<string, unknown> = { prompt: data.prompt, image_url: ref, strength: 0.85, num_images: data.count, enable_safety_checker: false, num_inference_steps: data.steps ?? 40, guidance_scale: data.guidance ?? 3.5 };
+        if (data.seed !== undefined) b["seed"] = data.seed;
+        const r = await fetch("https://fal.run/fal-ai/flux/dev/image-to-image", { method: "POST", headers: { Authorization: `Key ${key()}`, "Content-Type": "application/json" }, body: JSON.stringify(b) });
+        if (!r.ok) { lastErr = await falErr(r); continue; }
+        const j = (await r.json()) as { images?: { url: string }[] };
+        images.push(...(j.images ?? []).map((i) => i.url));
+      }
+      if (!images.length) return { images: [] as string[], seed: null, error: lastErr as string | null };
+      return { images, seed: null, error: null as string | null, engine: "FLUX الحر (تعديل الصورة)" };
+    }
     if (data.model === "novita") return novitaImage(data);
     // سلسلة بدائل تلقائية: إذا رفض محرك ينتقل للي بعده
     type Att = { name: string; url: string; body: Record<string, unknown> };
