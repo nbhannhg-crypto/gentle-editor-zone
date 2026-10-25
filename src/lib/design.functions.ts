@@ -47,12 +47,56 @@ const SEED_DIMS: Record<string, { width: number; height: number }> = {
 };
 const SEEDREAM: Record<string, string> = { "seedream-4": "v4", "seedream-4.5": "v4.5" };
 
+// ===== Novita AI (نماذج مفتوحة المصدر) — المفتاح NOVITA_KEY =====
+const NOVITA_MODEL = "realisticVisionV51_v51VAE_94301.safetensors";
+const NOVITA_DIMS: Record<string, { width: number; height: number }> = {
+  square: { width: 1024, height: 1024 }, story: { width: 576, height: 1024 },
+  portrait: { width: 768, height: 1024 }, landscape: { width: 1024, height: 576 }, wide: { width: 1024, height: 768 },
+};
+async function novitaImage(data: { prompt: string; negative?: string; size: string; count: number; steps?: number; guidance?: number; seed?: number; refs?: string[] }) {
+  const k = process.env["NOVITA_KEY"];
+  if (!k) return { images: [] as string[], seed: null, error: "مفتاح Novita غير مضاف بعد" as string | null };
+  const h = { Authorization: `Bearer ${k}`, "Content-Type": "application/json" };
+  const d = NOVITA_DIMS[data.size] ?? NOVITA_DIMS["square"]!;
+  const request: Record<string, unknown> = {
+    model_name: NOVITA_MODEL, prompt: data.prompt,
+    negative_prompt: data.negative || "lowres, bad anatomy, blurry, deformed",
+    width: d.width, height: d.height, image_num: data.count,
+    steps: data.steps ?? 25, guidance_scale: data.guidance ?? 7, sampler_name: "DPM++ 2M Karras", seed: data.seed ?? -1,
+  };
+  let ep = "txt2img";
+  if (data.refs?.length) {
+    const ir = await fetch(data.refs[0]!);
+    if (!ir.ok) return { images: [] as string[], seed: null, error: "تعذّر قراءة الصورة المرجعية" as string | null };
+    const buf = new Uint8Array(await ir.arrayBuffer());
+    let bin = ""; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+    request["image_base64"] = btoa(bin); request["strength"] = 0.6; ep = "img2img";
+  }
+  const r = await fetch(`https://api.novita.ai/v3/async/${ep}`, { method: "POST", headers: h, body: JSON.stringify({ request, extra: { response_image_type: "jpeg", enable_nsfw_detection: false } }) });
+  if (!r.ok) {
+    const t = await r.text().catch(() => ""); console.error("novita", r.status, t.slice(0, 300));
+    const msg = r.status === 401 ? "مفتاح Novita غير صالح" : r.status === 402 || t.includes("balance") ? "رصيد Novita غير كافٍ — اشحن الحساب" : `تعذّر التوليد من Novita (${r.status})`;
+    return { images: [] as string[], seed: null, error: msg as string | null };
+  }
+  const { task_id } = (await r.json()) as { task_id: string };
+  for (let i = 0; i < 40; i++) {
+    await new Promise((res) => setTimeout(res, 2500));
+    const s = await fetch(`https://api.novita.ai/v3/async/task-result?task_id=${task_id}`, { headers: h });
+    if (!s.ok) continue;
+    const j = (await s.json()) as { task?: { status?: string; reason?: string }; images?: { image_url: string }[] };
+    const st = j.task?.status;
+    if (st === "TASK_STATUS_SUCCEED") return { images: (j.images ?? []).map((x) => x.image_url), seed: null, error: null as string | null, engine: "Novita" };
+    if (st === "TASK_STATUS_FAILED") return { images: [] as string[], seed: null, error: `Novita: ${j.task?.reason || "فشل التوليد"}` as string | null };
+  }
+  return { images: [] as string[], seed: null, error: "Novita تأخر، جرّب مرة ثانية" as string | null };
+}
+
 export const designImage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({
     prompt: z.string().min(2).max(3000),
     negative: z.string().max(1000).optional(),
-    model: z.enum(["seedream-4", "seedream-4.5", "flux-pro", "flux-dev", "flux-schnell", "ideogram", "recraft"]),
+    model: z.enum(["seedream-4", "seedream-4.5", "flux-pro", "flux-dev", "flux-schnell", "ideogram", "recraft", "novita"]),
     size: z.enum(["square", "story", "portrait", "landscape", "wide"]),
     count: z.number().int().min(1).max(4),
     steps: z.number().int().min(4).max(50).optional(),
@@ -64,6 +108,7 @@ export const designImage = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const s = SIZES[data.size] ?? SIZES["square"]!;
     const edit = !!data.refs?.length;
+    if (data.model === "novita") return novitaImage(data);
     // سلسلة بدائل تلقائية: إذا رفض محرك ينتقل للي بعده
     type Att = { name: string; url: string; body: Record<string, unknown> };
     const atts: Att[] = [];
