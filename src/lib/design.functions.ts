@@ -26,6 +26,7 @@ async function falErr(r: Response) {
   if (r.status === 401 || r.status === 403) return "مفتاح fal.ai غير صالح أو بدون رصيد";
   if (r.status === 429) return "المحرك مشغول، جرّب بعد شوي";
   console.error("fal", r.status, t.slice(0, 300));
+  if (t.includes("content_policy_violation")) return "فلتر الأمان في المحرك رفض الصورة أو الوصف — جرّب صورة أو وصف ثاني";
   return `تعذّر التوليد (${r.status})`;
 }
 
@@ -36,13 +37,22 @@ const SIZES: Record<string, { image_size: string; aspect: string }> = {
   landscape: { image_size: "landscape_16_9", aspect: "16:9" },
   wide: { image_size: "landscape_4_3", aspect: "4:3" },
 };
+// مقاسات 2K لسيدريم
+const SEED_DIMS: Record<string, { width: number; height: number }> = {
+  square: { width: 2048, height: 2048 },
+  story: { width: 1536, height: 2730 },
+  portrait: { width: 1920, height: 2560 },
+  landscape: { width: 2730, height: 1536 },
+  wide: { width: 2560, height: 1920 },
+};
+const SEEDREAM: Record<string, string> = { "seedream-4": "v4", "seedream-4.5": "v4.5" };
 
 export const designImage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({
     prompt: z.string().min(2).max(3000),
     negative: z.string().max(1000).optional(),
-    model: z.enum(["flux-pro", "flux-dev", "flux-schnell", "ideogram", "recraft"]),
+    model: z.enum(["seedream-4", "seedream-4.5", "flux-pro", "flux-dev", "flux-schnell", "ideogram", "recraft"]),
     size: z.enum(["square", "story", "portrait", "landscape", "wide"]),
     count: z.number().int().min(1).max(4),
     steps: z.number().int().min(4).max(50).optional(),
@@ -53,6 +63,20 @@ export const designImage = createServerFn({ method: "POST" })
   }).parse(d))
   .handler(async ({ data }) => {
     const s = SIZES[data.size] ?? SIZES["square"]!;
+    // سيدريم (بايت دانس): توليد من النص أو تعديل الصور المرجعية
+    const sv = SEEDREAM[data.model];
+    if (sv) {
+      const edit = !!data.refs?.length;
+      const b: Record<string, unknown> = { prompt: data.prompt, num_images: data.count, image_size: SEED_DIMS[data.size] ?? SEED_DIMS["square"], enable_safety_checker: true };
+      if (data.seed !== undefined) b["seed"] = data.seed;
+      if (edit) b["image_urls"] = data.refs;
+      const r = await fetch(`https://fal.run/fal-ai/bytedance/seedream/${sv}/${edit ? "edit" : "text-to-image"}`, {
+        method: "POST", headers: { Authorization: `Key ${key()}`, "Content-Type": "application/json" }, body: JSON.stringify(b),
+      });
+      if (!r.ok) return { images: [] as string[], seed: null, error: await falErr(r) as string | null };
+      const j = (await r.json()) as { images?: { url: string }[]; seed?: number };
+      return { images: (j.images ?? []).map((i) => i.url), seed: j.seed ?? null, error: null as string | null };
+    }
     // صورة مرجعية: تعديل/دمج عبر FLUX Kontext (إضافة)
     if (data.refs?.length) {
       const multi = data.refs.length > 1;
@@ -77,7 +101,7 @@ export const designImage = createServerFn({ method: "POST" })
       if (data.steps) body["num_inference_steps"] = data.model === "flux-schnell" ? Math.min(12, data.steps) : data.steps;
       if (data.guidance) body["guidance_scale"] = data.guidance;
     }
-    const r = await fetch(`https://fal.run/${IMAGE_MODELS[data.model]}`, {
+    const r = await fetch(`https://fal.run/${IMAGE_MODELS[data.model as keyof typeof IMAGE_MODELS]}`, {
       method: "POST", headers: { Authorization: `Key ${key()}`, "Content-Type": "application/json" }, body: JSON.stringify(body),
     });
     if (!r.ok) return { images: [] as string[], error: await falErr(r) };
