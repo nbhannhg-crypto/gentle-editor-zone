@@ -53,7 +53,7 @@ const NOVITA_DIMS: Record<string, { width: number; height: number }> = {
   square: { width: 1024, height: 1024 }, story: { width: 576, height: 1024 },
   portrait: { width: 768, height: 1024 }, landscape: { width: 1024, height: 576 }, wide: { width: 1024, height: 768 },
 };
-async function novitaImage(data: { prompt: string; negative?: string; size: string; count: number; steps?: number; guidance?: number; seed?: number; refs?: string[] }) {
+async function novitaImage(data: { prompt: string; negative?: string | undefined; size: string; count: number; steps?: number | undefined; guidance?: number | undefined; seed?: number | undefined; refs?: string[] | undefined }) {
   const k = process.env["NOVITA_KEY"];
   if (!k) return { images: [] as string[], seed: null, error: "مفتاح Novita غير مضاف بعد" as string | null };
   const h = { Authorization: `Bearer ${k}`, "Content-Type": "application/json" };
