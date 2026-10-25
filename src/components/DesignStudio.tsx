@@ -244,6 +244,7 @@ function VideoTab({ storeId, from, clearFrom }: { storeId?: string | undefined; 
   const [cfg, setCfg] = useState(0.5);
   const [camera, setCamera] = useState("");
   const [vlang, setVlang] = useState<"en" | "ar">("en");
+  const [vlang, setVlang] = useState<"en" | "ar">("en");
   const [img, setImg] = useState<string | null>(from);
   const [state, setState] = useState<string>("");
   const [url, setUrl] = useState<string | null>(null);
