@@ -67,7 +67,7 @@ export const designImage = createServerFn({ method: "POST" })
     const sv = SEEDREAM[data.model];
     if (sv) {
       const edit = !!data.refs?.length;
-      const b: Record<string, unknown> = { prompt: data.prompt, num_images: data.count, image_size: SEED_DIMS[data.size] ?? SEED_DIMS["square"], enable_safety_checker: true };
+      const b: Record<string, unknown> = { prompt: data.prompt, num_images: data.count, image_size: SEED_DIMS[data.size] ?? SEED_DIMS["square"], enable_safety_checker: false };
       if (data.seed !== undefined) b["seed"] = data.seed;
       if (edit) b["image_urls"] = data.refs;
       const r = await fetch(`https://fal.run/fal-ai/bytedance/seedream/${sv}/${edit ? "edit" : "text-to-image"}`, {
@@ -80,7 +80,7 @@ export const designImage = createServerFn({ method: "POST" })
     // صورة مرجعية: تعديل/دمج عبر FLUX Kontext (إضافة)
     if (data.refs?.length) {
       const multi = data.refs.length > 1;
-      const kb: Record<string, unknown> = { prompt: data.prompt, num_images: data.count, aspect_ratio: s.aspect, safety_tolerance: "2", output_format: "jpeg" };
+      const kb: Record<string, unknown> = { prompt: data.prompt, num_images: data.count, aspect_ratio: s.aspect, safety_tolerance: "6", output_format: "jpeg" };
       if (data.guidance) kb["guidance_scale"] = data.guidance;
       if (data.seed !== undefined) kb["seed"] = data.seed;
       if (multi) kb["image_urls"] = data.refs; else kb["image_url"] = data.refs[0];
@@ -91,7 +91,7 @@ export const designImage = createServerFn({ method: "POST" })
       const j = (await r.json()) as { images?: { url: string }[]; seed?: number };
       return { images: (j.images ?? []).map((i) => i.url), seed: j.seed ?? null, error: null as string | null };
     }
-    const body: Record<string, unknown> = { prompt: data.prompt, num_images: data.count, enable_safety_checker: true };
+    const body: Record<string, unknown> = { prompt: data.prompt, num_images: data.count, enable_safety_checker: false };
     if (data.seed !== undefined) body["seed"] = data.seed;
     if (data.model === "flux-pro") { body["aspect_ratio"] = s.aspect; body["raw"] = false; }
     else if (data.model === "ideogram") { body["image_size"] = s.image_size; if (data.negative) body["negative_prompt"] = data.negative; }
