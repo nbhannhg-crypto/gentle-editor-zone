@@ -101,7 +101,7 @@ export const designImage = createServerFn({ method: "POST" })
       if (data.steps) body["num_inference_steps"] = data.model === "flux-schnell" ? Math.min(12, data.steps) : data.steps;
       if (data.guidance) body["guidance_scale"] = data.guidance;
     }
-    const r = await fetch(`https://fal.run/${IMAGE_MODELS[data.model]}`, {
+    const r = await fetch(`https://fal.run/${IMAGE_MODELS[data.model as keyof typeof IMAGE_MODELS]}`, {
       method: "POST", headers: { Authorization: `Key ${key()}`, "Content-Type": "application/json" }, body: JSON.stringify(body),
     });
     if (!r.ok) return { images: [] as string[], error: await falErr(r) };
