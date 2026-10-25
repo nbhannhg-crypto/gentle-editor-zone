@@ -183,7 +183,7 @@ function ImageTab({ storeId, onEdit, onAnimate }: { storeId?: string | undefined
               </label>
             )}
           </div>
-          {refs.length > 0 && <p className="mt-1 text-[11px] text-muted-foreground">مع الصورة يشتغل محرك FLUX Kontext للتعديل تلقائياً</p>}
+          {refs.length > 0 && <p className="mt-1 text-[11px] text-muted-foreground">مع الصورة يعدّل عليها النموذج المختار (سيدريم أو FLUX Kontext)</p>}
         </Field>
         <Field label="وصف الصورة" hint="بالعربي أو الإنجليزي">
           <Textarea rows={4} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder={refs.length ? "مثال: غيّر الخلفية لشاطئ وقت الغروب" : "مثال: بنت بعباية سوداء تمشي تحت المطر في الرياض ليلاً وأضواء ذهبية"} />
