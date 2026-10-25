@@ -118,6 +118,13 @@ function ImageTab({ storeId, onEdit, onAnimate }: { storeId?: string | undefined
   const [negative, setNegative] = useState("");
   const [model, setModel] = useState<"seedream-4" | "seedream-4.5" | "flux-pro" | "flux-dev" | "flux-schnell" | "ideogram" | "recraft" | "novita">("seedream-4");
   const [pickOpen, setPickOpen] = useState(false);
+  const [fallback, setFallback] = useState(false);
+  useEffect(() => {
+    const m = localStorage.getItem("design_img_model"); if (m) setModel(m as typeof model);
+    setFallback(localStorage.getItem("design_img_fallback") === "1");
+  }, []);
+  useEffect(() => { localStorage.setItem("design_img_model", model); }, [model]);
+  useEffect(() => { localStorage.setItem("design_img_fallback", fallback ? "1" : "0"); }, [fallback]);
   const [size, setSize] = useState<"square" | "story" | "portrait" | "landscape" | "wide">("story");
   const [count, setCount] = useState(2);
   const [steps, setSteps] = useState(28);
@@ -156,7 +163,7 @@ function ImageTab({ storeId, onEdit, onAnimate }: { storeId?: string | undefined
     setBusy(true); setOut([]);
     try {
       const full = style ? `${prompt}, ${style}` : prompt;
-      const r = await gen({ data: { prompt: full, negative: negative || undefined, model, size, count, steps, guidance, seed: seed ? Number(seed) : undefined, style: model === "recraft" ? "realistic_image" : undefined, refs: refs.length ? refs : undefined } });
+      const r = await gen({ data: { prompt: full, negative: negative || undefined, model, size, count, steps, guidance, seed: seed ? Number(seed) : undefined, style: model === "recraft" ? "realistic_image" : undefined, refs: refs.length ? refs : undefined, fallback } });
       if (r.error) toast.error(r.error);
       else if ("engine" in r && r.engine) toast.success(`نجح التوليد عبر ${r.engine} ✨`);
       setOut(r.images);
@@ -220,6 +227,10 @@ function ImageTab({ storeId, onEdit, onAnimate }: { storeId?: string | undefined
                     ))}
                   </div>
                 )}
+                <label className="mt-2 flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs">
+                  <span>جرّب محركات بديلة إذا رفض المحرك (اختياري)</span>
+                  <input type="checkbox" checked={fallback} onChange={(e) => setFallback(e.target.checked)} className="h-4 w-4 accent-primary" />
+                </label>
               </div>
             );
           })()}
