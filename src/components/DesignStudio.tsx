@@ -116,7 +116,8 @@ function ImageTab({ storeId, onEdit, onAnimate }: { storeId?: string | undefined
   const enh = useServerFn(designEnhance);
   const [prompt, setPrompt] = useState("");
   const [negative, setNegative] = useState("");
-  const [model, setModel] = useState<"flux-pro" | "flux-dev" | "flux-schnell" | "ideogram" | "recraft">("flux-dev");
+  const [model, setModel] = useState<"seedream-4" | "seedream-4.5" | "flux-pro" | "flux-dev" | "flux-schnell" | "ideogram" | "recraft">("seedream-4");
+  const [pickOpen, setPickOpen] = useState(false);
   const [size, setSize] = useState<"square" | "story" | "portrait" | "landscape" | "wide">("story");
   const [count, setCount] = useState(2);
   const [steps, setSteps] = useState(28);
@@ -189,10 +190,37 @@ function ImageTab({ storeId, onEdit, onAnimate }: { storeId?: string | undefined
         </Field>
         <LangPick lang={lang} setLang={setLang} />
         <Button variant="outline" className="w-full" disabled={enhBusy} onClick={enhance}>{enhBusy ? "جاري التحسين…" : `✨ حسّن الوصف ${lang === "ar" ? "بالعربي" : "بالإنجليزي"}`}</Button>
-        <Field label="المحرك">
-          <div className="flex flex-wrap gap-1.5">
-            {([["flux-pro", "FLUX Ultra 👑"], ["flux-dev", "FLUX Dev"], ["flux-schnell", "FLUX سريع ⚡"], ["ideogram", "Ideogram (نصوص)"], ["recraft", "Recraft"]] as const).map(([k, l]) => <Chip key={k} on={model === k} onClick={() => setModel(k)}>{l}</Chip>)}
-          </div>
+        <Field label="النموذج">
+          {(() => {
+            const MODELS = [
+              ["seedream-4", "سيدريم 4.0", "نموذج بايت دانس متعدد الوسائط — الرسمي"],
+              ["seedream-4.5", "سيدريم 4.5", "أدق في تحرير الصور والمراجع"],
+              ["flux-pro", "FLUX Ultra 👑", "واقعية عالية جداً"],
+              ["flux-dev", "FLUX Dev", "متوازن ودقيق"],
+              ["flux-schnell", "FLUX سريع ⚡", "أسرع توليد"],
+              ["ideogram", "Ideogram", "الأفضل للنصوص داخل الصورة"],
+              ["recraft", "Recraft", "تصاميم وأنماط فنية"],
+            ] as const;
+            const cur = MODELS.find((m) => m[0] === model) ?? MODELS[0];
+            return (
+              <div>
+                <button type="button" onClick={() => setPickOpen((o) => !o)} className="flex w-full items-center justify-between rounded-2xl bg-muted px-4 py-3 text-right">
+                  <span className="text-base font-bold">{cur[1]}</span>
+                  <span className={`text-xl transition-transform ${pickOpen ? "rotate-90" : ""}`}>‹</span>
+                </button>
+                {pickOpen && (
+                  <div className="mt-2 max-h-80 space-y-1 overflow-y-auto rounded-2xl border bg-card p-2">
+                    {MODELS.map(([k, l, d]) => (
+                      <button key={k} type="button" onClick={() => { setModel(k); setPickOpen(false); }} className={`flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-right ${model === k ? "bg-primary/10" : "hover:bg-muted"}`}>
+                        <span><span className="block text-sm font-bold">{l}</span><span className="block text-[11px] text-muted-foreground">{d}</span></span>
+                        <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px] ${model === k ? "border-primary bg-primary text-primary-foreground" : ""}`}>{model === k ? "✓" : ""}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </Field>
         <Field label="المقاس">
           <div className="flex flex-wrap gap-1.5">
