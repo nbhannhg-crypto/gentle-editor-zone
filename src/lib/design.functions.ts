@@ -89,6 +89,7 @@ export const designImage = createServerFn({ method: "POST" })
     seed: z.number().int().optional(),
     style: z.string().max(60).optional(),
     refs: z.array(z.string().url()).max(2).optional(),
+    fallback: z.boolean().optional(),
   }).parse(d))
   .handler(async ({ data }) => {
     const s = SIZES[data.size] ?? SIZES["square"]!;
@@ -136,7 +137,7 @@ export const designImage = createServerFn({ method: "POST" })
         atts.push({ name: "FLUX Ultra", url: `https://fal.run/${IMAGE_MODELS["flux-pro"]}`, body: { prompt: data.prompt, num_images: data.count, aspect_ratio: s.aspect, safety_tolerance: "6", enable_safety_checker: false } });
       }
       let lastErr = "تعذّر التوليد";
-      for (const a of atts) {
+      for (const a of (data.fallback ? atts : atts.slice(0, 1))) {
         const r = await fetch(a.url, { method: "POST", headers: { Authorization: `Key ${key()}`, "Content-Type": "application/json" }, body: JSON.stringify(a.body) });
         if (!r.ok) {
           lastErr = await falErr(r);
@@ -148,7 +149,7 @@ export const designImage = createServerFn({ method: "POST" })
         if (!imgs.length) continue;
         return { images: imgs, seed: j.seed ?? null, error: null as string | null, engine: a.name };
       }
-      return { images: [] as string[], seed: null, error: `كل المحركات رفضت: ${lastErr}` as string | null };
+      return { images: [] as string[], seed: null, error: (data.fallback ? `كل المحركات رفضت: ${lastErr}` : lastErr) as string | null };
     }
     const body: Record<string, unknown> = { prompt: data.prompt, num_images: data.count, enable_safety_checker: false };
     if (data.seed !== undefined) body["seed"] = data.seed;
