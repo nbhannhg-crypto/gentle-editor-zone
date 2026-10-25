@@ -76,12 +76,36 @@ async function novitaImage(data: { prompt: string; negative?: string | undefined
   return { images, seed: null, error: null as string | null, engine: "Novita" };
 }
 
+// ===== Hugging Face (Inference Providers) — المفتاح HUGGINGFACE_KEY =====
+async function hfImage(data: { prompt: string; size: string; count: number }) {
+  const k = process.env["HUGGINGFACE_KEY"];
+  if (!k) return { images: [] as string[], seed: null, error: "مفتاح Hugging Face غير مضاف بعد" as string | null };
+  const d = NOVITA_DIMS[data.size] ?? NOVITA_DIMS["square"]!;
+  const images: string[] = [];
+  let err: string | null = null;
+  for (let i = 0; i < Math.max(1, Math.min(4, data.count || 1)); i++) {
+    const r = await fetch("https://router.huggingface.co/nscale/v1/images/generations", {
+      method: "POST", headers: { Authorization: `Bearer ${k}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "black-forest-labs/FLUX.1-schnell", prompt: data.prompt, size: `${d.width}x${d.height}`, response_format: "b64_json" }),
+    });
+    if (!r.ok) {
+      const t = await r.text().catch(() => ""); console.error("hf", r.status, t.slice(0, 300));
+      err = r.status === 402 ? "رصيد Hugging Face خلص — اشحن الحساب أو اشترك PRO" : r.status === 401 ? "مفتاح Hugging Face غير صالح" : `تعذّر التوليد من Hugging Face (${r.status})`;
+      break;
+    }
+    const j = (await r.json()) as { data?: { b64_json?: string; url?: string }[] };
+    for (const x of j.data ?? []) { const u = x.url || (x.b64_json ? `data:image/png;base64,${x.b64_json}` : ""); if (u) images.push(u); }
+  }
+  if (!images.length) return { images: [] as string[], seed: null, error: (err ?? "Hugging Face ما رجّع صورة") as string | null };
+  return { images, seed: null, error: null as string | null, engine: "Hugging Face FLUX" };
+}
+
 export const designImage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({
     prompt: z.string().min(2).max(3000),
     negative: z.string().max(1000).optional(),
-    model: z.enum(["seedream-4", "seedream-4.5", "flux-pro", "flux-dev", "flux-schnell", "ideogram", "recraft", "novita"]),
+    model: z.enum(["seedream-4", "seedream-4.5", "flux-pro", "flux-dev", "flux-schnell", "ideogram", "recraft", "novita", "hf"]),
     size: z.enum(["square", "story", "portrait", "landscape", "wide"]),
     count: z.number().int().min(1).max(4),
     steps: z.number().int().min(4).max(50).optional(),
@@ -110,6 +134,7 @@ export const designImage = createServerFn({ method: "POST" })
       return { images, seed: null, error: null as string | null, engine: "FLUX الحر (تعديل الصورة)" };
     }
     if (data.model === "novita") return novitaImage(data);
+    if (data.model === "hf") return hfImage(data);
     // سلسلة بدائل تلقائية: إذا رفض محرك ينتقل للي بعده
     type Att = { name: string; url: string; body: Record<string, unknown> };
     const atts: Att[] = [];

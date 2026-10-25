@@ -118,7 +118,7 @@ function ImageTab({ storeId, onEdit, onAnimate }: { storeId?: string | undefined
   const enh = useServerFn(designEnhance);
   const [prompt, setPrompt] = useState("");
   const [negative, setNegative] = useState("");
-  const [model, setModel] = useState<"seedream-4" | "seedream-4.5" | "flux-pro" | "flux-dev" | "flux-schnell" | "ideogram" | "recraft" | "novita">("seedream-4");
+  const [model, setModel] = useState<"seedream-4" | "seedream-4.5" | "flux-pro" | "flux-dev" | "flux-schnell" | "ideogram" | "recraft" | "novita" | "hf">("seedream-4");
   const [pickOpen, setPickOpen] = useState(false);
   const [fallback, setFallback] = useState(false);
   useEffect(() => {
@@ -211,6 +211,7 @@ function ImageTab({ storeId, onEdit, onAnimate }: { storeId?: string | undefined
               ["ideogram", "Ideogram", "الأفضل للنصوص داخل الصورة"],
               ["recraft", "Recraft", "تصاميم وأنماط فنية"],
               ["novita", "Novita الحر 🔓", "نماذج مفتوحة بدون فلتر — تحتاج رصيد Novita"],
+              ["hf", "Hugging Face 🤗", "FLUX عبر حسابك في Hugging Face — توليد من الوصف"],
             ] as const;
             const cur = MODELS.find((m) => m[0] === model) ?? MODELS[0];
             return (
