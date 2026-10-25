@@ -101,7 +101,7 @@ async function hfImage(data: { prompt: string; size: string; count: number }) {
 }
 
 // ===== Pollinations — مجاني بدون مفتاح =====
-async function pollImage(data: { prompt: string; size: string; count: number; seed?: number }) {
+async function pollImage(data: { prompt: string; size: string; count: number; seed?: number | undefined }) {
   const d = NOVITA_DIMS[data.size] ?? NOVITA_DIMS["square"]!;
   const images: string[] = [];
   let err: string | null = null;
