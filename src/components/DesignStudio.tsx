@@ -57,6 +57,15 @@ async function share(url: string, text: string) {
 function Chip({ on, children, onClick }: { on: boolean; children: React.ReactNode; onClick: () => void }) {
   return <button type="button" onClick={onClick} className={`shrink-0 rounded-full border px-3 py-1 text-xs transition ${on ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card hover:bg-muted"}`}>{children}</button>;
 }
+function LangPick({ lang, setLang }: { lang: "en" | "ar"; setLang: (l: "en" | "ar") => void }) {
+  return (
+    <div className="flex items-center gap-1.5 text-xs">
+      <span className="text-muted-foreground">لغة التحسين:</span>
+      <Chip on={lang === "en"} onClick={() => setLang("en")}>🇬🇧 إنجليزي (أدق)</Chip>
+      <Chip on={lang === "ar"} onClick={() => setLang("ar")}>🇸🇦 عربي</Chip>
+    </div>
+  );
+}
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return <div className="space-y-1.5"><div className="flex items-baseline justify-between gap-2"><label className="text-sm font-semibold">{label}</label>{hint && <span className="text-[11px] text-muted-foreground">{hint}</span>}</div>{children}</div>;
 }
@@ -252,7 +261,7 @@ function VideoTab({ storeId, from, clearFrom }: { storeId?: string | undefined; 
   };
   const enhance = async () => {
     if (prompt.trim().length < 2) { toast.error("اكتب فكرتك أول"); return; }
-    try { const r = await enh({ data: { idea: prompt, kind: "video" } }); if (r.error) toast.error(r.error); else if (r.text) setPrompt(r.text); } catch (e) { toast.error((e as Error).message); }
+    try { const r = await enh({ data: { idea: prompt, kind: "video", lang: vlang } }); if (r.error) toast.error(r.error); else if (r.text) { setPrompt(r.text); toast.success("تم تحسين الوصف ✨"); } } catch (e) { toast.error((e as Error).message); }
   };
   const run = async () => {
     if (prompt.trim().length < 2) { toast.error("اكتب وصف المشهد"); return; }
@@ -284,6 +293,7 @@ function VideoTab({ storeId, from, clearFrom }: { storeId?: string | undefined; 
           ) : <Input type="file" accept="image/*" onChange={(e) => e.target.files?.[0] && uploadImg(e.target.files[0])} />}
         </Field>
         <Field label="وصف المشهد"><Textarea rows={4} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="مثال: عاشقان يمشون على شاطئ جدة وقت الغروب والهواء يحرك العباية" /></Field>
+        <LangPick lang={vlang} setLang={setVlang} />
         <Button variant="outline" className="w-full" onClick={enhance}>✨ حوّله لوصف سينمائي</Button>
         <Field label="المحرك">
           <div className="flex flex-wrap gap-1.5">{([["kling", "Kling Master 👑"], ["kling-std", "Kling"], ["hailuo", "Hailuo"]] as const).map(([k, l]) => <Chip key={k} on={model === k} onClick={() => setModel(k)}>{l}</Chip>)}</div>
