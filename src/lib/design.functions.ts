@@ -63,33 +63,47 @@ export const designImage = createServerFn({ method: "POST" })
   }).parse(d))
   .handler(async ({ data }) => {
     const s = SIZES[data.size] ?? SIZES["square"]!;
-    // سيدريم (بايت دانس): توليد من النص أو تعديل الصور المرجعية
-    const sv = SEEDREAM[data.model];
-    if (sv) {
-      const edit = !!data.refs?.length;
-      const b: Record<string, unknown> = { prompt: data.prompt, num_images: data.count, image_size: SEED_DIMS[data.size] ?? SEED_DIMS["square"], enable_safety_checker: false };
+    const edit = !!data.refs?.length;
+    // سلسلة بدائل تلقائية: إذا رفض محرك ينتقل للي بعده
+    type Att = { name: string; url: string; body: Record<string, unknown> };
+    const atts: Att[] = [];
+    const seedBody = (): Record<string, unknown> => {
+      const b: Record<string, unknown> = { prompt: edit ? `${data.prompt}, keep face identity, keep pose, photorealistic` : data.prompt, num_images: data.count, image_size: SEED_DIMS[data.size] ?? SEED_DIMS["square"], enable_safety_checker: false };
       if (data.seed !== undefined) b["seed"] = data.seed;
       if (edit) b["image_urls"] = data.refs;
-      const r = await fetch(`https://fal.run/fal-ai/bytedance/seedream/${sv}/${edit ? "edit" : "text-to-image"}`, {
-        method: "POST", headers: { Authorization: `Key ${key()}`, "Content-Type": "application/json" }, body: JSON.stringify(b),
-      });
-      if (!r.ok) return { images: [] as string[], seed: null, error: await falErr(r) as string | null };
-      const j = (await r.json()) as { images?: { url: string }[]; seed?: number };
-      return { images: (j.images ?? []).map((i) => i.url), seed: j.seed ?? null, error: null as string | null };
-    }
-    // صورة مرجعية: تعديل/دمج عبر FLUX Kontext (إضافة)
-    if (data.refs?.length) {
-      const multi = data.refs.length > 1;
-      const kb: Record<string, unknown> = { prompt: data.prompt, num_images: data.count, aspect_ratio: s.aspect, safety_tolerance: "6", output_format: "jpeg" };
-      if (data.guidance) kb["guidance_scale"] = data.guidance;
-      if (data.seed !== undefined) kb["seed"] = data.seed;
-      if (multi) kb["image_urls"] = data.refs; else kb["image_url"] = data.refs[0];
-      const r = await fetch(`https://fal.run/fal-ai/flux-pro/kontext${multi ? "/multi" : ""}`, {
-        method: "POST", headers: { Authorization: `Key ${key()}`, "Content-Type": "application/json" }, body: JSON.stringify(kb),
-      });
-      if (!r.ok) return { images: [] as string[], seed: null, error: await falErr(r) as string | null };
-      const j = (await r.json()) as { images?: { url: string }[]; seed?: number };
-      return { images: (j.images ?? []).map((i) => i.url), seed: j.seed ?? null, error: null as string | null };
+      return b;
+    };
+    const seedAtt = (v: string): Att => ({ name: `Seedream ${v.slice(1)}`, url: `https://fal.run/fal-ai/bytedance/seedream/${v}/${edit ? "edit" : "text-to-image"}`, body: seedBody() });
+    const sv = SEEDREAM[data.model];
+    if (sv || edit) {
+      if (sv) atts.push(seedAtt(sv));
+      if (sv !== "v4.5") atts.push(seedAtt("v4.5"));
+      if (sv !== "v4") atts.push(seedAtt("v4"));
+      if (edit) {
+        const multi = data.refs!.length > 1;
+        const kb: Record<string, unknown> = { prompt: `${data.prompt}, keep face identity, keep pose, photorealistic`, num_images: data.count, aspect_ratio: s.aspect, safety_tolerance: "6", output_format: "jpeg" };
+        if (data.guidance) kb["guidance_scale"] = data.guidance;
+        if (data.seed !== undefined) kb["seed"] = data.seed;
+        if (multi) kb["image_urls"] = data.refs; else kb["image_url"] = data.refs![0];
+        const kAtt = { name: "FLUX Kontext", url: `https://fal.run/fal-ai/flux-pro/kontext${multi ? "/multi" : ""}`, body: kb };
+        if (!sv) atts.unshift(kAtt); else atts.push(kAtt);
+      } else {
+        atts.push({ name: "FLUX Ultra", url: `https://fal.run/${IMAGE_MODELS["flux-pro"]}`, body: { prompt: data.prompt, num_images: data.count, aspect_ratio: s.aspect, safety_tolerance: "6", enable_safety_checker: false } });
+      }
+      let lastErr = "تعذّر التوليد";
+      for (const a of atts) {
+        const r = await fetch(a.url, { method: "POST", headers: { Authorization: `Key ${key()}`, "Content-Type": "application/json" }, body: JSON.stringify(a.body) });
+        if (!r.ok) {
+          lastErr = await falErr(r);
+          if (r.status === 401 || r.status === 403) break; // الرصيد/المفتاح: لا فائدة من التجربة
+          continue;
+        }
+        const j = (await r.json()) as { images?: { url: string }[]; seed?: number };
+        const imgs = (j.images ?? []).map((i) => i.url);
+        if (!imgs.length) continue;
+        return { images: imgs, seed: j.seed ?? null, error: null as string | null, engine: a.name };
+      }
+      return { images: [] as string[], seed: null, error: `كل المحركات رفضت: ${lastErr}` as string | null };
     }
     const body: Record<string, unknown> = { prompt: data.prompt, num_images: data.count, enable_safety_checker: false };
     if (data.seed !== undefined) body["seed"] = data.seed;

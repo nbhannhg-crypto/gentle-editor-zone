@@ -158,6 +158,7 @@ function ImageTab({ storeId, onEdit, onAnimate }: { storeId?: string | undefined
       const full = style ? `${prompt}, ${style}` : prompt;
       const r = await gen({ data: { prompt: full, negative: negative || undefined, model, size, count, steps, guidance, seed: seed ? Number(seed) : undefined, style: model === "recraft" ? "realistic_image" : undefined, refs: refs.length ? refs : undefined } });
       if (r.error) toast.error(r.error);
+      else if ("engine" in r && r.engine) toast.success(`نجح التوليد عبر ${r.engine} ✨`);
       setOut(r.images);
       if (r.images.length) pushHist(r.images.map((url) => ({ url, kind: "image" as const, prompt, at: Date.now() })));
     } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
