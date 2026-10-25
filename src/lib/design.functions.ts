@@ -49,9 +49,24 @@ export const designImage = createServerFn({ method: "POST" })
     guidance: z.number().min(1).max(20).optional(),
     seed: z.number().int().optional(),
     style: z.string().max(60).optional(),
+    refs: z.array(z.string().url()).max(2).optional(),
   }).parse(d))
   .handler(async ({ data }) => {
     const s = SIZES[data.size] ?? SIZES["square"]!;
+    // صورة مرجعية: تعديل/دمج عبر FLUX Kontext (إضافة)
+    if (data.refs?.length) {
+      const multi = data.refs.length > 1;
+      const kb: Record<string, unknown> = { prompt: data.prompt, num_images: data.count, aspect_ratio: s.aspect, safety_tolerance: "2", output_format: "jpeg" };
+      if (data.guidance) kb["guidance_scale"] = data.guidance;
+      if (data.seed !== undefined) kb["seed"] = data.seed;
+      if (multi) kb["image_urls"] = data.refs; else kb["image_url"] = data.refs[0];
+      const r = await fetch(`https://fal.run/fal-ai/flux-pro/kontext${multi ? "/multi" : ""}`, {
+        method: "POST", headers: { Authorization: `Key ${key()}`, "Content-Type": "application/json" }, body: JSON.stringify(kb),
+      });
+      if (!r.ok) return { images: [] as string[], seed: null, error: await falErr(r) as string | null };
+      const j = (await r.json()) as { images?: { url: string }[]; seed?: number };
+      return { images: (j.images ?? []).map((i) => i.url), seed: j.seed ?? null, error: null as string | null };
+    }
     const body: Record<string, unknown> = { prompt: data.prompt, num_images: data.count, enable_safety_checker: true };
     if (data.seed !== undefined) body["seed"] = data.seed;
     if (data.model === "flux-pro") { body["aspect_ratio"] = s.aspect; body["raw"] = false; }
@@ -115,14 +130,15 @@ export const designVideoCheck = createServerFn({ method: "POST" })
 // تحسين الأمر بالذكاء — مفاتيح خارجية فقط (بدون رصيد المنصة)
 export const designEnhance = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ idea: z.string().min(2).max(1500), kind: z.enum(["image", "video", "quote"]) }).parse(d))
+  .inputValidator((d) => z.object({ idea: z.string().min(2).max(1500), kind: z.enum(["image", "video", "quote"]), lang: z.enum(["en", "ar"]).optional() }).parse(d))
   .handler(async ({ data }) => {
     const { getAIResponse } = await import("./ai-keys.server");
-    const sys = data.kind === "quote"
+    let sys = data.kind === "quote"
       ? "اكتب 5 خواطر غزل سعودية قصيرة وراقية (سطر أو سطرين لكل خاطرة) عن الفكرة. كل خاطرة في سطر مستقل بدون ترقيم أو شرح."
       : data.kind === "video"
         ? "You are a cinematic video prompt engineer. Turn the user's (possibly Arabic) idea into ONE rich English prompt for an AI video model: subject, action, camera movement, lighting, mood, lens, atmosphere. Tasteful and romantic, no explicit content. Output only the prompt."
         : "You are an expert image prompt engineer. Turn the user's (possibly Arabic) idea into ONE detailed English prompt for a photorealistic AI image: subject, composition, lighting, color palette, lens, mood, ultra detailed, 8k. Tasteful and romantic, no explicit content. Output only the prompt.";
+    if (data.kind !== "quote" && data.lang === "ar") sys += " IMPORTANT: write the final prompt in fluent Arabic (not English).";
     const out = await getAIResponse(sys, data.idea);
     if (!out) return { text: null as string | null, error: "المفاتيح المجانية مشغولة، جرّب بعد شوي" };
     return { text: out.trim(), error: null as string | null };

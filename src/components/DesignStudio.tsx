@@ -57,6 +57,15 @@ async function share(url: string, text: string) {
 function Chip({ on, children, onClick }: { on: boolean; children: React.ReactNode; onClick: () => void }) {
   return <button type="button" onClick={onClick} className={`shrink-0 rounded-full border px-3 py-1 text-xs transition ${on ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card hover:bg-muted"}`}>{children}</button>;
 }
+function LangPick({ lang, setLang }: { lang: "en" | "ar"; setLang: (l: "en" | "ar") => void }) {
+  return (
+    <div className="flex items-center gap-1.5 text-xs">
+      <span className="text-muted-foreground">لغة التحسين:</span>
+      <Chip on={lang === "en"} onClick={() => setLang("en")}>🇬🇧 إنجليزي (أدق)</Chip>
+      <Chip on={lang === "ar"} onClick={() => setLang("ar")}>🇸🇦 عربي</Chip>
+    </div>
+  );
+}
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return <div className="space-y-1.5"><div className="flex items-baseline justify-between gap-2"><label className="text-sm font-semibold">{label}</label>{hint && <span className="text-[11px] text-muted-foreground">{hint}</span>}</div>{children}</div>;
 }
@@ -118,11 +127,27 @@ function ImageTab({ storeId, onEdit, onAnimate }: { storeId?: string | undefined
   const [busy, setBusy] = useState(false);
   const [enhBusy, setEnhBusy] = useState(false);
   const [out, setOut] = useState<string[]>([]);
+  const [refs, setRefs] = useState<string[]>([]);
+  const [upBusy, setUpBusy] = useState(false);
+  const [lang, setLang] = useState<"en" | "ar">("en");
+
+  const addRef = async (f: File) => {
+    if (!storeId) { toast.error("سجّل دخولك أول"); return; }
+    if (f.size > 10 * 1024 * 1024) { toast.error("أقصى حجم 10 ميجا"); return; }
+    setUpBusy(true);
+    try {
+      const path = `${storeId}/design-ref-${crypto.randomUUID()}.${f.name.split(".").pop() || "jpg"}`;
+      const up = await supabase.storage.from("media-library").upload(path, f, { contentType: f.type });
+      if (up.error) { toast.error(up.error.message); return; }
+      const { data } = await supabase.storage.from("media-library").createSignedUrl(path, 3600);
+      if (data?.signedUrl) setRefs((r) => [...r, data.signedUrl].slice(0, 2));
+    } finally { setUpBusy(false); }
+  };
 
   const enhance = async () => {
     if (prompt.trim().length < 2) { toast.error("اكتب فكرتك أول"); return; }
     setEnhBusy(true);
-    try { const r = await enh({ data: { idea: prompt, kind: "image" } }); if (r.error) toast.error(r.error); else if (r.text) { setPrompt(r.text); toast.success("تم تحسين الوصف ✨"); } }
+    try { const r = await enh({ data: { idea: prompt, kind: "image", lang } }); if (r.error) toast.error(r.error); else if (r.text) { setPrompt(r.text); toast.success("تم تحسين الوصف ✨"); } }
     catch (e) { toast.error((e as Error).message); } finally { setEnhBusy(false); }
   };
   const run = async () => {
@@ -130,7 +155,7 @@ function ImageTab({ storeId, onEdit, onAnimate }: { storeId?: string | undefined
     setBusy(true); setOut([]);
     try {
       const full = style ? `${prompt}, ${style}` : prompt;
-      const r = await gen({ data: { prompt: full, negative: negative || undefined, model, size, count, steps, guidance, seed: seed ? Number(seed) : undefined, style: model === "recraft" ? "realistic_image" : undefined } });
+      const r = await gen({ data: { prompt: full, negative: negative || undefined, model, size, count, steps, guidance, seed: seed ? Number(seed) : undefined, style: model === "recraft" ? "realistic_image" : undefined, refs: refs.length ? refs : undefined } });
       if (r.error) toast.error(r.error);
       setOut(r.images);
       if (r.images.length) pushHist(r.images.map((url) => ({ url, kind: "image" as const, prompt, at: Date.now() })));
@@ -140,10 +165,30 @@ function ImageTab({ storeId, onEdit, onAnimate }: { storeId?: string | undefined
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,380px)_1fr]">
       <div className="space-y-4 rounded-2xl border bg-card p-4">
-        <Field label="وصف الصورة" hint="بالعربي أو الإنجليزي">
-          <Textarea rows={4} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="مثال: بنت بعباية سوداء تمشي تحت المطر في الرياض ليلاً وأضواء ذهبية" />
+        <Field label="📷 صورة مرجعية (اختياري)" hint="حتى صورتين — عدّل عليها أو ادمجها">
+          <div className="grid grid-cols-2 gap-2">
+            {refs.map((u, i) => (
+              <div key={u} className="relative aspect-square overflow-hidden rounded-xl border">
+                <img src={u} alt="" className="h-full w-full object-cover" />
+                <button type="button" className="absolute left-1 top-1 rounded-full bg-background/90 px-2 text-sm" onClick={() => setRefs((r) => r.filter((_, j) => j !== i))}>✕</button>
+              </div>
+            ))}
+            {refs.length < 2 && (
+              <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed text-center text-xs text-muted-foreground hover:bg-muted/50">
+                <span className="text-2xl">{upBusy ? "⏳" : "⬆️"}</span>
+                <span>{upBusy ? "جاري الرفع…" : "رفع صورة"}</span>
+                <span className="text-[10px]">أقل من 10 ميجا</span>
+                <input type="file" accept="image/*" className="hidden" disabled={upBusy} onChange={(e) => { const f = e.target.files?.[0]; if (f) addRef(f); e.target.value = ""; }} />
+              </label>
+            )}
+          </div>
+          {refs.length > 0 && <p className="mt-1 text-[11px] text-muted-foreground">مع الصورة يشتغل محرك FLUX Kontext للتعديل تلقائياً</p>}
         </Field>
-        <Button variant="outline" className="w-full" disabled={enhBusy} onClick={enhance}>{enhBusy ? "جاري التحسين…" : "✨ حسّن الوصف بالذكاء"}</Button>
+        <Field label="وصف الصورة" hint="بالعربي أو الإنجليزي">
+          <Textarea rows={4} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder={refs.length ? "مثال: غيّر الخلفية لشاطئ وقت الغروب" : "مثال: بنت بعباية سوداء تمشي تحت المطر في الرياض ليلاً وأضواء ذهبية"} />
+        </Field>
+        <LangPick lang={lang} setLang={setLang} />
+        <Button variant="outline" className="w-full" disabled={enhBusy} onClick={enhance}>{enhBusy ? "جاري التحسين…" : `✨ حسّن الوصف ${lang === "ar" ? "بالعربي" : "بالإنجليزي"}`}</Button>
         <Field label="المحرك">
           <div className="flex flex-wrap gap-1.5">
             {([["flux-pro", "FLUX Ultra 👑"], ["flux-dev", "FLUX Dev"], ["flux-schnell", "FLUX سريع ⚡"], ["ideogram", "Ideogram (نصوص)"], ["recraft", "Recraft"]] as const).map(([k, l]) => <Chip key={k} on={model === k} onClick={() => setModel(k)}>{l}</Chip>)}
@@ -198,6 +243,7 @@ function VideoTab({ storeId, from, clearFrom }: { storeId?: string | undefined; 
   const [negative, setNegative] = useState("");
   const [cfg, setCfg] = useState(0.5);
   const [camera, setCamera] = useState("");
+  const [vlang, setVlang] = useState<"en" | "ar">("en");
   const [img, setImg] = useState<string | null>(from);
   const [state, setState] = useState<string>("");
   const [url, setUrl] = useState<string | null>(null);
@@ -216,7 +262,7 @@ function VideoTab({ storeId, from, clearFrom }: { storeId?: string | undefined; 
   };
   const enhance = async () => {
     if (prompt.trim().length < 2) { toast.error("اكتب فكرتك أول"); return; }
-    try { const r = await enh({ data: { idea: prompt, kind: "video" } }); if (r.error) toast.error(r.error); else if (r.text) setPrompt(r.text); } catch (e) { toast.error((e as Error).message); }
+    try { const r = await enh({ data: { idea: prompt, kind: "video", lang: vlang } }); if (r.error) toast.error(r.error); else if (r.text) { setPrompt(r.text); toast.success("تم تحسين الوصف ✨"); } } catch (e) { toast.error((e as Error).message); }
   };
   const run = async () => {
     if (prompt.trim().length < 2) { toast.error("اكتب وصف المشهد"); return; }
@@ -248,6 +294,7 @@ function VideoTab({ storeId, from, clearFrom }: { storeId?: string | undefined; 
           ) : <Input type="file" accept="image/*" onChange={(e) => e.target.files?.[0] && uploadImg(e.target.files[0])} />}
         </Field>
         <Field label="وصف المشهد"><Textarea rows={4} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="مثال: عاشقان يمشون على شاطئ جدة وقت الغروب والهواء يحرك العباية" /></Field>
+        <LangPick lang={vlang} setLang={setVlang} />
         <Button variant="outline" className="w-full" onClick={enhance}>✨ حوّله لوصف سينمائي</Button>
         <Field label="المحرك">
           <div className="flex flex-wrap gap-1.5">{([["kling", "Kling Master 👑"], ["kling-std", "Kling"], ["hailuo", "Hailuo"]] as const).map(([k, l]) => <Chip key={k} on={model === k} onClick={() => setModel(k)}>{l}</Chip>)}</div>
