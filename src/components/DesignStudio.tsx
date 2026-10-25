@@ -8,8 +8,9 @@ import { Slider } from "@/components/ui/slider";
 import { supabase } from "@/integrations/supabase/client";
 import { designImage, designVideoStart, designVideoCheck, designEnhance } from "@/lib/design.functions";
 import { MagicTools } from "@/components/MagicTools";
+import { ProductionHub } from "@/components/ProductionHub";
 
-type Tab = "image" | "video" | "tools" | "poster" | "gallery" | "guide";
+type Tab = "pro" | "image" | "video" | "tools" | "poster" | "gallery" | "guide";
 type Item = { url: string; kind: "image" | "video"; prompt: string; at: number };
 const HIST = "design_studio_history";
 
@@ -96,10 +97,11 @@ export function DesignStudio({ storeId }: { storeId?: string | undefined }) {
         <p className="mt-1 text-sm opacity-90">صور خيالية • فيديوهات سينمائية • بطاقات غزل وخواطر بخطوط عربية فاخرة</p>
       </div>
       <nav className="flex gap-2 overflow-x-auto pb-1">
-        {([["image", "🖼️ صور"], ["video", "🎬 فيديو"], ["tools", "⚡ أدوات سريعة"], ["poster", "✍️ بطاقات وخواطر"], ["gallery", "🗂️ أعمالي"], ["guide", "📖 الدليل"]] as const).map(([k, l]) => (
+        {([["pro", "🎬 استوديو الإنتاج"], ["image", "🖼️ صور"], ["video", "🎬 فيديو"], ["tools", "⚡ أدوات سريعة"], ["poster", "✍️ بطاقات وخواطر"], ["gallery", "🗂️ أعمالي"], ["guide", "📖 الدليل"]] as const).map(([k, l]) => (
           <Chip key={k} on={tab === k} onClick={() => setTab(k)}>{l}</Chip>
         ))}
       </nav>
+      {tab === "pro" && <ProductionHub go={setTab} />}
       {tab === "image" && <ImageTab storeId={storeId} onEdit={editOnPoster} onAnimate={animate} />}
       {tab === "video" && <VideoTab storeId={storeId} from={videoFrom} clearFrom={() => setVideoFrom(null)} />}
       {tab === "tools" && <MagicTools storeId={storeId} onEdit={editOnPoster} onSave={async (u: string, t: string) => { try { await saveToLibrary(storeId, await urlToBlob(u), t); } catch (e) { toast.error((e as Error).message); } }} />}
