@@ -58,37 +58,22 @@ async function novitaImage(data: { prompt: string; negative?: string | undefined
   if (!k) return { images: [] as string[], seed: null, error: "مفتاح Novita غير مضاف بعد" as string | null };
   const h = { Authorization: `Bearer ${k}`, "Content-Type": "application/json" };
   const d = NOVITA_DIMS[data.size] ?? NOVITA_DIMS["square"]!;
-  const request: Record<string, unknown> = {
-    model_name: NOVITA_MODEL, prompt: data.prompt,
-    negative_prompt: data.negative || "lowres, bad anatomy, blurry, deformed",
-    width: d.width, height: d.height, image_num: data.count,
-    steps: data.steps ?? 25, guidance_scale: data.guidance ?? 7, sampler_name: "DPM++ 2M Karras", seed: data.seed ?? -1,
+  void NOVITA_MODEL;
+  const body: Record<string, unknown> = {
+    model: "ming-image-0.1-design", prompt: data.prompt,
+    size: `${d.width}x${d.height}`, n: Math.max(1, Math.min(4, data.count || 1)),
   };
-  let ep = "txt2img";
-  if (data.refs?.length) {
-    const ir = await fetch(data.refs[0]!);
-    if (!ir.ok) return { images: [] as string[], seed: null, error: "تعذّر قراءة الصورة المرجعية" as string | null };
-    const buf = new Uint8Array(await ir.arrayBuffer());
-    let bin = ""; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
-    request["image_base64"] = btoa(bin); request["strength"] = 0.6; ep = "img2img";
-  }
-  const r = await fetch(`https://api.novita.ai/v3/async/${ep}`, { method: "POST", headers: h, body: JSON.stringify({ request, extra: { response_image_type: "jpeg", enable_nsfw_detection: false } }) });
+  if (data.refs?.length) body["image"] = data.refs[0];
+  const r = await fetch("https://api.novita.ai/openai/v1/images/generations", { method: "POST", headers: h, body: JSON.stringify(body) });
   if (!r.ok) {
     const t = await r.text().catch(() => ""); console.error("novita", r.status, t.slice(0, 300));
     const msg = r.status === 401 ? "مفتاح Novita غير صالح" : r.status === 402 || t.includes("balance") ? "رصيد Novita غير كافٍ — اشحن الحساب" : `تعذّر التوليد من Novita (${r.status})`;
     return { images: [] as string[], seed: null, error: msg as string | null };
   }
-  const { task_id } = (await r.json()) as { task_id: string };
-  for (let i = 0; i < 40; i++) {
-    await new Promise((res) => setTimeout(res, 2500));
-    const s = await fetch(`https://api.novita.ai/v3/async/task-result?task_id=${task_id}`, { headers: h });
-    if (!s.ok) continue;
-    const j = (await s.json()) as { task?: { status?: string; reason?: string }; images?: { image_url: string }[] };
-    const st = j.task?.status;
-    if (st === "TASK_STATUS_SUCCEED") return { images: (j.images ?? []).map((x) => x.image_url), seed: null, error: null as string | null, engine: "Novita" };
-    if (st === "TASK_STATUS_FAILED") return { images: [] as string[], seed: null, error: `Novita: ${j.task?.reason || "فشل التوليد"}` as string | null };
-  }
-  return { images: [] as string[], seed: null, error: "Novita تأخر، جرّب مرة ثانية" as string | null };
+  const j = (await r.json()) as { data?: { b64_json?: string; url?: string }[] };
+  const images = (j.data ?? []).map((x) => x.url || (x.b64_json ? `data:image/png;base64,${x.b64_json}` : "")).filter(Boolean);
+  if (!images.length) return { images: [] as string[], seed: null, error: "Novita ما رجّع صورة، جرّب مرة ثانية" as string | null };
+  return { images, seed: null, error: null as string | null, engine: "Novita" };
 }
 
 export const designImage = createServerFn({ method: "POST" })
