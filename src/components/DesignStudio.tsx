@@ -118,11 +118,27 @@ function ImageTab({ storeId, onEdit, onAnimate }: { storeId?: string | undefined
   const [busy, setBusy] = useState(false);
   const [enhBusy, setEnhBusy] = useState(false);
   const [out, setOut] = useState<string[]>([]);
+  const [refs, setRefs] = useState<string[]>([]);
+  const [upBusy, setUpBusy] = useState(false);
+  const [lang, setLang] = useState<"en" | "ar">("en");
+
+  const addRef = async (f: File) => {
+    if (!storeId) { toast.error("سجّل دخولك أول"); return; }
+    if (f.size > 10 * 1024 * 1024) { toast.error("أقصى حجم 10 ميجا"); return; }
+    setUpBusy(true);
+    try {
+      const path = `${storeId}/design-ref-${crypto.randomUUID()}.${f.name.split(".").pop() || "jpg"}`;
+      const up = await supabase.storage.from("media-library").upload(path, f, { contentType: f.type });
+      if (up.error) { toast.error(up.error.message); return; }
+      const { data } = await supabase.storage.from("media-library").createSignedUrl(path, 3600);
+      if (data?.signedUrl) setRefs((r) => [...r, data.signedUrl].slice(0, 2));
+    } finally { setUpBusy(false); }
+  };
 
   const enhance = async () => {
     if (prompt.trim().length < 2) { toast.error("اكتب فكرتك أول"); return; }
     setEnhBusy(true);
-    try { const r = await enh({ data: { idea: prompt, kind: "image" } }); if (r.error) toast.error(r.error); else if (r.text) { setPrompt(r.text); toast.success("تم تحسين الوصف ✨"); } }
+    try { const r = await enh({ data: { idea: prompt, kind: "image", lang } }); if (r.error) toast.error(r.error); else if (r.text) { setPrompt(r.text); toast.success("تم تحسين الوصف ✨"); } }
     catch (e) { toast.error((e as Error).message); } finally { setEnhBusy(false); }
   };
   const run = async () => {
@@ -130,7 +146,7 @@ function ImageTab({ storeId, onEdit, onAnimate }: { storeId?: string | undefined
     setBusy(true); setOut([]);
     try {
       const full = style ? `${prompt}, ${style}` : prompt;
-      const r = await gen({ data: { prompt: full, negative: negative || undefined, model, size, count, steps, guidance, seed: seed ? Number(seed) : undefined, style: model === "recraft" ? "realistic_image" : undefined } });
+      const r = await gen({ data: { prompt: full, negative: negative || undefined, model, size, count, steps, guidance, seed: seed ? Number(seed) : undefined, style: model === "recraft" ? "realistic_image" : undefined, refs: refs.length ? refs : undefined } });
       if (r.error) toast.error(r.error);
       setOut(r.images);
       if (r.images.length) pushHist(r.images.map((url) => ({ url, kind: "image" as const, prompt, at: Date.now() })));
@@ -140,10 +156,30 @@ function ImageTab({ storeId, onEdit, onAnimate }: { storeId?: string | undefined
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,380px)_1fr]">
       <div className="space-y-4 rounded-2xl border bg-card p-4">
-        <Field label="وصف الصورة" hint="بالعربي أو الإنجليزي">
-          <Textarea rows={4} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="مثال: بنت بعباية سوداء تمشي تحت المطر في الرياض ليلاً وأضواء ذهبية" />
+        <Field label="📷 صورة مرجعية (اختياري)" hint="حتى صورتين — عدّل عليها أو ادمجها">
+          <div className="grid grid-cols-2 gap-2">
+            {refs.map((u, i) => (
+              <div key={u} className="relative aspect-square overflow-hidden rounded-xl border">
+                <img src={u} alt="" className="h-full w-full object-cover" />
+                <button type="button" className="absolute left-1 top-1 rounded-full bg-background/90 px-2 text-sm" onClick={() => setRefs((r) => r.filter((_, j) => j !== i))}>✕</button>
+              </div>
+            ))}
+            {refs.length < 2 && (
+              <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed text-center text-xs text-muted-foreground hover:bg-muted/50">
+                <span className="text-2xl">{upBusy ? "⏳" : "⬆️"}</span>
+                <span>{upBusy ? "جاري الرفع…" : "رفع صورة"}</span>
+                <span className="text-[10px]">أقل من 10 ميجا</span>
+                <input type="file" accept="image/*" className="hidden" disabled={upBusy} onChange={(e) => { const f = e.target.files?.[0]; if (f) addRef(f); e.target.value = ""; }} />
+              </label>
+            )}
+          </div>
+          {refs.length > 0 && <p className="mt-1 text-[11px] text-muted-foreground">مع الصورة يشتغل محرك FLUX Kontext للتعديل تلقائياً</p>}
         </Field>
-        <Button variant="outline" className="w-full" disabled={enhBusy} onClick={enhance}>{enhBusy ? "جاري التحسين…" : "✨ حسّن الوصف بالذكاء"}</Button>
+        <Field label="وصف الصورة" hint="بالعربي أو الإنجليزي">
+          <Textarea rows={4} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder={refs.length ? "مثال: غيّر الخلفية لشاطئ وقت الغروب" : "مثال: بنت بعباية سوداء تمشي تحت المطر في الرياض ليلاً وأضواء ذهبية"} />
+        </Field>
+        <LangPick lang={lang} setLang={setLang} />
+        <Button variant="outline" className="w-full" disabled={enhBusy} onClick={enhance}>{enhBusy ? "جاري التحسين…" : `✨ حسّن الوصف ${lang === "ar" ? "بالعربي" : "بالإنجليزي"}`}</Button>
         <Field label="المحرك">
           <div className="flex flex-wrap gap-1.5">
             {([["flux-pro", "FLUX Ultra 👑"], ["flux-dev", "FLUX Dev"], ["flux-schnell", "FLUX سريع ⚡"], ["ideogram", "Ideogram (نصوص)"], ["recraft", "Recraft"]] as const).map(([k, l]) => <Chip key={k} on={model === k} onClick={() => setModel(k)}>{l}</Chip>)}
