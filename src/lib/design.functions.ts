@@ -100,12 +100,32 @@ async function hfImage(data: { prompt: string; size: string; count: number }) {
   return { images, seed: null, error: null as string | null, engine: "Hugging Face FLUX" };
 }
 
+// ===== Pollinations — مجاني بدون مفتاح =====
+async function pollImage(data: { prompt: string; size: string; count: number; seed?: number }) {
+  const d = NOVITA_DIMS[data.size] ?? NOVITA_DIMS["square"]!;
+  const images: string[] = [];
+  let err: string | null = null;
+  for (let i = 0; i < Math.max(1, Math.min(4, data.count || 1)); i++) {
+    const seed = (data.seed ?? Math.floor(Math.random() * 1e9)) + i;
+    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(data.prompt)}?width=${d.width}&height=${d.height}&seed=${seed}&model=flux&nologo=true`;
+    try {
+      const r = await fetch(url);
+      if (!r.ok) { err = `تعذّر التوليد من Pollinations (${r.status})`; console.error("poll", r.status); continue; }
+      const buf = new Uint8Array(await r.arrayBuffer());
+      let bin = ""; for (let j = 0; j < buf.length; j += 0x8000) bin += String.fromCharCode(...buf.subarray(j, j + 0x8000));
+      images.push(`data:${r.headers.get("content-type") || "image/jpeg"};base64,${btoa(bin)}`);
+    } catch (e) { err = "Pollinations مشغول، جرّب مرة ثانية"; console.error("poll", e); }
+  }
+  if (!images.length) return { images: [] as string[], seed: null, error: (err ?? "Pollinations ما رجّع صورة") as string | null };
+  return { images, seed: null, error: null as string | null, engine: "Pollinations المجاني" };
+}
+
 export const designImage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({
     prompt: z.string().min(2).max(3000),
     negative: z.string().max(1000).optional(),
-    model: z.enum(["seedream-4", "seedream-4.5", "flux-pro", "flux-dev", "flux-schnell", "ideogram", "recraft", "novita", "hf"]),
+    model: z.enum(["seedream-4", "seedream-4.5", "flux-pro", "flux-dev", "flux-schnell", "ideogram", "recraft", "novita", "hf", "pollinations"]),
     size: z.enum(["square", "story", "portrait", "landscape", "wide"]),
     count: z.number().int().min(1).max(4),
     steps: z.number().int().min(4).max(50).optional(),
@@ -135,6 +155,7 @@ export const designImage = createServerFn({ method: "POST" })
     }
     if (data.model === "novita") return novitaImage(data);
     if (data.model === "hf") return hfImage(data);
+    if (data.model === "pollinations") return pollImage(data);
     // سلسلة بدائل تلقائية: إذا رفض محرك ينتقل للي بعده
     type Att = { name: string; url: string; body: Record<string, unknown> };
     const atts: Att[] = [];
