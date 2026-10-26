@@ -251,7 +251,11 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
     makeRecRef.current = make;
     const rec = make();
     recRef.current = rec; liveRef.current = true;
-    try { rec.start(); } catch { /* ignore */ }
+    // نطلب المايك مرة لتفعيل مدخل السلك/السماعة في أندرويد ثم نحرره فوراً
+    navigator.mediaDevices?.getUserMedia?.({ audio: true })
+      .then((s) => s.getTracks().forEach((t) => t.stop()))
+      .catch(() => {})
+      .finally(() => { if (recRef.current === rec && liveRef.current) { try { rec.start(); } catch { restartRec(); } } });
     setLive(true); setSeconds(0); setDeal(null); setAnswer(""); setCustomer("");
   };
   const makeRecRef = useRef<(() => SR) | null>(null);
@@ -260,7 +264,12 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
     // stop بدل abort: أندرويد يقفل خط السلك لو انقطع المايك بقوة
     const old = recRef.current; if (old) { old.onend = null; old.onerror = null; try { old.stop?.(); } catch { /* ignore */ } }
     const r = makeRecRef.current(); recRef.current = r;
-    setTimeout(() => { if (recRef.current === r && liveRef.current) try { r.start(); } catch { /* ignore */ } }, 50);
+    // أندرويد يحتاج وقت يفك منفذ الصوت (السلك) قبل جلسة جديدة؛ ولو فشل البدء نعيد المحاولة بدل ما يموت المايك
+    const tryStart = (n: number) => {
+      if (recRef.current !== r || !liveRef.current || speakingRef.current) return;
+      try { r.start(); } catch { if (n < 8) setTimeout(() => tryStart(n + 1), 500); }
+    };
+    setTimeout(() => tryStart(0), 350);
   };
 
   // تبديل فوري: لو المكالمة شغالة وتغيّر محرك السماع نعيد تشغيله على طول
