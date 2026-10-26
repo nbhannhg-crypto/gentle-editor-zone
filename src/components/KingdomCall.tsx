@@ -378,6 +378,7 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
       {/* 🎛️ لوحة تحكم مكالمة المملكة */}
       <section className="mt-4 rounded-2xl border bg-card p-4">
         <h3 className="font-display mb-3 text-lg">🎛️ لوحة تحكم مكالمة المملكة</h3>
+        <p className="mb-3 rounded-lg bg-secondary px-3 py-2 text-xs text-secondary-foreground">🔗 القواعد والمكتبات والعقول والكلمات الممنوعة تتحكم فيها من «المكالمة المباشرة» وتطبّق هنا تلقائياً، وأي تعليم هنا ينحفظ للاثنتين.</p>
         {([
           ["🎙️ السماع", "evo", [[true, "🧠 الذكاء الدقيق"], [false, "⚡ المتصفح السريع"]]],
           ["💬 مصدر الرد", "src", [["ai", "💬 ذكاء خالص"], ["rules", "📚 القواعد فقط"], ["hybrid", "🧬 هجين"]]],
