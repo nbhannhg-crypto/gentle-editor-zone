@@ -9,11 +9,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { CTRL_PREFIX, GENERAL_OR, defaultCtrl, digits, parseCtrl, type WaCtrl, type WaLog } from "@/lib/wa-controls";
 import { guessCategory } from "@/lib/rules";
 import { waCtrlSend, waOutreach, waVoicePreview } from "@/lib/wa-ctrl.functions";
-import { WaExtras } from "@/components/WaExtras";
+import { CallIdentity, StaffSwitcher } from "@/components/CallIdentity";
 import { loadMySections } from "@/lib/sections-cloud";
 
 type Brain = { id: string; name: string };
-type Pop = "persona" | "facts" | "banned" | "fixes" | "numbers" | "model" | "more" | null;
+type Pop = "persona" | "facts" | "banned" | "fixes" | "numbers" | "model" | "staff" | null;
 const MODELS = [["", "تلقائي (الأفضل)"], ["gemini", "Gemini"], ["gpt-4o-mini", "GPT-4o mini"], ["gpt-4o", "GPT-4o"], ["claude-3.5-sonnet", "Claude Sonnet"]] as const;
 const showNum = (n: string) => (n.endsWith("@lid") ? `رمز ${n.replace("@lid", "").slice(-6)}` : `+${digits(n)}`);
 
@@ -37,6 +37,14 @@ export function WaControls({ instance, myNumber = "" }: { instance: string; myNu
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const preview = useServerFn(waVoicePreview);
   const heard = useRef<{ text: string; audio: string } | null>(null);
+  const [storeId, setStoreId] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    void supabase.auth.getUser().then(({ data }) => {
+      if (!data.user) return;
+      void supabase.from("stores").select("id").eq("owner_id", data.user.id).limit(1).maybeSingle().then(({ data: st }) => setStoreId(st?.id ?? undefined));
+    });
+  }, []);
+  const dismissMiss = (m: { n: string; t: string }) => update({ misses: c ? c.misses.filter((x) => !(x.t === m.t && x.n === m.n)) : [] }, true);
 
   const load = async () => {
     const { data } = await supabase.from("training_rules").select("id, response_text").eq("trigger_text", key).limit(1).maybeSingle();
