@@ -120,8 +120,7 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
       const c0 = { ...ctlRef.current, match: ck.match ?? ctlRef.current.match, src: ckSrc };
       const myRules = ck.rulesOff ? [] : rules;
       // 🥇 أولوية مطلقة لتعليمك: المتعلَّم حالاً ثم قواعدك — حتى لو المصدر «ذكاء خالص»
-      const taughtIds = new Set(myRules.map((x) => norm(x.trigger_text)));
-      const fresh = taughtRef.current.filter((x) => !taughtIds.has(norm(x.trigger_text)) || true);
+      const fresh = taughtRef.current;
       const ms = findMatches(text, [...fresh, ...myRules]);
       const strict = ms[0] && ms[0].score >= c0.match ? ms[0] : undefined;
       const loose = ms[0] && ms[0].score >= Math.min(c0.match, 0.7) ? ms[0] : undefined;
