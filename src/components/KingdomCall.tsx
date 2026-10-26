@@ -11,6 +11,7 @@ import { useSpeaker, loadVoice, EMOTIONS } from "@/components/VoiceStudio";
 import { startVadRecorder, blobToBase64, type VadHandle } from "@/lib/vad-recorder";
 import { transcribeLive } from "@/lib/listen.functions";
 import { CallIdentity, StaffSwitcher, useIdentity, identityText } from "@/components/CallIdentity";
+import { staffAnswer } from "@/lib/staff";
 import { loadCockpit, hitBanned, applyFixes } from "@/components/LiveCockpit";
 import { searchCallSources } from "@/lib/call-brains";
 import { CallTranscript, type TMsg } from "@/components/CallTranscript";
@@ -128,7 +129,9 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
       let r: { answer: string; rule?: Rule | undefined; matches: typeof ms; source: string };
       const chat = async () => ({ answer: (await smart({ data: { customer: text, product: ck.persona ? `شخصية الموظفة: ${ck.persona}` : "", rules: myRules.slice(0, 200).map((x) => ({ trigger: x.trigger_text, response: x.response_text })), mood: "call" as const, identity: identRef.current } })).reply, rule: undefined, matches: ms, source: "ai" });
       const lib = async () => ((ck.secs?.length ?? 0) || (ck.kbrains?.length ?? 0)) ? await searchCallSources(text, ck.secs ?? [], ck.kbrains ?? [], c0.match) : "";
-      if (best) r = { answer: best.rule.response_text, rule: best.rule.id.startsWith("mem-") ? undefined : best.rule, matches: ms, source: "rule" };
+      const who = staffAnswer(text, identRef.current);
+      if (who) r = { answer: who, rule: undefined, matches: ms, source: "staff" };
+      else if (best) r = { answer: best.rule.response_text, rule: best.rule.id.startsWith("mem-") ? undefined : best.rule, matches: ms, source: "rule" };
       else if (c0.src === "ai") r = await chat();
       else {
         const l = await lib();

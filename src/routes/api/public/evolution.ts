@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { timingSafeEqual } from "crypto";
 import { aiReplyWith, bestRule, evoSend, fishTts, kingdomAutoReply, kingdomWelcome, markSeen, staffContext, mediaToText, numberAllowed, typingDelay, type AiOpts } from "@/lib/autoreply.server";
+import { staffAnswer } from "@/lib/staff";
 import { replyDelay } from "@/lib/wa-learn";
 import { CTRL_PREFIX, GENERAL_OR, cleanReply, ctrlPrompt, digits, listHas, parseCtrl } from "@/lib/wa-controls";
 
@@ -133,7 +134,7 @@ export const Route = createFileRoute("/api/public/evolution")({
               return dup ? [...ctrl.log.slice(0, -1), { ...last, ...entry }] : [...ctrl.log, entry].slice(-300);
             };
             const hit = ctrl.source === "ai" || ctrl.brains.includes("rules:off") ? null : bestRule(text, all);
-            let reply = hit && hit.score >= TH ? hit.rule.response_text : "";
+            let reply = staffAnswer(text, await staffContext(db, null, instance)) || (hit && hit.score >= TH ? hit.rule.response_text : "");
             // Enabled brains/libraries (after the merchant's own rules)
             if (!reply && ctrl.source !== "ai" && ctrl.brains.length) {
               for (const b of ctrl.brains) {
@@ -234,7 +235,9 @@ export const Route = createFileRoute("/api/public/evolution")({
             db.from("products").select("name, price, description").eq("store_id", cfg.store_id).limit(50),
           ]);
           const src = cfg.source ?? "smart";
-          let m = src === "ai" ? null : bestRule(text, rules ?? []);
+          // 🥇 يبدأ من هوية الموظفة المناوبة على هذا الرقم
+          const staffHit = staffAnswer(text, await staffContext(db, cfg.store_id, instance));
+          let m = staffHit ? { rule: { id: "", trigger_text: text, response_text: staffHit, use_count: 0 }, score: 1 } : src === "ai" ? null : bestRule(text, rules ?? []);
           // تدقيق: المطابقة الضعيفة ما تنرسل كما هي — الذكاء يفهم القصد بدلها
           if (m && m.score < 0.35) m = null;
           // Library: send a pre-recorded studio voice whose text best matches
