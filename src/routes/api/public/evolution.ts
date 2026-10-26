@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { timingSafeEqual } from "crypto";
-import { aiReplyWith, bestRule, evoSend, fishTts, kingdomAutoReply, kingdomWelcome, markSeen, mediaToText, numberAllowed, typingDelay, type AiOpts } from "@/lib/autoreply.server";
+import { aiReplyWith, bestRule, evoSend, fishTts, kingdomAutoReply, kingdomWelcome, markSeen, staffContext, mediaToText, numberAllowed, typingDelay, type AiOpts } from "@/lib/autoreply.server";
 import { replyDelay } from "@/lib/wa-learn";
 import { CTRL_PREFIX, GENERAL_OR, cleanReply, ctrlPrompt, digits, listHas, parseCtrl } from "@/lib/wa-controls";
 
@@ -174,7 +174,8 @@ export const Route = createFileRoute("/api/public/evolution")({
               const pool = [...related, ...all.filter((r) => !related.includes(r)).slice(0, 40 - related.length)];
               const ctx = "ردود المتجر المعتمدة (افهمي قصد الزبون واختاري الرد الأنسب منها بنفس الكلام، ولا تردي برد لا يناسب سؤاله، وردي باختصار):\n" + pool.map((r) => `- إذا قال "${r.trigger_text}" → "${r.response_text}"`).join("\n");
               const sys = ctrlPrompt(ctrl);
-              reply = await aiReplyWith(text, ctx, ({ ...(sys ? { system_prompt: sys } : {}), ...(ctrl.model ? { ai_model: ctrl.model } : {}) }) as AiOpts).catch(() => "");
+              const who = await staffContext(db, null);
+              reply = await aiReplyWith(text, (who ? who + "\n\n" : "") + ctx, ({ ...(sys ? { system_prompt: sys } : {}), ...(ctrl.model ? { ai_model: ctrl.model } : {}) }) as AiOpts).catch(() => "");
             }
             if (reply) reply = cleanReply(ctrl, reply);
             if (reply && ctrl.mode === "approval" && ctrlRow) {
@@ -279,7 +280,8 @@ export const Route = createFileRoute("/api/public/evolution")({
             const pool = [...related, ...(rules ?? []).filter((r) => !related.includes(r)).slice(0, 40 - related.length)];
             const ctx = "منتجات المتجر:\n" + (products ?? []).map((p: any) => `- ${p.name}: ${p.price} ريال ${p.description}`).join("\n") +
               "\nردود المتجر المعتمدة (افهمي قصد الزبون واختاري الرد الأنسب منها بنفس الكلام، ولا تردي برد لا يناسب سؤاله):\n" + pool.map((r) => `- إذا قال "${r.trigger_text}" → "${r.response_text}"`).join("\n");
-            reply = await aiReplyWith(text, ctx, cfg);
+            const who = await staffContext(db, cfg.store_id);
+            reply = await aiReplyWith(text, (who ? who + "\n\n" : "") + ctx, cfg);
           }
           if (!reply) throw new Error("empty reply");
           await markSeen(instance, jid, msgId).catch(() => {});

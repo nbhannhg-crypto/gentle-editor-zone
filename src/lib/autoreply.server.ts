@@ -316,3 +316,17 @@ export async function pageAll(q: (from: number, to: number) => any): Promise<{ d
   }
   return { data: out };
 }
+
+/** 👯 هوية الموظفة المناوبة (طاقم الموظفات) — تنضاف لسياق الرد التلقائي. */
+export async function staffContext(db: any, storeId?: string | null): Promise<string> {
+  try {
+    const { staffKey, pickActive, identityText, staffPromptLine } = await import("./staff");
+    const q = db.from("training_rules").select("response_text");
+    const { data } = storeId
+      ? await q.eq("trigger_text", staffKey(storeId)).limit(1).maybeSingle()
+      : await q.like("trigger_text", "call_staff:%").limit(1).maybeSingle();
+    if (!data) return "";
+    const a = pickActive(JSON.parse(data.response_text));
+    return a ? staffPromptLine(identityText(a)) : "";
+  } catch { return ""; }
+}

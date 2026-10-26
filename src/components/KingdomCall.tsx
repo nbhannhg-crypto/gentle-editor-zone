@@ -341,7 +341,7 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
         {recording && live && <p className="pb-4 text-center text-xs text-rose-300">⏺️ جاري تسجيل المكالمة</p>}
       </section>
 
-      <CallIdentity id={ident.id} save={ident.save} />
+      <CallIdentity storeId={storeId} />
 
       {/* 🎛️ لوحة تحكم مكالمة المملكة */}
       <section className="mt-4 rounded-2xl border bg-card p-4">
