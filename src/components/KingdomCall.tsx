@@ -45,7 +45,7 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
   const [deal, setDeal] = useState<Deal | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [emotion, setEmotion] = useState("");
-  const ident = useIdentity(storeId);
+  const ident = useIdentity(storeId, "call");
   const identRef = useRef("");
   identRef.current = identityText(ident.id);
   const recRef = useRef<SR | null>(null);

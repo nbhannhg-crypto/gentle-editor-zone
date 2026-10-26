@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
-import { staffKey, identityText, pickActive, type Identity, type Staff, type StaffRoster } from "@/lib/staff";
+import { staffKey, identityText, pickActive, pickFor, CHANNELS, type Channel, type Identity, type Staff, type StaffRoster } from "@/lib/staff";
 
 /** 👯 طاقم الموظفات — كل موظفة بهويتها، وزر يختار المناوبة اللي ترد بالمكالمات والواتساب. */
 export type { Identity, Staff };
@@ -51,7 +51,7 @@ let cache: StaffRoster | null = null;
 const emit = (r: StaffRoster) => { cache = r; try { localStorage.setItem(LS, JSON.stringify(r)); } catch { /* ignore */ } window.dispatchEvent(new CustomEvent(EVT, { detail: r })); };
 
 /** طاقم الموظفات مع حفظ سحابي ومزامنة بين كل الشاشات. */
-export function useStaff(storeId?: string) {
+export function useStaff(storeId?: string, channel?: Channel) {
   const [roster, setRoster] = useState<StaffRoster>(cache ?? { active: "", list: [] });
   useEffect(() => {
     const on = (e: Event) => setRoster((e as CustomEvent<StaffRoster>).detail);
@@ -158,6 +158,10 @@ export function CallIdentity({ storeId }: { storeId?: string | undefined; id?: I
           <p className="text-xs text-muted-foreground">
             {active ? `🟢 على الخط: ${active.avatar} ${active.name || "بدون اسم"} — ترد بالمكالمات والواتساب بهويتها` : "أضف موظفة واختر المناوبة"}
           </p>
+          <div className="mt-2 flex flex-col gap-2 rounded-xl border p-2">
+            <span className="text-xs font-semibold">🗂️ توزيع المناوبات على الأقسام</span>
+            {CHANNELS.map(([c]) => <StaffSwitcher key={c} storeId={storeId} channel={c} compact />)}
+          </div>
         </div>
         <div className="flex gap-2">
           <Button size="sm" variant="secondary" onClick={() => add(generateStaff())}>✨ ولّد موظفة</Button>
