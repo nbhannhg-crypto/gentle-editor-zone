@@ -34,7 +34,7 @@ const loadList = (k: string): Saved[] => { try { return JSON.parse(localStorage.
 
 /** محادثة متسلسلة مثل الواتساب + تعليم من الرسالة + تسجيل صوتي + أرشيف. */
 export function CallTranscript({ log, setLog, storeId, kind, live, onSay, reload }: {
-  log: TMsg[]; setLog: (f: (l: TMsg[]) => TMsg[]) => void; storeId?: string; kind: "kcall" | "live";
+  log: TMsg[]; setLog: (f: (l: TMsg[]) => TMsg[]) => void; storeId?: string | undefined; kind: "kcall" | "live";
   live: boolean; onSay?: (t: string) => void; reload?: () => Promise<void> | void;
 }) {
   const store = storeId || "default";
