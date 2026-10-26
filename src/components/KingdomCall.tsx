@@ -132,7 +132,38 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
     }, c.waitMs);
   };
 
+  // 🧬 نمط التطور: سماع ذكي يكشف الصمت + مقاطعة فورية (يشتغل بكل المتصفحات)
+  const startEvo = async () => {
+    try {
+      liveRef.current = true; evoOn.current = true;
+      setLive(true); setSeconds(0); setDeal(null); setLog([]); setAnswer(""); setCustomer("");
+      vadRef.current = await startVadRecorder({
+        silenceMs: 500,
+        isPaused: () => mutedRef.current,
+        // وهي تتكلم نرفع الحساسية شوي عشان صوتها ما يقاطعها
+        minRms: () => (speakingRef.current ? 0.035 : 0.012),
+        onSpeechStart: () => {
+          if (!speakingRef.current) return;
+          saySeqK.current++; audioRef.current?.pause();
+          speakingRef.current = false; setSpeaking(false);
+        },
+        onPhrase: async (blob, mime) => {
+          if (!liveRef.current) return;
+          try {
+            const b64 = await blobToBase64(blob);
+            const r = await transcribeLive({ data: { audio: b64, mime } });
+            const t = (r.text ?? "").trim();
+            if (t && liveRef.current) queueHeard(t);
+          } catch { /* تجاهل جملة فشل تفريغها */ }
+        },
+      });
+    } catch {
+      toast.error("🎙️ اسمح للمايك من إعدادات المتصفح"); stop();
+    }
+  };
+
   const start = () => {
+    if (ctlRef.current.evo) { void startEvo(); return; }
     const W = window as any;
     const C = W.SpeechRecognition || W.webkitSpeechRecognition;
     if (!C) { toast.error("المتصفح ما يدعم سماع الصوت. استخدم Chrome أو اكتب كلام الزبون."); return; }
