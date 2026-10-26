@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { analyzeDeal, suggestReplies } from "@/lib/ai.functions";
-import { addRule, recordUse, type Rule } from "@/lib/rules";
+import { addRule, recordUse, findMatches, type Rule } from "@/lib/rules";
 import { useReplyEngine, type Mode } from "@/routes/_authenticated/app";
 import { useSpeaker, loadVoice, EMOTIONS } from "@/components/VoiceStudio";
 import { startVadRecorder, blobToBase64, type VadHandle } from "@/lib/vad-recorder";
@@ -49,6 +49,7 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
   const mutedRef = useRef(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const engine = useReplyEngine(rules, mode, product);
+  const engineAi = useReplyEngine([], "smart", product);
   const tts = useSpeaker();
   const suggest = useServerFn(suggestReplies);
   const analyze = useServerFn(analyzeDeal);
@@ -68,7 +69,7 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
     img.src = URL.createObjectURL(f);
   };
   // لوحة التحكم — محفوظة بالجهاز
-  const [ctl, setCtl] = useState({ autoSay: true, echoGuard: true, dedupe: true, showInterim: true, waitMs: 300, evo: false, evoLearn: true });
+  const [ctl, setCtl] = useState({ autoSay: true, echoGuard: true, dedupe: true, showInterim: true, waitMs: 300, evo: false, evoLearn: true, src: "hybrid" as "ai" | "rules" | "hybrid", match: 0.8 });
   const vadRef = useRef<VadHandle | null>(null);
   const evoOn = useRef(false); // نمط التطور شغال في هذه المكالمة
   const sayRef = useRef<(t: string) => void>(() => {});
@@ -92,7 +93,14 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
     setCustomer(text); setBusy(true);
     setLog((l) => [...l, { who: "c", t: text }]);
     try {
-      const r = await engine(text);
+      const c0 = ctlRef.current;
+      const ms = findMatches(text, rules);
+      const best = ms[0] && ms[0].score >= c0.match ? ms[0] : undefined;
+      let r: { answer: string; rule?: Rule | undefined; matches: typeof ms; source: string };
+      if (c0.src === "ai") r = { ...(await engineAi(text)), matches: ms };
+      else if (best) r = { answer: best.rule.response_text, rule: best.rule, matches: ms, source: "rule" };
+      else if (c0.src === "rules") r = { answer: "", rule: undefined, matches: ms, source: "none" };
+      else r = { ...(await engineAi(text)), matches: ms };
       setAnswer(r.answer);
       const others = r.matches.filter((m) => m.rule.response_text !== r.answer).map((m) => m.rule.response_text);
       setAlts([...new Set(others)].slice(0, 3));
@@ -185,6 +193,18 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
     recRef.current = rec; liveRef.current = true;
     try { rec.start(); } catch { /* ignore */ }
     setLive(true); setSeconds(0); setDeal(null); setLog([]); setAnswer(""); setCustomer("");
+  };
+
+  // تبديل فوري: لو المكالمة شغالة وتغيّر محرك السماع نعيد تشغيله على طول
+  const switchCtl = (key: string, v: unknown) => {
+    const prevEvo = ctlRef.current.evo;
+    const next = { ...ctlRef.current, [key]: v } as typeof ctl;
+    ctlRef.current = next; setCtl(next);
+    if (key === "evo" && liveRef.current && prevEvo !== v) {
+      stop();
+      setTimeout(() => start(), 150);
+      toast.success(v ? "🧠 صار السماع بالذكاء الدقيق" : "⚡ صار السماع بالمتصفح");
+    }
   };
 
   const stop = () => {
@@ -319,13 +339,32 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
       {/* 🎛️ لوحة تحكم مكالمة المملكة */}
       <section className="mt-4 rounded-2xl border bg-card p-4">
         <h3 className="font-display mb-3 text-lg">🎛️ لوحة تحكم مكالمة المملكة</h3>
+        {([
+          ["🎙️ السماع", "evo", [[true, "🧠 الذكاء الدقيق"], [false, "⚡ المتصفح السريع"]]],
+          ["💬 مصدر الرد", "src", [["ai", "💬 ذكاء خالص"], ["rules", "📚 القواعد فقط"], ["hybrid", "🧬 هجين"]]],
+          ["🎯 دقة مطابقة القواعد", "match", [[1, "100% حرفي"], [0.8, "80% دقيق"], [0.6, "60% مرن"]]],
+        ] as const).map(([title, key, opts]) => (
+          <div key={key} className="mb-3">
+            <p className="mb-1 text-sm font-semibold">{title}</p>
+            <div className="flex flex-wrap gap-2">
+              {opts.map(([v, l]) => {
+                const on = (ctl as Record<string, unknown>)[key] === v;
+                return (
+                  <button key={String(v)} type="button" onClick={() => switchCtl(key, v)}
+                    className={`rounded-full border px-3 py-1.5 text-sm transition ${on ? "border-primary bg-primary text-primary-foreground" : "bg-secondary"}`}>
+                    {on ? "✓ " : ""}{l}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
         <div className="grid gap-2 sm:grid-cols-2">
           {([
             ["autoSay", "🗣️ ترد بالصوت تلقائياً (بدون موافقة)"],
             ["echoGuard", "🔇 ما تسمع نفسها وهي تتكلم (منع الصدى)"],
             ["dedupe", "🧹 منع تكرار الكلمات والجمل"],
             ["showInterim", "👀 أشوف الكلام وهو ينكتب"],
-            ["evo", "🧬 نمط التطور: تقاطعها وتسكت فوراً + سماع ذكي (يتفعّل من المكالمة الجاية)"],
             ["evoLearn", "🧠 التطور يتعلّم: يحفظ الردود الجديدة كقواعد"],
           ] as const).map(([k, l]) => (
             <label key={k} className="flex cursor-pointer items-center justify-between gap-2 rounded-xl bg-secondary px-3 py-2 text-sm">
