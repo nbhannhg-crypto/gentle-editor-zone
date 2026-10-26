@@ -409,8 +409,8 @@ export function WaControls({ instance, myNumber = "" }: { instance: string; myNu
             <div className="flex flex-wrap gap-1.5">{MODELS.map(([k, l]) => <button key={k} className={pill(c.model === k)} onClick={() => update({ model: k }, true)}>{l}</button>)}</div>
           </>}
           {pop === "staff" && <><DialogHeader><DialogTitle>👯 طاقم الموظفات</DialogTitle></DialogHeader>
-            <p className="text-xs text-muted-foreground">اختاري المناوبة 🟢 — ترد بهويتها في الواتساب والمكالمات.</p>
-            <StaffSwitcher storeId={storeId} channel="wa" />
+            <p className="text-xs text-muted-foreground">موظفة هذا الرقم فقط 🟢 — كل رقم واتساب له موظفته وزر إطفائه المستقل.</p>
+            <StaffSwitcher storeId={storeId} channel={`wa:${instance}`} />
             <CallIdentity storeId={storeId} /></>}
           {state && <p className="text-xs text-muted-foreground">{state}</p>}
         </DialogContent>

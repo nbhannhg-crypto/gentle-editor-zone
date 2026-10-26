@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
-import { staffKey, identityText, pickActive, pickFor, CHANNELS, type Channel, type Identity, type Staff, type StaffRoster } from "@/lib/staff";
+import { staffKey, identityText, pickActive, pickFor, CHANNELS, type Channel, type Identity, type Staff, type StaffRoster , channelLabel } from "@/lib/staff";
 
 /** 👯 طاقم الموظفات — كل موظفة بهويتها، وزر يختار المناوبة اللي ترد بالمكالمات والواتساب. */
 export type { Identity, Staff };
@@ -100,12 +100,12 @@ export function useIdentity(storeId?: string, channel?: Channel) {
 export function StaffSwitcher({ storeId, compact, channel }: { storeId?: string | undefined; compact?: boolean; channel?: Channel }) {
   const { roster, active, save } = useStaff(storeId, channel);
   if (!roster.list.length) return compact ? null : <p className="text-xs text-muted-foreground">ما فيه موظفات — أضفهن من «مكالمة المملكة» ← طاقم الموظفات.</p>;
-  const label = CHANNELS.find(([c]) => c === channel)?.[1];
+  const label = channelLabel(channel);
   const set = (v: string, msg: string) => {
     const next: StaffRoster = channel ? { ...roster, ch: { ...roster.ch, [channel]: v } } : { ...roster, active: v };
     save(next).then(() => toast.success(msg), (e) => toast.error((e as Error).message));
   };
-  const off = channel ? roster.ch?.[channel] === "off" : false;
+  const off = channel ? active === null : false;
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span className="text-xs text-muted-foreground">👯 المناوبة{label ? ` في ${label}` : ""}:</span>
