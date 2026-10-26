@@ -150,7 +150,7 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
   const startEvo = async () => {
     try {
       liveRef.current = true; evoOn.current = true;
-      setLive(true); setSeconds(0); setDeal(null); setLog([]); setAnswer(""); setCustomer("");
+      setLive(true); setSeconds(0); setDeal(null); setAnswer(""); setCustomer("");
       vadRef.current = await startVadRecorder({
         silenceMs: 800,
         isPaused: () => mutedRef.current,
@@ -198,7 +198,7 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
     rec.onend = () => { if (liveRef.current && !speakingRef.current) try { rec.start(); } catch { /* ignore */ } };
     recRef.current = rec; liveRef.current = true;
     try { rec.start(); } catch { /* ignore */ }
-    setLive(true); setSeconds(0); setDeal(null); setLog([]); setAnswer(""); setCustomer("");
+    setLive(true); setSeconds(0); setDeal(null); setAnswer(""); setCustomer("");
   };
 
   // تبديل فوري: لو المكالمة شغالة وتغيّر محرك السماع نعيد تشغيله على طول
@@ -401,19 +401,7 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
         </div>
       )}
 
-      {/* المحادثة الحية */}
-      {log.length > 0 && (
-        <section className="mt-4 space-y-2 rounded-2xl border bg-card p-4">
-          {interim && <p className="text-sm text-muted-foreground">الزبون يقول الآن: … {interim}</p>}
-          {log.slice(-8).map((m, i) => (
-            <div key={i} className={`flex ${m.who === "a" ? "justify-start" : "justify-end"}`}>
-              <p className={`max-w-[80%] rounded-2xl px-4 py-2 text-sm ${m.who === "a" ? "bg-royal text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>
-                {m.who === "a" ? "👩‍💼 " : "🧑 "}{m.t}
-              </p>
-            </div>
-          ))}
-        </section>
-      )}
+      {interim && <p className="mt-3 text-sm text-muted-foreground">الزبون يقول الآن: … {interim}</p>}
 
       <CallTranscript log={log as TMsg[]} setLog={(f) => setLog((l) => f(l as TMsg[]) as Msg[])} storeId={storeId} kind="kcall" live={live} onSay={(t) => void say(t)} reload={reload} />
 

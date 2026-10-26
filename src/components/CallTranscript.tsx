@@ -53,16 +53,29 @@ export function CallTranscript({ log, setLog, storeId, kind, live, onSay, reload
   useEffect(() => { setSaved(loadList(lk)); }, [lk]);
   useEffect(() => { if (open && !view) endRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }, [log.length, open, view]);
 
-  // تسجيل صوتي تلقائي مع بداية/نهاية المكالمة
+  // السجل الحالي يبقى محفوظ دائماً (ما ينمسح بالخروج أو إعادة التشغيل)
+  const curKey = `call-current:${store}:${kind}`;
+  const restored = useRef(false);
   useEffect(() => {
-    if (live && !recRef.current) void startRec();
-    if (!live && recRef.current) stopRec();
+    restored.current = false;
+    try {
+      const old = JSON.parse(localStorage.getItem(curKey) || "[]") as TMsg[];
+      if (old.length) setLog((l) => (l.length ? l : old));
+    } catch { /* ignore */ }
+    restored.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [live]);
+  }, [curKey]);
+  useEffect(() => {
+    if (!restored.current) return;
+    try { localStorage.setItem(curKey, JSON.stringify(log.slice(-500))); } catch { /* ignore */ }
+  }, [log, curKey]);
+
+  // التسجيل الصوتي يدوي فقط — تشغيله تلقائياً كان يسرق المايك من سماع المتصفح ويقطّع الصوت
+  useEffect(() => { if (!live && recRef.current) stopRec(); }, [live]);
 
   async function startRec() {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false } });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mr = new MediaRecorder(stream);
       const chunks: Blob[] = [];
       mr.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
@@ -84,7 +97,6 @@ export function CallTranscript({ log, setLog, storeId, kind, live, onSay, reload
     localStorage.setItem(lk, JSON.stringify(next));
     setSaved(next);
     toast.success(hasAudio ? "💾 حفظت المحادثة مع التسجيل الصوتي" : "💾 حفظت المحادثة");
-    if (live) void startRec();
   }
 
   async function openSaved(s: Saved) {
@@ -116,6 +128,7 @@ export function CallTranscript({ log, setLog, storeId, kind, live, onSay, reload
         <h3 className="font-display text-lg">💬 سجل وسوالف المكالمة {rec && <span className="ms-1 text-xs text-destructive">● يسجّل</span>}</h3>
         <div className="flex flex-wrap gap-2">
           {!view && <Button size="sm" variant="secondary" onClick={saveCall}>💾 احفظ المكالمة</Button>}
+          {!view && live && <Button size="sm" variant="outline" onClick={() => (rec ? stopRec() : void startRec())}>{rec ? "⏹️ أوقف التسجيل" : "🎙️ سجّل الصوت"}</Button>}
           <Button size="sm" variant="outline" onClick={() => setOpen((o) => !o)}>{open ? "🙈 إخفاء" : "👁️ إظهار"}</Button>
         </div>
       </div>
