@@ -163,7 +163,8 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
     if (!n) return;
     if (c.echoGuard) {
       const s = lastSaid.current;
-      if (s.t && Date.now() - s.at < 6000 && (s.t.includes(n) || n.includes(s.t))) return; // صدى كلامها هي
+      // صدى فقط: جملة طويلة تطابق كلامها تقريباً خلال 1.5 ثانية بعد ما سكتت
+      if (s.t && n.length >= 8 && Date.now() - s.at < 1500 && (n === s.t || (s.t.includes(n) && n.length > s.t.length * 0.6))) return;
     }
     if (c.dedupe) {
       const last = lastHeard.current;
