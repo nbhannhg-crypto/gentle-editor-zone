@@ -98,6 +98,10 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
       setAlts([...new Set(others)].slice(0, 3));
       recordUse(text, r.rule).then(reload);
       if (ctlRef.current.autoSay && r.answer && liveRef.current) sayRef.current(r.answer);
+      // 🧬 تعلّم ذاتي: رد جديد من الذكاء ينحفظ قاعدة عشان المرة الجاية يرد فوراً
+      if (evoOn.current && ctlRef.current.evoLearn && !r.rule && r.answer && r.source === "ai") {
+        void addRule(text, r.answer, storeId).then(({ error }) => { if (!error) { toast.success("🧬 تعلّمت رد جديد"); void reload(); } });
+      }
     } catch (e) { toast.error((e as Error).message); }
     setBusy(false);
   };
@@ -153,6 +157,7 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
   };
 
   const stop = () => {
+    evoOn.current = false; vadRef.current?.stop(); vadRef.current = null;
     liveRef.current = false; recRef.current?.stop();
     setLive(false); setInterim(""); audioRef.current?.pause(); setSpeaking(false); setRecording(false);
   };
@@ -174,7 +179,8 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
   const saySeqK = useRef(0);
   const say = async (text: string) => {
     if (!text.trim()) return;
-    const guard = ctlRef.current.echoGuard;
+    // نمط التطور: المايك يظل مفتوح عشان تقدر تقاطعها
+    const guard = ctlRef.current.echoGuard && !evoOn.current;
     const my = ++saySeqK.current;
     lastSaid.current = { t: norm(text), at: Date.now() };
     setLog((l) => [...l, { who: "a", t: text }]);
