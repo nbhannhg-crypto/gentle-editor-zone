@@ -45,6 +45,7 @@ import { VoiceAssistant } from "@/components/VoiceAssistant";
 import { startVadRecorder, blobToBase64, type VadHandle } from "@/lib/vad-recorder";
 import { transcribeLive } from "@/lib/listen.functions";
 import { CallTranscript } from "@/components/CallTranscript";
+import { staffAnswer } from "@/lib/staff";
 
 export const Route = createFileRoute("/_authenticated/app")({
   head: () => ({
@@ -630,6 +631,13 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
       setBusy(false); return;
     }
     const c = cfgRef.current;
+    // 🥇 يبدأ من هوية الموظفة المناوبة
+    const who = staffAnswer(text, staffRef.current);
+    if (who) {
+      setAnswer(who);
+      if (liveRef.current && myCust === custSeq.current) autoSay(who);
+      setBusy(false); return;
+    }
     try {
       let ans = "";
       let rule: Rule | undefined;
