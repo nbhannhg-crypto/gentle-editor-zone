@@ -307,7 +307,7 @@ export function WaControls({ instance, myNumber = "" }: { instance: string; myNu
         {popBtn("fixes", "⚠️ تصحيح الأخطاء")}
         {popBtn("numbers", "📞 المسموحة والمحظورة")}
         {popBtn("model", "🤖 موديل الذكاء")}
-        {popBtn("more", "⚙️ إعدادات إضافية")}
+        {popBtn("staff", "👯 طاقم الموظفات")}
       </div>
 
       {/* 3) Approval cards */}
@@ -350,14 +350,25 @@ export function WaControls({ instance, myNumber = "" }: { instance: string; myNu
 
       {/* 5) Misses */}
       {c.misses.length > 0 && (
-        <div className="space-y-1">
-          <span className="text-xs font-semibold">💡 رسائل بدون رد — علّم الموظفة</span>
-          {[...c.misses].reverse().map((m, i) => (
-            <div key={i} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted/50 p-2 text-sm">
-              <div>«{m.t}»</div>
-              <Button size="sm" onClick={() => { setTeach(m); setAns(""); }}>💡 علّمها</Button>
-            </div>
-          ))}
+        <div className="space-y-1.5 rounded-xl border p-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-semibold">💡 رسائل بدون رد — علّم الموظفة ({c.misses.length})</span>
+            <button className="text-[11px] text-muted-foreground underline" onClick={() => { if (confirm("تمسح كل الرسائل من القائمة؟")) update({ misses: [] }, true); }}>🧹 مسح الكل</button>
+          </div>
+          <div className="max-h-72 space-y-2 overflow-y-auto overscroll-contain rounded-lg bg-muted p-2">
+            {[...c.misses].reverse().map((m, i) => (
+              <div key={m.n + m.t + i} className="space-y-1">
+                <div className="w-fit max-w-[85%] rounded-2xl rounded-tr-sm bg-background p-2 text-sm shadow-sm">
+                  <div dir="ltr" className="text-right text-[10px] text-muted-foreground">{showNum(m.n)}</div>
+                  {m.t}
+                </div>
+                <div className="flex gap-1.5">
+                  <Button size="sm" className="h-7 px-2 text-xs" onClick={() => { setTeach(m); setAns(""); }}>💡 علّمها</Button>
+                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => dismissMiss(m)}>🗑️ حذف</Button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -397,7 +408,10 @@ export function WaControls({ instance, myNumber = "" }: { instance: string; myNu
             <DialogHeader><DialogTitle>🤖 موديل الذكاء</DialogTitle></DialogHeader>
             <div className="flex flex-wrap gap-1.5">{MODELS.map(([k, l]) => <button key={k} className={pill(c.model === k)} onClick={() => update({ model: k }, true)}>{l}</button>)}</div>
           </>}
-          {pop === "more" && <><DialogHeader><DialogTitle>⚙️ إعدادات إضافية</DialogTitle></DialogHeader><WaExtras name={instance} myNumber={myNumber} /></>}
+          {pop === "staff" && <><DialogHeader><DialogTitle>👯 طاقم الموظفات</DialogTitle></DialogHeader>
+            <p className="text-xs text-muted-foreground">اختاري المناوبة 🟢 — ترد بهويتها في الواتساب والمكالمات.</p>
+            <StaffSwitcher storeId={storeId} />
+            <CallIdentity storeId={storeId} /></>}
           {state && <p className="text-xs text-muted-foreground">{state}</p>}
         </DialogContent>
       </Dialog>
