@@ -96,7 +96,20 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
   useEffect(() => () => { liveRef.current = false; recRef.current?.stop(); audioRef.current?.pause(); }, []);
 
   const norm = (s: string) => s.replace(/[\u064B-\u0652.,!?؟،]/g, "").replace(/\s+/g, " ").trim();
+  // 🧠 تعليم فوري بالذاكرة: يشتغل في نفس اللحظة قبل ما يوصل التحديث من السحابة
+  const taughtRef = useRef<Rule[]>([]);
+  const replySeq = useRef(0);
+  const customRef = useRef<HTMLInputElement | null>(null);
+  const teachNow = (q: string, a: string) => {
+    if (!q.trim() || !a.trim()) return;
+    const nq = norm(q);
+    taughtRef.current = [
+      { id: `mem-${Date.now()}`, trigger_text: q, response_text: a, use_count: 0 } as unknown as Rule,
+      ...taughtRef.current.filter((x) => norm(x.trigger_text) !== nq),
+    ];
+  };
   const handleCustomer = async (text: string) => {
+    const seq = ++replySeq.current;
     setCustomer(text); setBusy(true);
     setLog((l) => [...l, { who: "c", t: text }]);
     try {
@@ -106,19 +119,25 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
       const ckSrc = b ? (b.mine && b.ai ? "hybrid" : b.ai ? "ai" : "rules") : ctlRef.current.src;
       const c0 = { ...ctlRef.current, match: ck.match ?? ctlRef.current.match, src: ckSrc };
       const myRules = ck.rulesOff ? [] : rules;
-      const ms = findMatches(text, myRules);
-      const best = ms[0] && ms[0].score >= c0.match ? ms[0] : undefined;
+      // 🥇 أولوية مطلقة لتعليمك: المتعلَّم حالاً ثم قواعدك — حتى لو المصدر «ذكاء خالص»
+      const taughtIds = new Set(myRules.map((x) => norm(x.trigger_text)));
+      const fresh = taughtRef.current.filter((x) => !taughtIds.has(norm(x.trigger_text)) || true);
+      const ms = findMatches(text, [...fresh, ...myRules]);
+      const strict = ms[0] && ms[0].score >= c0.match ? ms[0] : undefined;
+      const loose = ms[0] && ms[0].score >= Math.min(c0.match, 0.7) ? ms[0] : undefined;
+      const best = strict ?? loose;
       let r: { answer: string; rule?: Rule | undefined; matches: typeof ms; source: string };
       const chat = async () => ({ answer: (await smart({ data: { customer: text, product: ck.persona ? `شخصية الموظفة: ${ck.persona}` : "", rules: myRules.slice(0, 200).map((x) => ({ trigger: x.trigger_text, response: x.response_text })), mood: "call" as const, identity: identRef.current } })).reply, rule: undefined, matches: ms, source: "ai" });
       const lib = async () => ((ck.secs?.length ?? 0) || (ck.kbrains?.length ?? 0)) ? await searchCallSources(text, ck.secs ?? [], ck.kbrains ?? [], c0.match) : "";
-      if (c0.src === "ai") r = await chat();
-      else if (best) r = { answer: best.rule.response_text, rule: best.rule, matches: ms, source: "rule" };
+      if (best) r = { answer: best.rule.response_text, rule: best.rule.id.startsWith("mem-") ? undefined : best.rule, matches: ms, source: "rule" };
+      else if (c0.src === "ai") r = await chat();
       else {
         const l = await lib();
         if (l) r = { answer: l, rule: undefined, matches: ms, source: "lib" };
         else if (c0.src === "rules") r = { answer: "", rule: undefined, matches: ms, source: "none" };
         else r = await chat();
       }
+      if (seq !== replySeq.current) return; // انضغط إيقاف أو وصل كلام أحدث
       const bad = r.answer ? hitBanned(r.answer, ck) : undefined;
       if (bad) { toast.error(`🚫 الرد فيه كلمة ممنوعة «${bad}»`); r = { ...r, answer: "" }; }
       if (r.answer) r = { ...r, answer: applyFixes(r.answer, ck) };
@@ -291,11 +310,21 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
 
   sayRef.current = say;
 
+  // 🛑 إيقاف الرد فوراً: يلغي الصوت الجاري أو اللي يتجهز، ويفتح لك خانة الكتابة
+  const stopReply = () => {
+    saySeqK.current++; replySeq.current++;
+    try { audioRef.current?.pause(); } catch { /* ignore */ }
+    setBusy(false); setAnswer("");
+    if (speakingRef.current) micOn(); else setSpeaking(false);
+    setTimeout(() => customRef.current?.focus(), 50);
+  };
+
   const sendCustom = async () => {
     const t = custom.trim();
     if (!t) return;
     say(t);
     if (customer) {
+      teachNow(customer, t);
       const { error } = await addRule(customer, t, storeId);
       if (!error) { toast.success("قلتها وحفظتها كقاعدة جديدة 🧠"); reload(); }
     }
@@ -440,12 +469,17 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
 
       {interim && <p className="mt-3 text-sm text-muted-foreground">الزبون يقول الآن: … {interim}</p>}
 
-      <CallTranscript log={log as TMsg[]} setLog={(f) => setLog((l) => f(l as TMsg[]) as Msg[])} storeId={storeId} kind="kcall" live={live} onSay={(t) => void say(t)} reload={reload} />
+      <CallTranscript log={log as TMsg[]} setLog={(f) => setLog((l) => f(l as TMsg[]) as Msg[])} storeId={storeId} kind="kcall" live={live} onSay={(t) => void say(t)} reload={reload} onTaught={teachNow} />
 
       {/* رد الموظفة */}
       {live && customer && (
         <section className="mt-4 rounded-2xl bg-royal p-5 text-primary-foreground shadow-soft">
-          <p className="text-sm opacity-80">👩‍💼 الرد المقترح:</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm opacity-80">👩‍💼 الرد المقترح:</p>
+            {(busy || speaking || answer) && (
+              <Button size="sm" variant="destructive" onClick={stopReply}>🛑 إيقاف الرد</Button>
+            )}
+          </div>
           <p className="font-display mt-2 min-h-10 text-xl leading-relaxed">{busy ? "تفكر…" : answer || "ما عندها رد من تعليمك — اطلب اقتراح أو اكتب ردك"}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Button className="bg-gold text-accent-foreground" disabled={!answer || speaking} onClick={() => say(answer)}>✅ موافق — قوليه</Button>
@@ -453,10 +487,10 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
             <Button variant="outline" className="border-primary-foreground/40 bg-transparent text-primary-foreground" onClick={askAi} disabled={busy}>💡 اقترح لي رد</Button>
           </div>
           <div className="mt-3 flex gap-2">
-            <Input value={custom} onChange={(e) => setCustom(e.target.value)} placeholder="اكتب رد مختلف — بتقوله وتحفظه كقاعدة"
+            <Input ref={customRef} value={custom} onChange={(e) => setCustom(e.target.value)} placeholder="اكتب ردك — تنطقه فوراً وتحفظه وتكمّل"
               className="bg-primary-foreground/10 text-primary-foreground placeholder:text-primary-foreground/50"
               onKeyDown={(e) => { if (e.key === "Enter") sendCustom(); }} />
-            <Button variant="secondary" onClick={sendCustom}>قوليها</Button>
+            <Button variant="secondary" onClick={sendCustom}>🗣️ قولي وكمّلي</Button>
           </div>
         </section>
       )}
