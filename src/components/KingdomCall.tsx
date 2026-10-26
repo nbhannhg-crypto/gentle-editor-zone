@@ -131,19 +131,20 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
     }
     if (c.dedupe) {
       const last = lastHeard.current;
-      if (Date.now() - last.at < 4000 && (last.t === n || last.t.includes(n))) return;
+      if (Date.now() - last.at < 1500 && last.t === n) return;
     }
     const p = pendingRef.current;
     const pn = norm(p.text);
     p.text = pn && n.startsWith(pn) ? fin : pn && pn.includes(n) ? p.text : (p.text ? p.text + " " : "") + fin;
     if (p.timer) clearTimeout(p.timer);
-    p.timer = setTimeout(() => {
+    const fire = () => {
       const full = p.text.trim(); p.text = ""; p.timer = null;
       if (!full) return;
       lastHeard.current = { t: norm(full), at: Date.now() };
       setInterim("");
       handleCustomer(full);
-    }, c.waitMs);
+    };
+    if (c.waitMs <= 0) { p.timer = null; fire(); } else p.timer = setTimeout(fire, c.waitMs);
   };
 
   // 🧬 نمط التطور: سماع ذكي يكشف الصمت + مقاطعة فورية (يشتغل بكل المتصفحات)
@@ -247,8 +248,8 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
   const micOn = () => {
     setTimeout(() => {
       speakingRef.current = false; setSpeaking(false);
-      if (liveRef.current && recRef.current) try { recRef.current.start(); } catch { /* already running */ }
-    }, 400);
+      if (liveRef.current && !evoOn.current) restartRec();
+    }, 250);
   };
   const saySeqK = useRef(0);
   const say = async (text: string) => {
