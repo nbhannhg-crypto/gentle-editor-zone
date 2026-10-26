@@ -131,19 +131,20 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
     }
     if (c.dedupe) {
       const last = lastHeard.current;
-      if (Date.now() - last.at < 4000 && (last.t === n || last.t.includes(n))) return;
+      if (Date.now() - last.at < 1500 && last.t === n) return;
     }
     const p = pendingRef.current;
     const pn = norm(p.text);
     p.text = pn && n.startsWith(pn) ? fin : pn && pn.includes(n) ? p.text : (p.text ? p.text + " " : "") + fin;
     if (p.timer) clearTimeout(p.timer);
-    p.timer = setTimeout(() => {
+    const fire = () => {
       const full = p.text.trim(); p.text = ""; p.timer = null;
       if (!full) return;
       lastHeard.current = { t: norm(full), at: Date.now() };
       setInterim("");
       handleCustomer(full);
-    }, c.waitMs);
+    };
+    if (c.waitMs <= 0) { p.timer = null; fire(); } else p.timer = setTimeout(fire, c.waitMs);
   };
 
   // 🧬 نمط التطور: سماع ذكي يكشف الصمت + مقاطعة فورية (يشتغل بكل المتصفحات)
@@ -181,24 +182,41 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
     const W = window as any;
     const C = W.SpeechRecognition || W.webkitSpeechRecognition;
     if (!C) { toast.error("المتصفح ما يدعم سماع الصوت. استخدم Chrome أو اكتب كلام الزبون."); return; }
-    const rec: SR = new C();
-    rec.lang = "ar-SA"; rec.continuous = true; rec.interimResults = true;
-    rec.onresult = (e: any) => {
-      if (mutedRef.current) return;
-      if (ctlRef.current.echoGuard && speakingRef.current) return; // لا تسمع صوت الموظفة نفسها
-      let fin = "", tmp = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const t = e.results[i][0].transcript;
-        if (e.results[i].isFinal) fin += t; else tmp += t;
-      }
-      if (ctlRef.current.showInterim) setInterim(tmp);
-      if (fin.trim()) queueHeard(fin.trim());
+    // كائن جديد ونظيف كل مرة — أندرويد يعلّق لو أعدنا تشغيل نفس الكائن
+    const make = (): SR => {
+      const rec: SR = new C();
+      rec.lang = "ar-SA"; rec.continuous = true; rec.interimResults = true;
+      rec.onresult = (e: any) => {
+        if (mutedRef.current) return;
+        if (ctlRef.current.echoGuard && speakingRef.current) return;
+        let fin = "", tmp = "";
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const t = e.results[i][0].transcript;
+          if (e.results[i].isFinal) fin += t; else tmp += t;
+        }
+        if (ctlRef.current.showInterim) setInterim(tmp);
+        if (fin.trim()) queueHeard(fin.trim());
+      };
+      rec.onerror = (ev: any) => { if (ev?.error === "not-allowed") { toast.error("🎙️ اسمح للمايك من إعدادات المتصفح"); stop(); } };
+      rec.onend = () => {
+        if (!liveRef.current || recRef.current !== rec) return;
+        if (speakingRef.current) return; // micOn يعيد التشغيل
+        restartRec();
+      };
+      return rec;
     };
-    rec.onerror = (ev: any) => { if (ev?.error === "not-allowed") { toast.error("🎙️ اسمح للمايك من إعدادات المتصفح"); stop(); } };
-    rec.onend = () => { if (liveRef.current && !speakingRef.current) try { rec.start(); } catch { /* ignore */ } };
+    makeRecRef.current = make;
+    const rec = make();
     recRef.current = rec; liveRef.current = true;
     try { rec.start(); } catch { /* ignore */ }
     setLive(true); setSeconds(0); setDeal(null); setAnswer(""); setCustomer("");
+  };
+  const makeRecRef = useRef<(() => SR) | null>(null);
+  const restartRec = () => {
+    if (!liveRef.current || evoOn.current || !makeRecRef.current) return;
+    try { recRef.current?.abort?.(); } catch { /* ignore */ }
+    const r = makeRecRef.current(); recRef.current = r;
+    setTimeout(() => { if (recRef.current === r && liveRef.current) try { r.start(); } catch { /* ignore */ } }, 50);
   };
 
   // تبديل فوري: لو المكالمة شغالة وتغيّر محرك السماع نعيد تشغيله على طول
@@ -230,8 +248,8 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
   const micOn = () => {
     setTimeout(() => {
       speakingRef.current = false; setSpeaking(false);
-      if (liveRef.current && recRef.current) try { recRef.current.start(); } catch { /* already running */ }
-    }, 400);
+      if (liveRef.current && !evoOn.current) restartRec();
+    }, 250);
   };
   const saySeqK = useRef(0);
   const say = async (text: string) => {
@@ -381,11 +399,15 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
             </label>
           ))}
         </div>
-        <label className="mt-3 block text-sm">
-          ⏱️ تنتظر بعد ما تخلص كلامك: <b dir="ltr">{(ctl.waitMs / 1000).toFixed(1)}s</b>
-          <input type="range" min={200} max={2000} step={100} value={ctl.waitMs} onChange={(e) => setCtl((c) => ({ ...c, waitMs: Number(e.target.value) }))} className="mt-1 w-full accent-primary" />
-          <span className="text-xs text-muted-foreground">أقل = أسرع رد، أكثر = ما تقاطعك وسط الجملة</span>
-        </label>
+        <div className="mt-3 text-sm">
+          ⏱️ سرعة الرد بعد كلامك: <b dir="ltr">{(ctl.waitMs / 1000).toFixed(1)}s</b>
+          <div className="mt-1 flex flex-wrap gap-2">
+            {([[0, "⚡ فوري"], [300, "🚀 سريع"], [800, "⏳ تنتظر الجملة"], [1500, "🐢 صبورة"]] as const).map(([v, l]) => (
+              <Button key={v} type="button" size="sm" variant={ctl.waitMs === v ? "default" : "outline"} onClick={() => setCtl((c) => ({ ...c, waitMs: v }))}>{l}</Button>
+            ))}
+          </div>
+          <input type="range" min={0} max={2000} step={100} value={ctl.waitMs} onChange={(e) => setCtl((c) => ({ ...c, waitMs: Number(e.target.value) }))} className="mt-2 w-full accent-primary" />
+        </div>
         {log.length > 0 && <Button variant="outline" size="sm" className="mt-3" onClick={() => { setLog([]); setCustomer(""); setAnswer(""); }}>🗑️ مسح المحادثة</Button>}
       </section>
 
