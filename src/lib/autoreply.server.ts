@@ -318,15 +318,21 @@ export async function pageAll(q: (from: number, to: number) => any): Promise<{ d
 }
 
 /** 👯 هوية الموظفة المناوبة (طاقم الموظفات) — تنضاف لسياق الرد التلقائي. */
-export async function staffContext(db: any, storeId?: string | null): Promise<string> {
+export async function staffContext(db: any, storeId?: string | null, instance = ""): Promise<string> {
   try {
     const { staffKey, pickFor, identityText, staffPromptLine } = await import("./staff");
-    const q = db.from("training_rules").select("response_text");
-    const { data } = storeId
-      ? await q.eq("trigger_text", staffKey(storeId)).limit(1).maybeSingle()
-      : await q.like("trigger_text", "call_staff:%").limit(1).maybeSingle();
-    if (!data) return "";
-    const a = pickFor(JSON.parse(data.response_text), "wa");
+    const ch = (instance ? `wa:${instance}` : "wa") as `wa:${string}`;
+    let roster: any = null;
+    if (storeId) {
+      const { data } = await db.from("training_rules").select("response_text").eq("trigger_text", staffKey(storeId)).limit(1).maybeSingle();
+      if (data) roster = JSON.parse(data.response_text);
+    } else if (instance) {
+      // بدون متجر: نأخذ فقط الطاقم اللي صاحبه حدّد موظفة لهذا الرقم بالذات (ما نخلط حسابات المستخدمين)
+      const { data } = await db.from("training_rules").select("response_text").like("trigger_text", "call_staff:%").limit(500);
+      for (const r of (data ?? []) as any[]) { try { const j = JSON.parse(r.response_text); if (j?.ch?.[ch]) { roster = j; break; } } catch { /* ignore */ } }
+    }
+    if (!roster) return "";
+    const a = pickFor(roster, ch);
     return a ? staffPromptLine(identityText(a)) : "";
   } catch { return ""; }
 }

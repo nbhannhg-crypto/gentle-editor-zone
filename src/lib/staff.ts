@@ -1,14 +1,15 @@
 /** Shared (browser + server) staff roster types and prompt text. */
 export type Identity = { name: string; age: string; status: string; city: string; family: string; work: string; free: string };
 export type Staff = Identity & { id: string; avatar: string; tone: string };
-export type Channel = "call" | "wa" | "live";
+export type Channel = "call" | "wa" | "live" | `wa:${string}`;
 export const CHANNELS: [Channel, string][] = [["call", "📱 مكالمة المملكة"], ["wa", "💬 الواتساب"], ["live", "🎙️ المكالمة المباشرة"]];
 /** ch: موظفة لكل قناة — قيمة "off" تعني مطفية، وغيابها يعني الموظفة العامة (active). */
-export type StaffRoster = { active: string; list: Staff[]; ch?: Partial<Record<Channel, string>> };
+export type StaffRoster = { active: string; list: Staff[]; ch?: Partial<Record<string, string>> };
 
 export function pickFor(r: StaffRoster | null | undefined, c?: Channel): Staff | null {
   if (!r?.list?.length) return null;
-  const v = c ? r.ch?.[c] : undefined;
+  // كل رقم واتساب (wa:instance) مستقل؛ لو ما تحدد له شي يتبع إعداد الواتساب العام
+  const v = c ? (r.ch?.[c] ?? (c.startsWith("wa:") ? r.ch?.["wa"] : undefined)) : undefined;
   if (v === "off") return null;
   if (v) { const s = r.list.find((x) => x.id === v); if (s) return s; }
   return pickActive(r);
@@ -35,3 +36,5 @@ export function pickActive(r: StaffRoster | null | undefined): Staff | null {
 
 export const staffPromptLine = (text: string) =>
   text ? `هذي هويتك وحياتك الحقيقية، التزمي فيها بالضبط إذا سألك أحد عن نفسك ولا تناقضينها:\n${text}` : "";
+
+export const channelLabel = (c?: Channel) => !c ? "" : c.startsWith("wa:") ? `💬 واتساب ${c.slice(3)}` : CHANNELS.find(([k]) => k === c)?.[1] ?? "";
