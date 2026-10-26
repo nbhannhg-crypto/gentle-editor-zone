@@ -21,8 +21,9 @@ export const transcribeLive = createServerFn({ method: "POST" })
         fd.append("language", "ar");
         fd.append("temperature", "0");
         fd.append("response_format", "json");
-        const base = "سوالف حب ودلع ورومانسية باللهجة السعودية العامية، الكلمات المتوقعة: مساء الخير، صباح الخير، مساء الورد، مساء النور، ما سمعتك، وحشتني، أحبك، يا قلبي، بين أقول، هلا والله، وش مسوي، فديتك، يا بعد قلبي، كيف حالك، وش فيك، لبى، يا روحي، عيوني، منور، يا زينك، سولف، تكفى، أبشر، يالغالي، تسلم لي، وش علومك، من عيوني، تمام.";
-        fd.append("prompt", (base + (vocab ? " " + vocab : "")).slice(0, 800));
+        // Whisper treats the prompt as preceding speech, so give natural Saudi chat, not instructions.
+        const base = "هلا والله، مساء الخير يا قلبي. مساء النور، كيفك؟ الحمد لله، وش مسوي؟ والله وحشتني. فديتك، أحبك.";
+        fd.append("prompt", (base + (vocab ? " " + vocab : "")).slice(0, 400));
         const r = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
           method: "POST",
           headers: { Authorization: `Bearer ${groqKey}` },

@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { analyzeDeal, suggestReplies } from "@/lib/ai.functions";
+import { analyzeDeal, suggestReplies, smartReply } from "@/lib/ai.functions";
 import { addRule, recordUse, findMatches, type Rule } from "@/lib/rules";
 import { useReplyEngine, type Mode } from "@/routes/_authenticated/app";
 import { useSpeaker, loadVoice, EMOTIONS } from "@/components/VoiceStudio";
@@ -49,7 +49,7 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
   const mutedRef = useRef(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const engine = useReplyEngine(rules, mode, product);
-  const engineAi = useReplyEngine([], "smart", product);
+  const smart = useServerFn(smartReply);
   const tts = useSpeaker();
   const suggest = useServerFn(suggestReplies);
   const analyze = useServerFn(analyzeDeal);
@@ -97,10 +97,11 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
       const ms = findMatches(text, rules);
       const best = ms[0] && ms[0].score >= c0.match ? ms[0] : undefined;
       let r: { answer: string; rule?: Rule | undefined; matches: typeof ms; source: string };
-      if (c0.src === "ai") r = { ...(await engineAi(text)), matches: ms };
+      const chat = async () => ({ answer: (await smart({ data: { customer: text, product: "", rules: [], mood: "call" as const } })).reply, rule: undefined, matches: ms, source: "ai" });
+      if (c0.src === "ai") r = await chat();
       else if (best) r = { answer: best.rule.response_text, rule: best.rule, matches: ms, source: "rule" };
       else if (c0.src === "rules") r = { answer: "", rule: undefined, matches: ms, source: "none" };
-      else r = { ...(await engineAi(text)), matches: ms };
+      else r = await chat();
       setAnswer(r.answer);
       const others = r.matches.filter((m) => m.rule.response_text !== r.answer).map((m) => m.rule.response_text);
       setAlts([...new Set(others)].slice(0, 3));
@@ -146,7 +147,7 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
       liveRef.current = true; evoOn.current = true;
       setLive(true); setSeconds(0); setDeal(null); setLog([]); setAnswer(""); setCustomer("");
       vadRef.current = await startVadRecorder({
-        silenceMs: 500,
+        silenceMs: 800,
         isPaused: () => mutedRef.current,
         // وهي تتكلم نرفع الحساسية شوي عشان صوتها ما يقاطعها
         minRms: () => (speakingRef.current ? 0.035 : 0.012),
