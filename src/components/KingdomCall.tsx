@@ -101,7 +101,7 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
       const ms = findMatches(text, rules);
       const best = ms[0] && ms[0].score >= c0.match ? ms[0] : undefined;
       let r: { answer: string; rule?: Rule | undefined; matches: typeof ms; source: string };
-      const chat = async () => ({ answer: (await smart({ data: { customer: text, product: "", rules: [], mood: "call" as const } })).reply, rule: undefined, matches: ms, source: "ai" });
+      const chat = async () => ({ answer: (await smart({ data: { customer: text, product: "", rules: [], mood: "call" as const, identity: identRef.current } })).reply, rule: undefined, matches: ms, source: "ai" });
       if (c0.src === "ai") r = await chat();
       else if (best) r = { answer: best.rule.response_text, rule: best.rule, matches: ms, source: "rule" };
       else if (c0.src === "rules") r = { answer: "", rule: undefined, matches: ms, source: "none" };
