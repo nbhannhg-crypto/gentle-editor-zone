@@ -325,6 +325,8 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
             ["echoGuard", "🔇 ما تسمع نفسها وهي تتكلم (منع الصدى)"],
             ["dedupe", "🧹 منع تكرار الكلمات والجمل"],
             ["showInterim", "👀 أشوف الكلام وهو ينكتب"],
+            ["evo", "🧬 نمط التطور: تقاطعها وتسكت فوراً + سماع ذكي (يتفعّل من المكالمة الجاية)"],
+            ["evoLearn", "🧠 التطور يتعلّم: يحفظ الردود الجديدة كقواعد"],
           ] as const).map(([k, l]) => (
             <label key={k} className="flex cursor-pointer items-center justify-between gap-2 rounded-xl bg-secondary px-3 py-2 text-sm">
               <span>{l}</span>
