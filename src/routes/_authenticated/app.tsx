@@ -44,6 +44,7 @@ import { WaInbox } from "@/components/WaInbox";
 import { VoiceAssistant } from "@/components/VoiceAssistant";
 import { startVadRecorder, blobToBase64, type VadHandle } from "@/lib/vad-recorder";
 import { transcribeLive } from "@/lib/listen.functions";
+import { CallTranscript } from "@/components/CallTranscript";
 
 export const Route = createFileRoute("/_authenticated/app")({
   head: () => ({
@@ -1036,6 +1037,8 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
           onMode={(m) => { if (m === "auto") saveCfg({ ...cfg, fast: true }); if (m === "copilot") saveCfg({ ...cfg, fast: false }); if (m === "ptt") saveCfg({ ...cfg, route: "ptt" }); if (m === "line") saveCfg({ ...cfg, route: "speaker" }); }}
           stopAll={() => { audioRef.current?.pause(); setSpeaking(false); cancelCountdown(); }} />
       </div>
+
+      <CallTranscript log={log} setLog={setLog} storeId={storeId} kind="live" live={live} onSay={(t) => void say(t)} reload={reload} />
 
       <Card title="📜 سجل المكالمة">
         <ul className="max-h-[70vh] space-y-2 overflow-auto">

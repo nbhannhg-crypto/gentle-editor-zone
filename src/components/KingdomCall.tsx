@@ -11,6 +11,7 @@ import { useSpeaker, loadVoice, EMOTIONS } from "@/components/VoiceStudio";
 import { startVadRecorder, blobToBase64, type VadHandle } from "@/lib/vad-recorder";
 import { transcribeLive } from "@/lib/listen.functions";
 import { CallIdentity, useIdentity, identityText } from "@/components/CallIdentity";
+import { CallTranscript, type TMsg } from "@/components/CallTranscript";
 
 type SR = any;
 type Msg = { who: "c" | "a"; t: string };
@@ -413,6 +414,8 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
           ))}
         </section>
       )}
+
+      <CallTranscript log={log as TMsg[]} setLog={(f) => setLog((l) => f(l as TMsg[]) as Msg[])} storeId={storeId} kind="kcall" live={live} onSay={(t) => void say(t)} reload={reload} />
 
       {/* رد الموظفة */}
       {live && customer && (
