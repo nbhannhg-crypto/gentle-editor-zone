@@ -1,7 +1,18 @@
 /** Shared (browser + server) staff roster types and prompt text. */
 export type Identity = { name: string; age: string; status: string; city: string; family: string; work: string; free: string };
 export type Staff = Identity & { id: string; avatar: string; tone: string };
-export type StaffRoster = { active: string; list: Staff[] };
+export type Channel = "call" | "wa" | "live";
+export const CHANNELS: [Channel, string][] = [["call", "📱 مكالمة المملكة"], ["wa", "💬 الواتساب"], ["live", "🎙️ المكالمة المباشرة"]];
+/** ch: موظفة لكل قناة — قيمة "off" تعني مطفية، وغيابها يعني الموظفة العامة (active). */
+export type StaffRoster = { active: string; list: Staff[]; ch?: Partial<Record<Channel, string>> };
+
+export function pickFor(r: StaffRoster | null | undefined, c?: Channel): Staff | null {
+  if (!r?.list?.length) return null;
+  const v = c ? r.ch?.[c] : undefined;
+  if (v === "off") return null;
+  if (v) { const s = r.list.find((x) => x.id === v); if (s) return s; }
+  return pickActive(r);
+}
 
 export const staffKey = (store: string) => `call_staff:${store}`;
 
