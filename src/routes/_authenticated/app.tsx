@@ -19,7 +19,7 @@ import { getOrCreateMyStore, isAdmin, type Store } from "@/lib/stores";
 import { VoiceStudio, useSpeaker, EMOTIONS, loadVoice } from "@/components/VoiceStudio";
 import { LiveCallPlus, loadTuning, findTriggerClip, findLinkedClip, triggerVocab } from "@/components/LiveCallPlus";
 import { LiveHybrid } from "@/components/LiveHybrid";
-import { StaffSwitcher, useStaff } from "@/components/CallIdentity";
+import { StaffSwitcher, useStaff, CallIdentity } from "@/components/CallIdentity";
 import { searchCallSources } from "@/lib/call-brains";
 import { LiveCockpit, loadCockpit, DEFAULT_COCKPIT, COCKPIT_KEY, EXTRA_HINT, applyFixes, hitBanned, isBlocked, type Cockpit } from "@/components/LiveCockpit";
 import { Channels } from "@/components/Channels";
@@ -890,7 +890,8 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
 
   return (
     <div className="grid gap-6 lg:grid-cols-3">
-      <section className="rounded-2xl border bg-card p-3 lg:col-span-3"><StaffSwitcher storeId={storeId} /></section>
+      <section className="rounded-2xl border bg-card p-3 lg:col-span-3"><StaffSwitcher storeId={storeId} />
+        <details className="mt-2 rounded-xl border p-2"><summary className="cursor-pointer text-sm font-semibold">👯 إدارة طاقم الموظفات (توليد وتعديل)</summary><div className="mt-2"><CallIdentity storeId={storeId} /></div></details></section>
       <LiveCockpit cfg={cfg} setCfg={saveCfg} live={live} onToggle={() => (live ? stop() : start())} rulesCount={rules.length}
         accounts={accounts} accErr={accErr} reloadAcc={loadAccounts}
         waFrom={waFrom} setWaFrom={(v) => { setWaFrom(v); localStorage.setItem("live_wa_from", v); }} waTo={waTo} setWaTo={setWaTo} customers={custList} />
