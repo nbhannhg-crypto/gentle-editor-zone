@@ -33,9 +33,9 @@ const listKey = (store: string, kind: string) => `call-archive:${store}:${kind}`
 const loadList = (k: string): Saved[] => { try { return JSON.parse(localStorage.getItem(k) || "[]"); } catch { return []; } };
 
 /** محادثة متسلسلة مثل الواتساب + تعليم من الرسالة + تسجيل صوتي + أرشيف. */
-export function CallTranscript({ log, setLog, storeId, kind, live, onSay, reload }: {
+export function CallTranscript({ log, setLog, storeId, kind, live, onSay, reload, onTaught }: {
   log: TMsg[]; setLog: (f: (l: TMsg[]) => TMsg[]) => void; storeId?: string | undefined; kind: "kcall" | "live";
-  live: boolean; onSay?: (t: string) => void; reload?: () => Promise<void> | void;
+  live: boolean; onSay?: (t: string) => void; reload?: () => Promise<void> | void; onTaught?: (q: string, a: string) => void;
 }) {
   const store = storeId || "default";
   const lk = listKey(store, kind);
@@ -113,6 +113,7 @@ export function CallTranscript({ log, setLog, storeId, kind, live, onSay, reload
 
   async function doTeach(q: string) {
     if (!ans.trim()) { toast.error("اكتب الرد أول"); return; }
+    onTaught?.(q, ans.trim());
     const { error } = await addRule(q, ans, storeId);
     if (error) { toast.error(error.message); return; }
     toast.success("🧠 تعلّمتها — صارت قاعدة دائمة");
