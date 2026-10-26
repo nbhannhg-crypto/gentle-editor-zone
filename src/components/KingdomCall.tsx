@@ -8,6 +8,8 @@ import { analyzeDeal, suggestReplies } from "@/lib/ai.functions";
 import { addRule, recordUse, type Rule } from "@/lib/rules";
 import { useReplyEngine, type Mode } from "@/routes/_authenticated/app";
 import { useSpeaker, loadVoice, EMOTIONS } from "@/components/VoiceStudio";
+import { startVadRecorder, blobToBase64, type VadHandle } from "@/lib/vad-recorder";
+import { transcribeLive } from "@/lib/listen.functions";
 
 type SR = any;
 type Msg = { who: "c" | "a"; t: string };
@@ -66,7 +68,9 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
     img.src = URL.createObjectURL(f);
   };
   // لوحة التحكم — محفوظة بالجهاز
-  const [ctl, setCtl] = useState({ autoSay: true, echoGuard: true, dedupe: true, showInterim: true, waitMs: 300 });
+  const [ctl, setCtl] = useState({ autoSay: true, echoGuard: true, dedupe: true, showInterim: true, waitMs: 300, evo: false, evoLearn: true });
+  const vadRef = useRef<VadHandle | null>(null);
+  const evoOn = useRef(false); // نمط التطور شغال في هذه المكالمة
   const sayRef = useRef<(t: string) => void>(() => {});
   const ctlRef = useRef(ctl);
   const speakingRef = useRef(false);
