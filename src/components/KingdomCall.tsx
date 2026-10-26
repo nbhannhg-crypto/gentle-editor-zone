@@ -8,6 +8,8 @@ import { analyzeDeal, suggestReplies } from "@/lib/ai.functions";
 import { addRule, recordUse, type Rule } from "@/lib/rules";
 import { useReplyEngine, type Mode } from "@/routes/_authenticated/app";
 import { useSpeaker, loadVoice, EMOTIONS } from "@/components/VoiceStudio";
+import { startVadRecorder, blobToBase64, type VadHandle } from "@/lib/vad-recorder";
+import { transcribeLive } from "@/lib/listen.functions";
 
 type SR = any;
 type Msg = { who: "c" | "a"; t: string };
@@ -66,7 +68,9 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
     img.src = URL.createObjectURL(f);
   };
   // لوحة التحكم — محفوظة بالجهاز
-  const [ctl, setCtl] = useState({ autoSay: true, echoGuard: true, dedupe: true, showInterim: true, waitMs: 300 });
+  const [ctl, setCtl] = useState({ autoSay: true, echoGuard: true, dedupe: true, showInterim: true, waitMs: 300, evo: false, evoLearn: true });
+  const vadRef = useRef<VadHandle | null>(null);
+  const evoOn = useRef(false); // نمط التطور شغال في هذه المكالمة
   const sayRef = useRef<(t: string) => void>(() => {});
   const ctlRef = useRef(ctl);
   const speakingRef = useRef(false);
@@ -94,6 +98,10 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
       setAlts([...new Set(others)].slice(0, 3));
       recordUse(text, r.rule).then(reload);
       if (ctlRef.current.autoSay && r.answer && liveRef.current) sayRef.current(r.answer);
+      // 🧬 تعلّم ذاتي: رد جديد من الذكاء ينحفظ قاعدة عشان المرة الجاية يرد فوراً
+      if (evoOn.current && ctlRef.current.evoLearn && !r.rule && r.answer && r.source === "ai") {
+        void addRule(text, r.answer, storeId).then(({ error }) => { if (!error) { toast.success("🧬 تعلّمت رد جديد"); void reload(); } });
+      }
     } catch (e) { toast.error((e as Error).message); }
     setBusy(false);
   };
@@ -124,7 +132,38 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
     }, c.waitMs);
   };
 
+  // 🧬 نمط التطور: سماع ذكي يكشف الصمت + مقاطعة فورية (يشتغل بكل المتصفحات)
+  const startEvo = async () => {
+    try {
+      liveRef.current = true; evoOn.current = true;
+      setLive(true); setSeconds(0); setDeal(null); setLog([]); setAnswer(""); setCustomer("");
+      vadRef.current = await startVadRecorder({
+        silenceMs: 500,
+        isPaused: () => mutedRef.current,
+        // وهي تتكلم نرفع الحساسية شوي عشان صوتها ما يقاطعها
+        minRms: () => (speakingRef.current ? 0.035 : 0.012),
+        onSpeechStart: () => {
+          if (!speakingRef.current) return;
+          saySeqK.current++; audioRef.current?.pause();
+          speakingRef.current = false; setSpeaking(false);
+        },
+        onPhrase: async (blob, mime) => {
+          if (!liveRef.current) return;
+          try {
+            const b64 = await blobToBase64(blob);
+            const r = await transcribeLive({ data: { audio: b64, mime } });
+            const t = (r.text ?? "").trim();
+            if (t && liveRef.current) queueHeard(t);
+          } catch { /* تجاهل جملة فشل تفريغها */ }
+        },
+      });
+    } catch {
+      toast.error("🎙️ اسمح للمايك من إعدادات المتصفح"); stop();
+    }
+  };
+
   const start = () => {
+    if (ctlRef.current.evo) { void startEvo(); return; }
     const W = window as any;
     const C = W.SpeechRecognition || W.webkitSpeechRecognition;
     if (!C) { toast.error("المتصفح ما يدعم سماع الصوت. استخدم Chrome أو اكتب كلام الزبون."); return; }
@@ -149,6 +188,7 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
   };
 
   const stop = () => {
+    evoOn.current = false; vadRef.current?.stop(); vadRef.current = null;
     liveRef.current = false; recRef.current?.stop();
     setLive(false); setInterim(""); audioRef.current?.pause(); setSpeaking(false); setRecording(false);
   };
@@ -170,7 +210,8 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
   const saySeqK = useRef(0);
   const say = async (text: string) => {
     if (!text.trim()) return;
-    const guard = ctlRef.current.echoGuard;
+    // نمط التطور: المايك يظل مفتوح عشان تقدر تقاطعها
+    const guard = ctlRef.current.echoGuard && !evoOn.current;
     const my = ++saySeqK.current;
     lastSaid.current = { t: norm(text), at: Date.now() };
     setLog((l) => [...l, { who: "a", t: text }]);
@@ -284,6 +325,8 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
             ["echoGuard", "🔇 ما تسمع نفسها وهي تتكلم (منع الصدى)"],
             ["dedupe", "🧹 منع تكرار الكلمات والجمل"],
             ["showInterim", "👀 أشوف الكلام وهو ينكتب"],
+            ["evo", "🧬 نمط التطور: تقاطعها وتسكت فوراً + سماع ذكي (يتفعّل من المكالمة الجاية)"],
+            ["evoLearn", "🧠 التطور يتعلّم: يحفظ الردود الجديدة كقواعد"],
           ] as const).map(([k, l]) => (
             <label key={k} className="flex cursor-pointer items-center justify-between gap-2 rounded-xl bg-secondary px-3 py-2 text-sm">
               <span>{l}</span>
