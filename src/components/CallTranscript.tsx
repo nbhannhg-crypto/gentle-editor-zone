@@ -97,7 +97,6 @@ export function CallTranscript({ log, setLog, storeId, kind, live, onSay, reload
     localStorage.setItem(lk, JSON.stringify(next));
     setSaved(next);
     toast.success(hasAudio ? "💾 حفظت المحادثة مع التسجيل الصوتي" : "💾 حفظت المحادثة");
-    if (live) void startRec();
   }
 
   async function openSaved(s: Saved) {
@@ -129,6 +128,7 @@ export function CallTranscript({ log, setLog, storeId, kind, live, onSay, reload
         <h3 className="font-display text-lg">💬 سجل وسوالف المكالمة {rec && <span className="ms-1 text-xs text-destructive">● يسجّل</span>}</h3>
         <div className="flex flex-wrap gap-2">
           {!view && <Button size="sm" variant="secondary" onClick={saveCall}>💾 احفظ المكالمة</Button>}
+          {!view && live && <Button size="sm" variant="outline" onClick={() => (rec ? stopRec() : void startRec())}>{rec ? "⏹️ أوقف التسجيل" : "🎙️ سجّل الصوت"}</Button>}
           <Button size="sm" variant="outline" onClick={() => setOpen((o) => !o)}>{open ? "🙈 إخفاء" : "👁️ إظهار"}</Button>
         </div>
       </div>
