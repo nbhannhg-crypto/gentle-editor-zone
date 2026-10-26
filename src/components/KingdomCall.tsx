@@ -10,7 +10,7 @@ import { useReplyEngine, type Mode } from "@/routes/_authenticated/app";
 import { useSpeaker, loadVoice, EMOTIONS } from "@/components/VoiceStudio";
 import { startVadRecorder, blobToBase64, type VadHandle } from "@/lib/vad-recorder";
 import { transcribeLive } from "@/lib/listen.functions";
-import { CallIdentity, useIdentity, identityText } from "@/components/CallIdentity";
+import { CallIdentity, StaffSwitcher, useIdentity, identityText } from "@/components/CallIdentity";
 import { loadCockpit, hitBanned, applyFixes } from "@/components/LiveCockpit";
 import { searchCallSources } from "@/lib/call-brains";
 import { CallTranscript, type TMsg } from "@/components/CallTranscript";
@@ -100,9 +100,11 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
     setCustomer(text); setBusy(true);
     setLog((l) => [...l, { who: "c", t: text }]);
     try {
-      const c0 = ctlRef.current;
-      // 🔗 تحكم المكالمة المباشرة (المكاتب) يطبّق هنا تلقائياً
+      // 🔗 لوحة تحكم المكالمة المباشرة هي المرجع: الدقة ومصدر الرد والقواعد والمكتبات
       const ck = loadCockpit();
+      const b = (ck as { brains?: { mine?: boolean; ai?: boolean } }).brains;
+      const ckSrc = b ? (b.mine && b.ai ? "hybrid" : b.ai ? "ai" : "rules") : ctlRef.current.src;
+      const c0 = { ...ctlRef.current, match: ck.match ?? ctlRef.current.match, src: ckSrc };
       const myRules = ck.rulesOff ? [] : rules;
       const ms = findMatches(text, myRules);
       const best = ms[0] && ms[0].score >= c0.match ? ms[0] : undefined;
@@ -373,16 +375,15 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
         {recording && live && <p className="pb-4 text-center text-xs text-rose-300">⏺️ جاري تسجيل المكالمة</p>}
       </section>
 
-      <CallIdentity storeId={storeId} />
+      <section className="mt-4 rounded-2xl border bg-card p-3"><StaffSwitcher storeId={storeId} channel="call" />
+        <details className="mt-2 rounded-xl border p-2"><summary className="cursor-pointer text-sm font-semibold">👯 إدارة طاقم الموظفات (إظهار / إخفاء)</summary><div className="mt-2"><CallIdentity storeId={storeId} /></div></details></section>
 
       {/* 🎛️ لوحة تحكم مكالمة المملكة */}
       <section className="mt-4 rounded-2xl border bg-card p-4">
         <h3 className="font-display mb-3 text-lg">🎛️ لوحة تحكم مكالمة المملكة</h3>
-        <p className="mb-3 rounded-lg bg-secondary px-3 py-2 text-xs text-secondary-foreground">🔗 القواعد والمكتبات والعقول والكلمات الممنوعة تتحكم فيها من «المكالمة المباشرة» وتطبّق هنا تلقائياً، وأي تعليم هنا ينحفظ للاثنتين.</p>
+        <p className="mb-3 rounded-lg bg-secondary px-3 py-2 text-xs text-secondary-foreground">🔗 دقة المطابقة ومصدر الرد والقواعد والمكتبات والعقول والكلمات الممنوعة تتحكم فيها من «لوحة تحكم المكالمة المباشرة» وتطبّق هنا تلقائياً، وأي تعليم هنا ينحفظ للاثنتين.</p>
         {([
           ["🎙️ السماع", "evo", [[true, "🧠 الذكاء الدقيق"], [false, "⚡ المتصفح السريع"]]],
-          ["💬 مصدر الرد", "src", [["ai", "💬 ذكاء خالص"], ["rules", "📚 القواعد فقط"], ["hybrid", "🧬 هجين"]]],
-          ["🎯 دقة مطابقة القواعد", "match", [[1, "100% حرفي"], [0.8, "80% دقيق"], [0.6, "60% مرن"]]],
         ] as const).map(([title, key, opts]) => (
           <div key={key} className="mb-3">
             <p className="mb-1 text-sm font-semibold">{title}</p>
