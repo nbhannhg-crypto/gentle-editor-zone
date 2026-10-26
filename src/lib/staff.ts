@@ -8,8 +8,8 @@ export type StaffRoster = { active: string; list: Staff[]; ch?: Partial<Record<s
 
 export function pickFor(r: StaffRoster | null | undefined, c?: Channel): Staff | null {
   if (!r?.list?.length) return null;
-  // كل رقم واتساب (wa:instance) مستقل؛ لو ما تحدد له شي يتبع إعداد الواتساب العام
-  const v = c ? (r.ch?.[c] ?? (c.startsWith("wa:") ? r.ch?.["wa"] : undefined)) : undefined;
+  // كل رقم واتساب (wa:instance) مستقل تماماً — لا يتبع أي رقم آخر
+  const v = c ? r.ch?.[c] : undefined;
   if (v === "off") return null;
   if (v) { const s = r.list.find((x) => x.id === v); if (s) return s; }
   return pickActive(r);
