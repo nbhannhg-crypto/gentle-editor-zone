@@ -691,10 +691,8 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
     const deliver = (raw: string) => {
       const f = raw.trim(); if (!f) return;
       const n = normalize(f);
-      // نفس الجملة خلال 4 ثواني (مسودة ثم نهائية) → مرة وحدة بس
-      if (n === lastHeardRef.current.t && Date.now() - lastHeardRef.current.at < 4000) return;
-      // جزء من جملة سبق وصلت (مسودة متأخرة) → تجاهل
-      if (lastHeardRef.current.t.startsWith(n) && Date.now() - lastHeardRef.current.at < 4000) return;
+      // نفس الجملة بالضبط خلال 1.5 ثانية (مسودة ثم نهائية) → مرة وحدة بس
+      if (n === lastHeardRef.current.t && Date.now() - lastHeardRef.current.at < 1500) return;
       lastHeardRef.current = { t: n, at: Date.now() };
       handleCustomer(f);
     };
