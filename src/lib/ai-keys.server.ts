@@ -23,21 +23,32 @@ let cursor = 0;
 // Fastest stable model first (~0.8s, also handles audio); 3.5-flash / flash-latest removed — constantly 429.
 const GEMINI_MODELS = ["gemini-flash-lite-latest", "gemini-3.5-transcribe", "gemini-3.5-flash-lite"];
 
+// Keys that got 429 on every model rest for 60s so other keys answer instantly instead of waiting.
+const resting = new Map<string, number>();
+
 async function gemFetch(key: string, init: RequestInit): Promise<Response> {
   let last: Response | null = null;
+  let all429 = true;
   for (const m of GEMINI_MODELS) {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${encodeURIComponent(key)}`, init);
+    let res: Response;
+    try {
+      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${encodeURIComponent(key)}`, { ...init, signal: AbortSignal.timeout(8000) });
+    } catch { all429 = false; continue; } // slow model → next model, never hang
     if (res.ok) return res;
     last = res;
+    if (res.status !== 429) all429 = false;
     if (res.status === 401 || res.status === 403) break; // bad key → next key
   }
-  return last!;
+  if (all429) resting.set(key, Date.now() + 60_000);
+  return last ?? new Response("timeout", { status: 504 });
 }
 
 function geminiKeys(): string[] {
   const keys = (process.env["GEMINI_KEYS"] ?? "").split(/[,،;\s]+/).map((k) => k.trim()).filter(Boolean);
   if (!keys.length) console.error("[ai-keys] GEMINI_KEYS is empty or missing in server secrets — 0 free keys loaded");
-  return keys;
+  const now = Date.now();
+  const fresh = keys.filter((k) => (resting.get(k) ?? 0) < now);
+  return fresh.length ? fresh : keys;
 }
 
 async function callGemini(key: string, system: string, prompt: string): Promise<{ ok: true; text: string } | { ok: false; quota: boolean }> {
