@@ -130,6 +130,11 @@ export function CallIdentity({ storeId }: { storeId?: string | undefined; id?: I
   const { roster, active, save } = useStaff(storeId);
   const [editing, setEditing] = useState<Staff | null>(null);
   const [busy, setBusy] = useState(false);
+  const [waNums, setWaNums] = useState<string[]>([]);
+  useEffect(() => {
+    void import("@/lib/studio.functions").then(({ waList }) => waList())
+      .then((l: { name: string }[]) => setWaNums(l.map((w) => w.name))).catch(() => {});
+  }, []);
 
   const persist = async (next: StaffRoster, msg: string) => {
     setBusy(true);
