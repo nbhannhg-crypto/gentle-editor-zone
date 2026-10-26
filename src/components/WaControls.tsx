@@ -410,7 +410,7 @@ export function WaControls({ instance, myNumber = "" }: { instance: string; myNu
           </>}
           {pop === "staff" && <><DialogHeader><DialogTitle>👯 طاقم الموظفات</DialogTitle></DialogHeader>
             <p className="text-xs text-muted-foreground">اختاري المناوبة 🟢 — ترد بهويتها في الواتساب والمكالمات.</p>
-            <StaffSwitcher storeId={storeId} />
+            <StaffSwitcher storeId={storeId} channel="wa" />
             <CallIdentity storeId={storeId} /></>}
           {state && <p className="text-xs text-muted-foreground">{state}</p>}
         </DialogContent>

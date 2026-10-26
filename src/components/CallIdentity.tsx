@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
-import { staffKey, identityText, pickActive, type Identity, type Staff, type StaffRoster } from "@/lib/staff";
+import { staffKey, identityText, pickActive, pickFor, CHANNELS, type Channel, type Identity, type Staff, type StaffRoster } from "@/lib/staff";
 
 /** 👯 طاقم الموظفات — كل موظفة بهويتها، وزر يختار المناوبة اللي ترد بالمكالمات والواتساب. */
 export type { Identity, Staff };
@@ -51,7 +51,7 @@ let cache: StaffRoster | null = null;
 const emit = (r: StaffRoster) => { cache = r; try { localStorage.setItem(LS, JSON.stringify(r)); } catch { /* ignore */ } window.dispatchEvent(new CustomEvent(EVT, { detail: r })); };
 
 /** طاقم الموظفات مع حفظ سحابي ومزامنة بين كل الشاشات. */
-export function useStaff(storeId?: string) {
+export function useStaff(storeId?: string, channel?: Channel) {
   const [roster, setRoster] = useState<StaffRoster>(cache ?? { active: "", list: [] });
   useEffect(() => {
     const on = (e: Event) => setRoster((e as CustomEvent<StaffRoster>).detail);
@@ -86,29 +86,41 @@ export function useStaff(storeId?: string) {
       : await supabase.from("training_rules").insert({ trigger_text: k, response_text: body, category: "settings", store_id: null });
     if (error) throw error;
   };
-  const active = pickActive(roster);
+  const active = channel ? pickFor(roster, channel) : pickActive(roster);
   return { roster, active, save, activeText: active ? identityText(active) : "" };
 }
 
 /** للتوافق مع الشاشات القديمة: هوية المناوبة الحالية. */
-export function useIdentity(storeId?: string) {
-  const s = useStaff(storeId);
+export function useIdentity(storeId?: string, channel?: Channel) {
+  const s = useStaff(storeId, channel);
   return { id: (s.active ?? EMPTY) as Identity, save: async () => {} };
 }
 
-/** شريط أزرار سريع لاختيار الموظفة المناوبة (يُستخدم بالمكالمة المباشرة وغيرها). */
-export function StaffSwitcher({ storeId, compact }: { storeId?: string | undefined; compact?: boolean }) {
-  const { roster, active, save } = useStaff(storeId);
+/** شريط أزرار: موظفة مستقلة لكل قناة + زر إطفاء. */
+export function StaffSwitcher({ storeId, compact, channel }: { storeId?: string | undefined; compact?: boolean; channel?: Channel }) {
+  const { roster, active, save } = useStaff(storeId, channel);
   if (!roster.list.length) return compact ? null : <p className="text-xs text-muted-foreground">ما فيه موظفات — أضفهن من «مكالمة المملكة» ← طاقم الموظفات.</p>;
+  const label = CHANNELS.find(([c]) => c === channel)?.[1];
+  const set = (v: string, msg: string) => {
+    const next: StaffRoster = channel ? { ...roster, ch: { ...roster.ch, [channel]: v } } : { ...roster, active: v };
+    save(next).then(() => toast.success(msg), (e) => toast.error((e as Error).message));
+  };
+  const off = channel ? roster.ch?.[channel] === "off" : false;
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span className="text-xs text-muted-foreground">👯 المناوبة:</span>
+      <span className="text-xs text-muted-foreground">👯 المناوبة{label ? ` في ${label}` : ""}:</span>
       {roster.list.map((s) => (
         <Button key={s.id} size="sm" variant={active?.id === s.id ? "default" : "outline"} className="rounded-full"
-          onClick={() => save({ ...roster, active: s.id }).then(() => toast.success(`${s.avatar} ${s.name || "الموظفة"} على الخط`), (e) => toast.error((e as Error).message))}>
+          onClick={() => set(s.id, `${s.avatar} ${s.name || "الموظفة"} على الخط${label ? ` في ${label}` : ""}`)}>
           {active?.id === s.id && "🟢 "}{s.avatar} {s.name || "بدون اسم"}
         </Button>
       ))}
+      {channel && (
+        <Button size="sm" variant={off ? "destructive" : "outline"} className="rounded-full"
+          onClick={() => set("off", `⚪ انطفت الموظفة${label ? ` في ${label}` : ""}`)}>
+          {off ? "⚪ مطفية" : "⏻ إطفاء"}
+        </Button>
+      )}
     </div>
   );
 }
@@ -146,6 +158,10 @@ export function CallIdentity({ storeId }: { storeId?: string | undefined; id?: I
           <p className="text-xs text-muted-foreground">
             {active ? `🟢 على الخط: ${active.avatar} ${active.name || "بدون اسم"} — ترد بالمكالمات والواتساب بهويتها` : "أضف موظفة واختر المناوبة"}
           </p>
+          <div className="mt-2 flex flex-col gap-2 rounded-xl border p-2">
+            <span className="text-xs font-semibold">🗂️ توزيع المناوبات على الأقسام</span>
+            {CHANNELS.map(([c]) => <StaffSwitcher key={c} storeId={storeId} channel={c} compact />)}
+          </div>
         </div>
         <div className="flex gap-2">
           <Button size="sm" variant="secondary" onClick={() => add(generateStaff())}>✨ ولّد موظفة</Button>

@@ -498,7 +498,7 @@ const ASK_AGAIN = [
 ];
 
 function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; reload: () => Promise<void>; mode: Mode; product: string; storeId?: string | undefined }) {
-  const staff = useStaff(storeId);
+  const staff = useStaff(storeId, "live");
   const staffRef = useRef("");
   staffRef.current = staff.activeText;
   const [live, setLive] = useState(false);
@@ -890,7 +890,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
 
   return (
     <div className="grid gap-6 lg:grid-cols-3">
-      <section className="rounded-2xl border bg-card p-3 lg:col-span-3"><StaffSwitcher storeId={storeId} />
+      <section className="rounded-2xl border bg-card p-3 lg:col-span-3"><StaffSwitcher storeId={storeId} channel="live" />
         <details className="mt-2 rounded-xl border p-2"><summary className="cursor-pointer text-sm font-semibold">👯 إدارة طاقم الموظفات (توليد وتعديل)</summary><div className="mt-2"><CallIdentity storeId={storeId} /></div></details></section>
       <LiveCockpit cfg={cfg} setCfg={saveCfg} live={live} onToggle={() => (live ? stop() : start())} rulesCount={rules.length}
         accounts={accounts} accErr={accErr} reloadAcc={loadAccounts}
