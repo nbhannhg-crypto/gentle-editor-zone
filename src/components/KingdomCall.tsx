@@ -11,6 +11,8 @@ import { useSpeaker, loadVoice, EMOTIONS } from "@/components/VoiceStudio";
 import { startVadRecorder, blobToBase64, type VadHandle } from "@/lib/vad-recorder";
 import { transcribeLive } from "@/lib/listen.functions";
 import { CallIdentity, useIdentity, identityText } from "@/components/CallIdentity";
+import { loadCockpit, hitBanned, applyFixes } from "@/components/LiveCockpit";
+import { searchCallSources } from "@/lib/call-brains";
 import { CallTranscript, type TMsg } from "@/components/CallTranscript";
 
 type SR = any;
@@ -99,14 +101,25 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
     setLog((l) => [...l, { who: "c", t: text }]);
     try {
       const c0 = ctlRef.current;
-      const ms = findMatches(text, rules);
+      // 🔗 تحكم المكالمة المباشرة (المكاتب) يطبّق هنا تلقائياً
+      const ck = loadCockpit();
+      const myRules = ck.rulesOff ? [] : rules;
+      const ms = findMatches(text, myRules);
       const best = ms[0] && ms[0].score >= c0.match ? ms[0] : undefined;
       let r: { answer: string; rule?: Rule | undefined; matches: typeof ms; source: string };
-      const chat = async () => ({ answer: (await smart({ data: { customer: text, product: "", rules: [], mood: "call" as const, identity: identRef.current } })).reply, rule: undefined, matches: ms, source: "ai" });
+      const chat = async () => ({ answer: (await smart({ data: { customer: text, product: ck.persona ? `شخصية الموظفة: ${ck.persona}` : "", rules: myRules.slice(0, 200).map((x) => ({ trigger: x.trigger_text, response: x.response_text })), mood: "call" as const, identity: identRef.current } })).reply, rule: undefined, matches: ms, source: "ai" });
+      const lib = async () => ((ck.secs?.length ?? 0) || (ck.kbrains?.length ?? 0)) ? await searchCallSources(text, ck.secs ?? [], ck.kbrains ?? [], c0.match) : "";
       if (c0.src === "ai") r = await chat();
       else if (best) r = { answer: best.rule.response_text, rule: best.rule, matches: ms, source: "rule" };
-      else if (c0.src === "rules") r = { answer: "", rule: undefined, matches: ms, source: "none" };
-      else r = await chat();
+      else {
+        const l = await lib();
+        if (l) r = { answer: l, rule: undefined, matches: ms, source: "lib" };
+        else if (c0.src === "rules") r = { answer: "", rule: undefined, matches: ms, source: "none" };
+        else r = await chat();
+      }
+      const bad = r.answer ? hitBanned(r.answer, ck) : undefined;
+      if (bad) { toast.error(`🚫 الرد فيه كلمة ممنوعة «${bad}»`); r = { ...r, answer: "" }; }
+      if (r.answer) r = { ...r, answer: applyFixes(r.answer, ck) };
       setAnswer(r.answer);
       const others = r.matches.filter((m) => m.rule.response_text !== r.answer).map((m) => m.rule.response_text);
       setAlts([...new Set(others)].slice(0, 3));
@@ -365,6 +378,7 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
       {/* 🎛️ لوحة تحكم مكالمة المملكة */}
       <section className="mt-4 rounded-2xl border bg-card p-4">
         <h3 className="font-display mb-3 text-lg">🎛️ لوحة تحكم مكالمة المملكة</h3>
+        <p className="mb-3 rounded-lg bg-secondary px-3 py-2 text-xs text-secondary-foreground">🔗 القواعد والمكتبات والعقول والكلمات الممنوعة تتحكم فيها من «المكالمة المباشرة» وتطبّق هنا تلقائياً، وأي تعليم هنا ينحفظ للاثنتين.</p>
         {([
           ["🎙️ السماع", "evo", [[true, "🧠 الذكاء الدقيق"], [false, "⚡ المتصفح السريع"]]],
           ["💬 مصدر الرد", "src", [["ai", "💬 ذكاء خالص"], ["rules", "📚 القواعد فقط"], ["hybrid", "🧬 هجين"]]],
