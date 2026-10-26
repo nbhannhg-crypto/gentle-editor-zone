@@ -130,6 +130,11 @@ export function CallIdentity({ storeId }: { storeId?: string | undefined; id?: I
   const { roster, active, save } = useStaff(storeId);
   const [editing, setEditing] = useState<Staff | null>(null);
   const [busy, setBusy] = useState(false);
+  const [waNums, setWaNums] = useState<string[]>([]);
+  useEffect(() => {
+    void import("@/lib/studio.functions").then(({ waList }) => waList())
+      .then((l: { name: string }[]) => setWaNums(l.map((w) => w.name))).catch(() => {});
+  }, []);
 
   const persist = async (next: StaffRoster, msg: string) => {
     setBusy(true);
@@ -160,7 +165,9 @@ export function CallIdentity({ storeId }: { storeId?: string | undefined; id?: I
           </p>
           <div className="mt-2 flex flex-col gap-2 rounded-xl border p-2">
             <span className="text-xs font-semibold">🗂️ توزيع المناوبات على الأقسام</span>
-            {CHANNELS.map(([c]) => <StaffSwitcher key={c} storeId={storeId} channel={c} compact />)}
+            {CHANNELS.filter(([c]) => c !== "wa").map(([c]) => <StaffSwitcher key={c} storeId={storeId} channel={c} compact />)}
+            {waNums.map((n) => <StaffSwitcher key={n} storeId={storeId} channel={`wa:${n}`} compact />)}
+            {!waNums.length && <span className="text-[11px] text-muted-foreground">لا توجد أرقام واتساب مربوطة</span>}
           </div>
         </div>
         <div className="flex gap-2">

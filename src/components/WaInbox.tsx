@@ -127,7 +127,7 @@ export function WaInbox({ storeId }: { storeId?: string | undefined }) {
 
   return (
     <div className="space-y-3 rounded-2xl border bg-card p-3">
-      <StaffSwitcher storeId={storeId} channel="wa" />
+      {inst ? <StaffSwitcher key={inst} storeId={storeId} channel={`wa:${inst}`} /> : <p className="text-xs text-muted-foreground">اختر رقم واتساب لتحديد موظفته</p>}
       <details className="rounded-xl border p-2"><summary className="cursor-pointer text-sm font-semibold">👯 إدارة طاقم الموظفات (توليد وتعديل)</summary><div className="mt-2"><CallIdentity storeId={storeId} /></div></details>
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold">💬 محادثات الواتساب</h2>
