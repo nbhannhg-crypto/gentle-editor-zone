@@ -1039,17 +1039,6 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
       </div>
 
       <CallTranscript log={log} setLog={setLog} storeId={storeId} kind="live" live={live} onSay={(t) => void say(t)} reload={reload} />
-
-      <Card title="📜 سجل المكالمة">
-        <ul className="max-h-[70vh] space-y-2 overflow-auto">
-          {log.map((m, i) => (
-            <li key={i} className={`rounded-xl p-2 text-sm ${m.who === "c" ? "bg-muted" : "bg-secondary"}`}>
-              <b>{m.who === "c" ? "الزبون" : "الموظفة"}:</b> {m.t}
-            </li>
-          ))}
-          {!log.length && <p className="text-sm text-muted-foreground">ما فيه كلام للحين.</p>}
-        </ul>
-      </Card>
     </div>
   );
 }
