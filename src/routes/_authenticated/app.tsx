@@ -966,6 +966,8 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
           {interim && <p className="text-sm text-muted-foreground">… {interim}</p>}
         </Card>
 
+        <CallTranscript log={log} setLog={setLog} storeId={storeId} kind="live" live={live} onSay={(t) => void say(t)} reload={reload} />
+
         <section className="rounded-2xl bg-royal p-6 text-primary-foreground shadow-soft">
           <p className="text-sm opacity-80">👩‍💼 الموظفة بتقول:</p>
           <p className="font-display mt-2 min-h-12 text-2xl leading-relaxed">
@@ -1044,7 +1046,6 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
           stopAll={() => { audioRef.current?.pause(); setSpeaking(false); cancelCountdown(); }} />
       </div>
 
-      <CallTranscript log={log} setLog={setLog} storeId={storeId} kind="live" live={live} onSay={(t) => void say(t)} reload={reload} />
     </div>
   );
 }
