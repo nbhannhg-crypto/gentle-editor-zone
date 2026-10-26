@@ -54,6 +54,7 @@ export const smartReply = createServerFn({ method: "POST" })
       product: z.string().max(2000).default(""),
       rules: z.array(ruleSchema).max(200),
       mood: z.enum(["sales", "call"]).optional(),
+      identity: z.string().max(4000).optional(),
     }).parse(d),
   )
   .handler(async ({ data }) => {
@@ -61,7 +62,7 @@ export const smartReply = createServerFn({ method: "POST" })
       const t = data.customer.trim().replace(/[!.,؟?،\s]+$/g, "");
       if (t.length <= 25) for (const [re, r] of CALL_GREETINGS) if (re.test(t)) return { reply: r };
       const reply = await askModel(
-        CALL_SYSTEM,
+        data.identity?.trim() ? `${CALL_SYSTEM}\n\nهذي هويتك وحياتك الحقيقية، التزمي فيها بالضبط إذا سألك عن نفسك ولا تناقضينها ولا تألفين شي يخالفها:\n${data.identity.trim()}` : CALL_SYSTEM,
         `${data.product ? `أسلوبك: ${data.product}\n\n` : ""}${rulesBlock(data.rules) ? `ردود تحبين تستخدمينها إذا قال نفس الكلام:\n${rulesBlock(data.rules)}\n\n` : ""}قال لك: "${data.customer}"\n\nاكتبي ردك فقط.`,
       );
       return { reply };
