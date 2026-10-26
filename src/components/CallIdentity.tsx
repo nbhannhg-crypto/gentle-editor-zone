@@ -97,7 +97,7 @@ export function useIdentity(storeId?: string) {
 }
 
 /** شريط أزرار سريع لاختيار الموظفة المناوبة (يُستخدم بالمكالمة المباشرة وغيرها). */
-export function StaffSwitcher({ storeId, compact }: { storeId?: string; compact?: boolean }) {
+export function StaffSwitcher({ storeId, compact }: { storeId?: string | undefined; compact?: boolean }) {
   const { roster, active, save } = useStaff(storeId);
   if (!roster.list.length) return compact ? null : <p className="text-xs text-muted-foreground">ما فيه موظفات — أضفهن من «مكالمة المملكة» ← طاقم الموظفات.</p>;
   return (
@@ -114,7 +114,7 @@ export function StaffSwitcher({ storeId, compact }: { storeId?: string; compact?
 }
 
 /** لوحة طاقم الموظفات الكاملة: إضافة/توليد/تعديل/نسخ/حذف/تفعيل. */
-export function CallIdentity({ storeId }: { storeId?: string; id?: Identity; save?: unknown }) {
+export function CallIdentity({ storeId }: { storeId?: string | undefined; id?: Identity; save?: unknown }) {
   const { roster, active, save } = useStaff(storeId);
   const [editing, setEditing] = useState<Staff | null>(null);
   const [busy, setBusy] = useState(false);
