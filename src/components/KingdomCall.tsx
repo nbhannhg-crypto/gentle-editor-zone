@@ -234,7 +234,13 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
         if (ctlRef.current.showInterim) setInterim(tmp);
         if (fin.trim()) queueHeard(fin.trim());
       };
-      rec.onerror = (ev: any) => { if (ev?.error === "not-allowed") { toast.error("🎙️ اسمح للمايك من إعدادات المتصفح"); stop(); } };
+      rec.onerror = (ev: any) => {
+        if (ev?.error === "not-allowed") { toast.error("🎙️ اسمح للمايك من إعدادات المتصفح"); stop(); return; }
+        // السلك/تبديل منفذ الصوت: نرجّع السماع بهدوء بعد لحظة بدل ما يعلّق
+        if (ev?.error === "audio-capture" || ev?.error === "network") {
+          setTimeout(() => { if (liveRef.current && recRef.current === rec && !speakingRef.current) restartRec(); }, 400);
+        }
+      };
       rec.onend = () => {
         if (!liveRef.current || recRef.current !== rec) return;
         if (speakingRef.current) return; // micOn يعيد التشغيل
@@ -251,7 +257,8 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
   const makeRecRef = useRef<(() => SR) | null>(null);
   const restartRec = () => {
     if (!liveRef.current || evoOn.current || !makeRecRef.current) return;
-    try { recRef.current?.abort?.(); } catch { /* ignore */ }
+    // stop بدل abort: أندرويد يقفل خط السلك لو انقطع المايك بقوة
+    const old = recRef.current; if (old) { old.onend = null; old.onerror = null; try { old.stop?.(); } catch { /* ignore */ } }
     const r = makeRecRef.current(); recRef.current = r;
     setTimeout(() => { if (recRef.current === r && liveRef.current) try { r.start(); } catch { /* ignore */ } }, 50);
   };
@@ -280,7 +287,7 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
     speakingRef.current = true;
     const p = pendingRef.current; if (p.timer) clearTimeout(p.timer); p.text = ""; p.timer = null;
     setInterim("");
-    try { recRef.current?.abort?.(); } catch { /* ignore */ }
+    try { recRef.current?.stop?.(); } catch { /* ignore */ }
   };
   const micOn = () => {
     setTimeout(() => {
