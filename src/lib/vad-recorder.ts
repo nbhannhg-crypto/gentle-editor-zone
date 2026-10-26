@@ -38,7 +38,8 @@ export async function startVadRecorder(opts: {
   silenceMs?: number;
   minRms?: () => number;
 }): Promise<VadHandle> {
-  const pro = { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } as MediaTrackConstraints;
+  // عازل الضوضاء يقص صوت السلك الصافي ويقطّع الحروف؛ نبقي منع الصدى ورفع الصوت فقط
+  const pro = { echoCancellation: true, noiseSuppression: false, autoGainControl: true, channelCount: 1 } as MediaTrackConstraints;
   const stream = await navigator.mediaDevices.getUserMedia({ audio: pro });
   const AC = (window as any).AudioContext || (window as any).webkitAudioContext;
   const ctx: AudioContext = new AC();
