@@ -10,6 +10,7 @@ import { useReplyEngine, type Mode } from "@/routes/_authenticated/app";
 import { useSpeaker, loadVoice, EMOTIONS } from "@/components/VoiceStudio";
 import { startVadRecorder, blobToBase64, type VadHandle } from "@/lib/vad-recorder";
 import { transcribeLive } from "@/lib/listen.functions";
+import { CallIdentity, useIdentity, identityText } from "@/components/CallIdentity";
 
 type SR = any;
 type Msg = { who: "c" | "a"; t: string };
@@ -44,6 +45,9 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
   const [deal, setDeal] = useState<Deal | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [emotion, setEmotion] = useState("");
+  const ident = useIdentity(storeId);
+  const identRef = useRef("");
+  identRef.current = identityText(ident.id);
   const recRef = useRef<SR | null>(null);
   const liveRef = useRef(false);
   const mutedRef = useRef(false);
@@ -336,6 +340,8 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
         </div>
         {recording && live && <p className="pb-4 text-center text-xs text-rose-300">⏺️ جاري تسجيل المكالمة</p>}
       </section>
+
+      <CallIdentity id={ident.id} save={ident.save} />
 
       {/* 🎛️ لوحة تحكم مكالمة المملكة */}
       <section className="mt-4 rounded-2xl border bg-card p-4">
