@@ -179,6 +179,19 @@ export function VoiceStudioPlus() {
   };
   const mineOf = (k: string) => s.mine.filter((m) => k === "clone" ? m.kind === "clone" : k === "pub" ? m.kind === "clone" && m.vis !== "private" : k === "priv" ? m.kind === "clone" && m.vis === "private" : k === "fav" ? m.kind !== "clone" : false);
   const searchList: [string, string][] = q.trim() ? [...STUDIO_VOICES, ...s.mine.map((m) => [m.id, m.title] as [string, string])].filter(([id, t], i, a) => (t.includes(q.trim()) || id.startsWith(q.trim())) && a.findIndex((x) => x[0] === id) === i) : [];
+  const sendClip = async (c: Clip) => {
+    if (to.replace(/\D/g, "").length < 8) { toast.error("اكتب رقم العميل"); return; }
+    setBusy(c.id);
+    const inst = fromWa || accs.find((a) => a.status === "open")?.name || "";
+    if (!inst) { toast.error("ما فيه واتساب متصل — اربط رقم أول من لوحة الواتساب"); setBusy(""); return; }
+    try { await send({ data: { instance: inst, to: to.replace(/\D/g, ""), text: c.text, voice: true, audio: c.audio } }); toast.success("🎙️ انرسل كفويس أزرق بنفس الصوت"); }
+    catch (e) { toast.error((e as Error).message); }
+    setBusy("");
+  };
+
+  const list = STUDIO_VOICES.filter(([, t]) => !filter || t.includes(filter) || (filter === "سعود" && true) || (filter === "غرام" && /رومانس|دلع|دلوع|حنون|جذاب|كيوت/.test(t)));
+  const card = "rounded-2xl border bg-card p-5 shadow-soft";
+  const pill = (on: boolean) => `shrink-0 rounded-full border px-3 py-1.5 text-xs ${on ? "bg-primary text-primary-foreground" : "bg-background"}`;
 
   return (
     <div className="space-y-6">
