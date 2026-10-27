@@ -44,6 +44,11 @@ export function VoiceStudioPlus() {
   const [samples, setSamples] = useState<{ data: string; text: string }[]>([]);
   const [vis, setVis] = useState<"private" | "unlist" | "public">("private");
   const [stage, setStage] = useState("");
+  const [tab, setTab] = useState<string>("catalog");
+  const [q, setQ] = useState("");
+  const [retrain, setRetrain] = useState<Voice | null>(null);
+  const [word, setWord] = useState("");
+  const [say, setSay] = useState("");
   const [last, setLast] = useState<{ text: string; audio: string; sec: number } | null>(null);
   const mr = useRef<MediaRecorder | null>(null);
   const speak = useServerFn(fishSpeak);
@@ -94,7 +99,7 @@ export function VoiceStudioPlus() {
   const gen = async (voice: Voice | null, text = sample, keep = false) => {
     setBusy(voice?.id ?? "main");
     try {
-      const { audio } = await speak({ data: { text: addPauses(text, s.pauses), voiceId: voice?.id ?? "", custom: !!voice, speed: s.speed, volume: 0, emotion: s.mood, model: getVoiceModel() } });
+      const { audio } = await speak({ data: { text: addPauses(applyFixes(text, s.fixes), s.pauses), voiceId: voice?.id ?? "", custom: !!voice, speed: s.speed, volume: 0, emotion: s.mood, model: getVoiceModel() } });
       const a = new Audio(audio);
       a.onloadedmetadata = () => {
         setLast({ text, audio, sec: Math.round(a.duration || 0) });
