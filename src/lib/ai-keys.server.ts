@@ -94,12 +94,16 @@ async function callOpenRouter(system: string, prompt: string): Promise<string | 
  */
 export async function getAIResponse(system: string, prompt: string): Promise<string | null> {
   const keys = geminiKeys();
-  for (let i = 0; i < keys.length; i++) {
-    const idx = cursor++ % keys.length;
+  // Race 3 keys at a time: first good answer wins, so one slow/busy key never blocks the call.
+  for (let tried = 0; tried < keys.length; tried += 3) {
+    const batch = Array.from({ length: Math.min(3, keys.length - tried) }, () => keys[cursor++ % keys.length]!);
     try {
-      const r = await callGemini(keys[idx]!, system, prompt);
-      if (r.ok) return r.text;
-    } catch { /* network error → next key */ }
+      return await Promise.any(batch.map(async (k) => {
+        const r = await callGemini(k, system, prompt);
+        if (r.ok) return r.text;
+        throw new Error("fail");
+      }));
+    } catch { /* whole batch failed → next batch */ }
   }
   try { return await callOpenRouter(system, prompt); } catch { return null; }
 }
