@@ -13,6 +13,7 @@ import { transcribeLive } from "@/lib/listen.functions";
 import { CallIdentity, StaffSwitcher, useIdentity, identityText } from "@/components/CallIdentity";
 import { staffAnswer } from "@/lib/staff";
 import { loadCockpit, hitBanned, applyFixes } from "@/components/LiveCockpit";
+import { applyCable, loadCable, saveCable } from "@/lib/cable-audio";
 import { searchCallSources } from "@/lib/call-brains";
 import { CallTranscript, type TMsg } from "@/components/CallTranscript";
 
@@ -36,6 +37,8 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
   const [seconds, setSeconds] = useState(0);
   const [muted, setMuted] = useState(false);
   const [loud, setLoud] = useState(true);
+  const [cable, setCable] = useState(false);
+  useEffect(() => { setCable(loadCable()); }, []);
   const [recording, setRecording] = useState(false);
   const [interim, setInterim] = useState("");
   const [customer, setCustomer] = useState("");
@@ -321,6 +324,7 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
       audioRef.current?.pause();
       const a = new Audio(audio); audioRef.current = a;
       a.volume = loud ? 1 : 0.3;
+      if (cable) applyCable(a);
       const done = () => { lastSaid.current.at = Date.now(); if (guard) micOn(); else setSpeaking(false); };
       a.onended = done; a.onerror = done;
       await a.play();
@@ -416,6 +420,7 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
               <button onClick={() => setMuted((m) => !m)} className={`flex h-13 w-13 items-center justify-center rounded-full p-3.5 text-xl transition ${muted ? "bg-white text-black" : "bg-white/15"}`} aria-label="كتم">{muted ? "🔇" : "🎙️"}</button>
               <button onClick={stop} className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-500 text-2xl shadow-lg transition hover:scale-105" aria-label="إنهاء">📵</button>
               <button onClick={() => setLoud((l) => !l)} className={`flex h-13 w-13 items-center justify-center rounded-full p-3.5 text-xl transition ${loud ? "bg-white text-black" : "bg-white/15"}`} aria-label="مكبر الصوت">🔊</button>
+              <button onClick={() => { const v = !cable; setCable(v); saveCable(v); toast.success(v ? "🎧 وضع السلك النقي شغال" : "🔈 رجع الصوت العادي"); }} className={`flex h-13 w-13 items-center justify-center rounded-full p-3.5 text-xl transition ${cable ? "bg-white text-black" : "bg-white/15"}`} aria-label="وضع السلك النقي">🎧</button>
               <button onClick={() => setRecording((r) => !r)} className={`flex h-13 w-13 items-center justify-center rounded-full p-3.5 text-xl transition ${recording ? "animate-pulse bg-rose-500" : "bg-white/15"}`} aria-label="تسجيل">{recording ? "⏺️" : "⚪"}</button>
             </>
           )}
