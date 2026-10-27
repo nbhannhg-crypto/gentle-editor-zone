@@ -12,14 +12,17 @@ import { STUDIO_VOICES } from "@/lib/studio-voices";
 import { supabase } from "@/integrations/supabase/client";
 
 /** Added studio sections: tuned preview, link by ID, custom voice, filters, saved clips. Stored locally. */
-type Voice = { id: string; title: string };
+type Voice = { id: string; title: string; kind?: "clone" | "id"; vis?: "private" | "unlist"; texts?: string[]; at?: number };
+type Fix = { w: string; say: string; ok: "ok" | "fix" | "unclear" };
 type Clip = { id: string; text: string; audio: string; sec: number; at: number };
 const K = "kingdom_voice_plus";
 const MOODS = [["", "طبيعي"], ["friendly", "🤝 ترحيب دافئ"], ["confident", "💪 إقناع وثقة"], ["sincere", "🙏 شكر وامتنان"], ["happy", "😊 عفوي ومرح"], ["calm", "😌 هادئ رايق"]] as const;
-const FILTERS = [["", "الكل"], ["سعود", "🇸🇦 سعودي"], ["فخم", "👑 رسمي فخم"], ["ناعم", "🌸 ناعم"], ["إعلاني", "📣 إعلاني"], ["هادئ", "😌 هادئ"], ["بدوي", "🏜️ بدوي"], ["طاقة", "⚡ طاقة"]] as const;
+const FILTERS = [["", "الكل"], ["غرام", "💖 دلع وغرام وسوالف"], ["سعود", "🇸🇦 سعودي"], ["فخم", "👑 رسمي فخم"], ["ناعم", "🌸 ناعم"], ["إعلاني", "📣 إعلاني"], ["هادئ", "😌 هادئ"], ["بدوي", "🏜️ بدوي"], ["طاقة", "⚡ طاقة"]] as const;
+const TABS = [["catalog", "🎭 الجاهزة"], ["clone", "🧬 المستنسخة"], ["pub", "🌍 المنشورة"], ["priv", "🔒 الخاصة"], ["fav", "⭐ المفضلة"], ["search", "🔎 بحث بالمعرّف"]] as const;
 
-type St = { chosen: Voice | null; mine: Voice[]; clips: Clip[]; speed: number; pauses: number; mood: string };
-const DEF: St = { chosen: null, mine: [], clips: [], speed: 1, pauses: 0, mood: "" };
+type St = { chosen: Voice | null; mine: Voice[]; clips: Clip[]; speed: number; pauses: number; mood: string; fixes?: Fix[] };
+const DEF: St = { chosen: null, mine: [], clips: [], speed: 1, pauses: 0, mood: "", fixes: [] };
+const applyFixes = (t: string, f: Fix[] = []) => f.reduce((a, x) => x.ok === "fix" && x.say ? a.split(x.w).join(x.say) : a, t);
 
 function addPauses(t: string, level: number) {
   if (!level) return t;
