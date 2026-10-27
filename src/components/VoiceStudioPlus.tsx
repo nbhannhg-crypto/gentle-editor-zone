@@ -1,6 +1,7 @@
 import { VoiceModelPicker } from "@/components/VoiceModelPicker";
 import { useEffect, useRef, useState } from "react";
-import { getVoiceModel } from "@/lib/voice-model";
+import { getVoiceModel, setStudioVoice } from "@/lib/voice-model";
+import { transcribeSample } from "@/lib/media.functions";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -20,7 +21,7 @@ const MOODS = [["", "طبيعي"], ["friendly", "🤝 ترحيب دافئ"], ["c
 const FILTERS = [["", "الكل"], ["غرام", "💖 دلع وغرام وسوالف"], ["سعود", "🇸🇦 سعودي"], ["فخم", "👑 رسمي فخم"], ["ناعم", "🌸 ناعم"], ["إعلاني", "📣 إعلاني"], ["هادئ", "😌 هادئ"], ["بدوي", "🏜️ بدوي"], ["طاقة", "⚡ طاقة"]] as const;
 const TABS = [["catalog", "🎭 الجاهزة"], ["clone", "🧬 المستنسخة"], ["pub", "🌍 المنشورة"], ["priv", "🔒 الخاصة"], ["fav", "⭐ المفضلة"], ["search", "🔎 بحث بالمعرّف"]] as const;
 
-type St = { chosen: Voice | null; mine: Voice[]; clips: Clip[]; speed: number; pauses: number; mood: string; fixes?: Fix[] };
+type St = { chosen: Voice | null; mine: Voice[]; clips: Clip[]; speed: number; pauses: number; mood: string; fixes?: Fix[]; locked?: boolean };
 const DEF: St = { chosen: null, mine: [], clips: [], speed: 1, pauses: 0, mood: "", fixes: [] };
 const applyFixes = (t: string, f: Fix[] = []) => f.reduce((a, x) => x.ok === "fix" && x.say ? a.split(x.w).join(x.say) : a, t);
 
@@ -54,6 +55,9 @@ export function VoiceStudioPlus() {
   const speak = useServerFn(fishSpeak);
   const info = useServerFn(fishVoiceInfo);
   const clone = useServerFn(fishClone);
+  const trans = useServerFn(transcribeSample);
+  const cache = useRef(new Map<string, string>());
+  const [tuneOpen, setTuneOpen] = useState(false);
   const send = useServerFn(waCtrlSend);
   const listWa = useServerFn(waList);
   const [accs, setAccs] = useState<{ name: string; label: string; status: string; number: string }[]>([]);
@@ -82,7 +86,7 @@ export function VoiceStudioPlus() {
       // Cloud copy wins so every device shows the same voices and clips
       try {
         const { state } = await loadCloud();
-        if (state) { const c = JSON.parse(state); setS({ ...DEF, ...c }); try { localStorage.setItem(key.current, state); } catch { /* ignore */ } }
+        if (state) { const c = JSON.parse(state); setS({ ...DEF, ...c }); if (c.chosen?.id) setStudioVoice(c.chosen.id); try { localStorage.setItem(key.current, state); } catch { /* ignore */ } }
         else if (Object.keys(local).length) await saveCloud({ data: { state: JSON.stringify(local) } });
       } catch { /* offline: keep local copy */ }
     });
@@ -92,14 +96,17 @@ export function VoiceStudioPlus() {
     const n = { ...o, ...p }; const json = JSON.stringify(n);
     try { localStorage.setItem(key.current, json); } catch { /* cloud copy still saved */ }
     if (saveT.current) clearTimeout(saveT.current);
-    saveT.current = setTimeout(() => { saveCloud({ data: { state: json } }).catch(() => toast.error("تعذر الحفظ في حسابك، بنحاول مرة ثانية")); }, 800);
+    saveT.current = setTimeout(() => { saveCloud({ data: { state: json } }).catch(() => { setTimeout(() => saveCloud({ data: { state: json } }).catch(() => { /* kept on this phone; syncs on next change */ }), 4000); }); }, 800);
     return n;
   });
 
   const gen = async (voice: Voice | null, text = sample, keep = false) => {
     setBusy(voice?.id ?? "main");
     try {
-      const { audio } = await speak({ data: { text: addPauses(applyFixes(text, s.fixes), s.pauses), voiceId: voice?.id ?? "", custom: !!voice, speed: s.speed, volume: 0, emotion: s.mood, model: getVoiceModel() } });
+      const payload = { text: addPauses(applyFixes(text, s.fixes), s.pauses), voiceId: voice?.id ?? "", custom: !!voice, speed: s.speed, volume: 0, emotion: s.mood, model: getVoiceModel() };
+      const ck = JSON.stringify(payload);
+      let audio = cache.current.get(ck);
+      if (!audio) { audio = (await speak({ data: payload })).audio; cache.current.set(ck, audio); }
       const a = new Audio(audio);
       a.onloadedmetadata = () => {
         setLast({ text, audio, sec: Math.round(a.duration || 0) });
@@ -109,7 +116,7 @@ export function VoiceStudioPlus() {
     } catch (e) { toast.error((e as Error).message); }
     setBusy("");
   };
-  const choose = (v: Voice) => { up({ chosen: v }); toast.success(`صار الصوت المعتمد: ${v.title}`); };
+  const choose = (v: Voice) => { up({ chosen: v }); setStudioVoice(v.id); toast.success(`صار الصوت المعتمد: ${v.title}`); };
 
   const importId = async () => {
     setBusy("id");
@@ -143,7 +150,10 @@ export function VoiceStudioPlus() {
     for (const f of fs) {
       if (samples.length >= 20) { toast.error("الحد 20 مقطع"); break; }
       if (f.size > 25e6) { toast.error("ملف أكبر من 25MB"); continue; }
-      try { const data = await toWav(f); setSamples((x) => x.length >= 20 ? x : [...x, { data, text: "" }]); }
+      try {
+        const data = await toWav(f); setSamples((x) => x.length >= 20 ? x : [...x, { data, text: "✍️ نكتب الكلام تلقائياً…" }]);
+        trans({ data: { audio: data } }).then(({ text }) => setSamples((x) => x.map((y) => y.data === data ? { ...y, text: text || "" } : y))).catch(() => setSamples((x) => x.map((y) => y.data === data ? { ...y, text: "" } : y)));
+      }
       catch { toast.error("ما قدرنا نقرأ الملف — جرّب صيغة ثانية"); }
     }
   };
@@ -163,9 +173,9 @@ export function VoiceStudioPlus() {
     const t = setTimeout(() => setStage("توليد البصمة عالية الدقة… (~15–40 ثانية)"), 1200);
     try {
       const allTexts = [...(retrain?.texts ?? []), ...samples.map((x) => x.text)];
-      const v = await clone({ data: { name, audios: samples.map((x) => x.data), texts: samples.map((x) => x.text), priv: vis === "private", visibility: vis } });
+      const v = await clone({ data: { name, audios: samples.map((x) => x.data), texts: samples.map((x) => x.text.startsWith("✍️") ? "" : x.text), priv: vis === "private", visibility: vis } });
       const entry: Voice = { id: v.id, title: v.title, kind: "clone", vis: vis === "private" ? "private" : "unlist", texts: allTexts.filter(Boolean).slice(0, 40), at: Date.now() };
-      up({ mine: [...s.mine.filter((m) => m.id !== retrain?.id), entry], chosen: entry });
+      up({ mine: [...s.mine.filter((m) => m.id !== retrain?.id), entry], chosen: entry }); setStudioVoice(entry.id);
       toast.success(`✅ انحفظت البصمة في ${vis === "private" ? "أصواتي الخاصة" : "أصواتي المنشورة"} وصارت الصوت المعتمد${v.visibility !== "private" ? ` — المعرّف: ${v.id}` : ""}`);
       setName(""); setSamples([]); setRetrain(null); setTab("clone");
     } catch (e) { toast.error((e as Error).message); }
@@ -209,6 +219,13 @@ export function VoiceStudioPlus() {
         <p className="mt-1 text-sm">الصوت المعتمد: <b>{s.chosen?.title ?? "الصوت المدمج"}</b> {s.chosen && <span dir="ltr" className="text-xs text-muted-foreground">{s.chosen.id.slice(0, 10)}…</span>}</p>
         <label className="mt-3 block text-sm font-medium">جملة المعاينة</label>
         <Input value={sample} onChange={(e) => setSample(e.target.value.slice(0, 300))} />
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setTuneOpen((o) => !o)}>🎛️ ضبط النبرة والمشاعر {tuneOpen ? "▲" : "▼"}</Button>
+          <span className="text-xs text-muted-foreground">{s.locked ? "🔒 مثبتة" : s.speed === 1 && !s.pauses && !s.mood ? "🔄 تلقائي" : "✏️ مخصصة"} — {s.speed.toFixed(2)}x · {["بدون", "خفيفة", "طبيعية"][s.pauses]} · {MOODS.find(([k]) => k === s.mood)?.[1]}</span>
+        </div>
+        {tuneOpen && <div className="mt-3 animate-in fade-in slide-in-from-top-1 rounded-xl border p-3">
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" className="accent-primary" checked={s.speed === 1 && !s.pauses && !s.mood} onChange={(e) => e.target.checked ? up({ speed: 1, pauses: 0, mood: "", locked: false }) : up({ locked: false })} disabled={s.locked} /> 🔄 تلقائي (اطفه عشان تضبط بنفسك)</label>
+        <fieldset disabled={s.locked} className="disabled:opacity-60">
         <div className="mt-4 grid gap-4 sm:grid-cols-3">
           <div><label className="text-sm font-medium">السرعة: {s.speed.toFixed(1)}x</label>
             <input type="range" min={0.7} max={1.3} step={0.05} value={s.speed} onChange={(e) => up({ speed: Number(e.target.value) })} className="w-full accent-primary" /></div>
@@ -218,6 +235,12 @@ export function VoiceStudioPlus() {
             <select value={s.mood} onChange={(e) => up({ mood: e.target.value })} className="mt-1 w-full rounded-md border bg-background px-2 py-2 text-sm">
               {MOODS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></div>
         </div>
+        </fieldset>
+        <div className="mt-3 flex gap-2">
+          {s.locked ? <Button size="sm" variant="outline" onClick={() => up({ locked: false })}>✏️ فك التثبيت وعدّل</Button>
+            : <Button size="sm" onClick={() => { up({ locked: true }); toast.success("🔒 انحفظت النبرة وثبتت في كل الأجهزة"); }}>💾 حفظ وتثبيت النبرة</Button>}
+        </div>
+        </div>}
         <p className="mt-2 text-xs text-muted-foreground">نعومة ودرجة النبرة تعتمد على الصوت نفسه — اختر صوت ناعم من المكتبة.</p>
         <div className="mt-4 flex flex-wrap gap-2">
           <Button onClick={() => gen(s.chosen)} disabled={!!busy}>{busy === (s.chosen?.id ?? "main") ? "🔊…" : "▶ جرّب الصوت الموزون"}</Button>
@@ -225,8 +248,7 @@ export function VoiceStudioPlus() {
           {last && <Button variant="outline" onClick={() => { up({ clips: [{ id: crypto.randomUUID(), ...last, at: Date.now() }, ...s.clips].slice(0, 15) }); toast.success("✅ انحفظ نفس المقطع اللي سمعته"); setLast(null); }} disabled={!!busy}>💾 احفظ اللي سمعته في الخزينة</Button>}
         </div>
       </section>
-      <section className={card}>
-        <h2 className="font-display mb-2 text-lg text-primary">🗄️ خزينة المقاطع الصوتية وإرسال واتساب</h2>
+      <Sec title={`🗄️ خزينة المقاطع (${s.clips.length})`}>
         <p className="mb-2 text-xs text-muted-foreground">🟢 يرسل نفس المقطع اللي سمعته كفويس أزرق، ويظهر عند العميل «جاري التسجيل…» قبل وصوله.</p>
         <label className="mb-1 block text-sm font-medium">📱 أرسل من رقم:</label>
         <select value={fromWa} onChange={(e) => { setFromWa(e.target.value); try { localStorage.setItem(key.current + "_from", e.target.value); } catch { /* ignore */ } }} className="mb-2 w-full rounded-md border bg-background px-2 py-2 text-sm">
@@ -236,12 +258,13 @@ export function VoiceStudioPlus() {
         <Input dir="ltr" className="mb-3" value={to} onChange={(e) => setTo(e.target.value)} placeholder="رقم العميل للإرسال 9665…" />
         {!s.clips.length ? <p className="text-sm text-muted-foreground">ما فيه مقاطع محفوظة. اسمع الصوت ثم اضغط «احفظ اللي سمعته في الخزينة».</p> : (
           <>
-            <ul className="space-y-2">
+            <ul className="max-h-[60vh] space-y-2 overflow-y-auto rounded-xl bg-secondary/40 p-2">
               {s.clips.map((c) => (
-                <li key={c.id} className="rounded-xl border p-2 text-sm">
-                  <p>{c.text} <span className="text-xs text-muted-foreground">({c.sec} ث)</span></p>
+                <li key={c.id} className="animate-in fade-in slide-in-from-bottom-2 mr-auto max-w-[92%] rounded-2xl rounded-tl-sm bg-card p-2 text-sm shadow-soft">
+                  <p className="line-clamp-2">{c.text}</p>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <audio controls src={c.audio} className="h-8 max-w-full" />
+                    <audio controls src={c.audio} className="h-8 w-full" />
+                    <span className="text-[10px] text-muted-foreground">{c.sec} ث · {new Date(c.at).toLocaleTimeString("ar", { hour: "2-digit", minute: "2-digit" })}</span>
                     <Button size="sm" onClick={() => sendClip(c)} disabled={!!busy}>{busy === c.id ? "…" : "🎙️ أرسل للواتساب"}</Button>
                     <Button size="sm" variant="ghost" onClick={() => up({ clips: s.clips.filter((x) => x.id !== c.id) })}>🗑️</Button>
                   </div>
@@ -250,7 +273,7 @@ export function VoiceStudioPlus() {
             </ul>
           </>
         )}
-      </section>
+      </Sec>
 
       <Sec title="🔗 ربط صوت خارجي بالمعرّف">
         <div className="flex gap-2">
@@ -355,6 +378,7 @@ export function VoiceStudioPlus() {
                     <Button size="sm" variant="secondary" onClick={() => gen(m)} disabled={!!busy}>{busy === m.id ? "🔊" : "▶"}</Button>
                     <Button size="sm" onClick={() => choose(m)}>{s.chosen?.id === m.id ? "📌 مثبت" : "اختر"}</Button>
                   </div>
+                  {m.texts?.filter(Boolean).length ? <details className="mt-1 text-xs text-muted-foreground"><summary className="cursor-pointer">📖 الكلام داخل الصوت ({m.texts.filter(Boolean).length})</summary><ul className="mt-1 space-y-1">{m.texts.filter(Boolean).map((t, i) => <li key={i}>• {t}</li>)}</ul></details> : null}
                   <div className="mt-2 flex flex-wrap gap-2 text-xs">
                     {m.vis && m.vis !== "private" && <button className="rounded-full border px-2 py-1" onClick={() => { navigator.clipboard?.writeText(m.id); toast.success("انسخ المعرّف — شاركه"); }}>📋 نسخ المعرّف</button>}
                     {m.kind === "clone" && <button className="rounded-full border px-2 py-1" onClick={() => startRetrain(m)}>🔁 إعادة استنساخ وتدريب</button>}

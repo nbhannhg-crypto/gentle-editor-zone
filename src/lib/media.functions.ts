@@ -42,3 +42,20 @@ export const transcribeMedia = createServerFn({ method: "POST" })
     await sb.from("media_library").update({ transcript: text }).eq("id", row.id);
     return { text };
   });
+
+/** Transcribes a clone sample (data URL) to Saudi Arabic text via Groq Whisper. Additive. */
+export const transcribeSample = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ audio: z.string().max(40_000_000) }).parse(d))
+  .handler(async ({ data }) => {
+    const key = process.env["GROQ_API_KEY"];
+    if (!key) return { text: "" };
+    const m = data.audio.match(/^data:([^;,]+)[^,]*,(.*)$/);
+    if (!m) return { text: "" };
+    const mime = m[1] ?? "audio/wav";
+    const fd = new FormData();
+    fd.append("file", new Blob([new Uint8Array(Buffer.from(m[2] ?? "", "base64"))], { type: mime }), `a.${(mime.split("/")[1] || "wav").split(";")[0]}`);
+    fd.append("model", "whisper-large-v3"); fd.append("language", "ar"); fd.append("temperature", "0");
+    const r = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", { method: "POST", headers: { Authorization: `Bearer ${key}` }, body: fd });
+    if (!r.ok) return { text: "" };
+    return { text: String(((await r.json()) as { text?: string }).text ?? "").trim() };
+  });
