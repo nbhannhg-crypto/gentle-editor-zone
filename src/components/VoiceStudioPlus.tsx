@@ -108,22 +108,55 @@ export function VoiceStudioPlus() {
   };
 
   const toData = (b: Blob) => new Promise<string>((r) => { const f = new FileReader(); f.onload = () => r(String(f.result)); f.readAsDataURL(b); });
+  // Decode any browser recording/upload and re-encode as clean 16-bit mono WAV (fixes broken WebM headers)
+  const toWav = async (b: Blob): Promise<string> => {
+    const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const ctx = new Ctx();
+    try {
+      const ab = await ctx.decodeAudioData(await b.arrayBuffer());
+      const rate = ab.sampleRate, n = ab.length, ch = ab.numberOfChannels;
+      const mono = new Float32Array(n);
+      for (let c = 0; c < ch; c++) { const d = ab.getChannelData(c); for (let i = 0; i < n; i++) mono[i]! += d[i]! / ch; }
+      let peak = 0; for (let i = 0; i < n; i++) peak = Math.max(peak, Math.abs(mono[i]!));
+      const g = peak > 0 ? Math.min(0.9 / peak, 4) : 1; // normalize level without clipping
+      const buf = new ArrayBuffer(44 + n * 2); const v = new DataView(buf);
+      const w = (o: number, s: string) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+      w(0, "RIFF"); v.setUint32(4, 36 + n * 2, true); w(8, "WAVE"); w(12, "fmt "); v.setUint32(16, 16, true);
+      v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true);
+      v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, "data"); v.setUint32(40, n * 2, true);
+      for (let i = 0; i < n; i++) { const s = Math.max(-1, Math.min(1, mono[i]! * g)); v.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true); }
+      return await toData(new Blob([buf], { type: "audio/wav" }));
+    } finally { void ctx.close(); }
+  };
+  const addFiles = async (fs: Blob[]) => {
+    for (const f of fs) {
+      if (samples.length >= 20) { toast.error("الحد 20 مقطع"); break; }
+      if (f.size > 25e6) { toast.error("ملف أكبر من 25MB"); continue; }
+      try { const data = await toWav(f); setSamples((x) => x.length >= 20 ? x : [...x, { data, text: "" }]); }
+      catch { toast.error("ما قدرنا نقرأ الملف — جرّب صيغة ثانية"); }
+    }
+  };
   const startRec = async () => {
     try {
-      const st = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const st = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 } });
       const m = new MediaRecorder(st); const parts: Blob[] = [];
       m.ondataavailable = (e) => parts.push(e.data);
-      m.onstop = async () => { st.getTracks().forEach((t) => t.stop()); setFile(await toData(new Blob(parts, { type: m.mimeType }))); setRec(false); };
+      m.onstop = async () => { st.getTracks().forEach((t) => t.stop()); setRec(false); await addFiles([new Blob(parts, { type: m.mimeType })]); };
       m.start(); mr.current = m; setRec(true);
       setTimeout(() => { if (m.state === "recording") m.stop(); }, 30000);
     } catch { toast.error("اسمح للمتصفح باستخدام المايك"); }
   };
   const doClone = async () => {
-    if (!name.trim() || !file) { toast.error("سجّل أو ارفع مقطع واكتب اسم"); return; }
-    setBusy("clone");
-    try { const v = await clone({ data: { name, audio: file, priv } }); up({ mine: [...s.mine, v], chosen: v }); toast.success("✅ انحفظت البصمة الصوتية"); setName(""); setFile(""); }
-    catch (e) { toast.error((e as Error).message); }
-    setBusy("");
+    if (!name.trim() || !samples.length) { toast.error("سجّل أو ارفع مقطع واكتب اسم"); return; }
+    setBusy("clone"); setStage("تجهيز المقاطع…");
+    const t = setTimeout(() => setStage("توليد البصمة عالية الدقة… (~15–40 ثانية)"), 1200);
+    try {
+      const v = await clone({ data: { name, audios: samples.map((x) => x.data), texts: samples.map((x) => x.text), priv: vis === "private", visibility: vis } });
+      up({ mine: [...s.mine, { id: v.id, title: v.title }], chosen: { id: v.id, title: v.title } });
+      toast.success(`✅ انحفظت البصمة وصارت الصوت المعتمد${v.visibility !== "private" ? ` — المعرّف: ${v.id}` : ""}`);
+      setName(""); setSamples([]);
+    } catch (e) { toast.error((e as Error).message); }
+    clearTimeout(t); setBusy(""); setStage("");
   };
   const sendClip = async (c: Clip) => {
     if (to.replace(/\D/g, "").length < 8) { toast.error("اكتب رقم العميل"); return; }
