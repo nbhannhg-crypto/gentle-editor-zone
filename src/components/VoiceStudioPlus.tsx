@@ -200,16 +200,35 @@ export function VoiceStudioPlus() {
 
       <section className={card}>
         <h2 className="font-display mb-2 text-lg text-primary">🧬 استنساخ صوت جديد</h2>
-        <p className="text-xs text-muted-foreground">سجّل 15–30 ثانية بصوت واضح أو ارفع ملف (MP3/WAV/OGG). استخدم صوتك أو صوت شخص وافق على ذلك.</p>
+        <p className="text-xs text-muted-foreground">سجّل أو ارفع من 1 إلى 20 مقطع (كل مقطع 15–30 ثانية بصوت واضح بدون موسيقى). كل ما زادت المقاطع تعلّم النبرة والنطق السعودي أدق. استخدم صوتك أو صوت شخص وافق على ذلك.</p>
         <div className="mt-3 flex flex-wrap gap-2">
-          {rec ? <Button variant="destructive" onClick={() => mr.current?.stop()}>⏹️ إيقاف التسجيل</Button> : <Button variant="secondary" onClick={startRec}>🎙️ سجّل من المايك</Button>}
-          <label className="cursor-pointer rounded-md border px-3 py-2 text-sm">📁 رفع ملف
-            <input type="file" accept="audio/*" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (f) { if (f.size > 10e6) toast.error("الملف أكبر من 10MB"); else setFile(await toData(f)); } }} /></label>
-          {file && <audio controls src={file} className="h-9" />}
+          {rec ? <Button variant="destructive" onClick={() => mr.current?.stop()}>⏹️ إيقاف التسجيل</Button> : <Button variant="secondary" onClick={startRec} disabled={samples.length >= 20}>🎙️ سجّل مقطع</Button>}
+          <label className="cursor-pointer rounded-md border px-3 py-2 text-sm">📁 رفع ملفات
+            <input type="file" accept="audio/*" multiple className="hidden" onChange={async (e) => { const fs = Array.from(e.target.files ?? []); e.target.value = ""; await addFiles(fs); }} /></label>
         </div>
+        {samples.length > 0 && (
+          <ul className="mt-3 space-y-2">
+            {samples.map((sm, i) => (
+              <li key={i} className="rounded-xl border p-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium">#{i + 1}</span>
+                  <audio controls src={sm.data} className="h-9 flex-1" />
+                  <button onClick={() => setSamples((x) => x.filter((_, j) => j !== i))} aria-label="حذف المقطع">✕</button>
+                </div>
+                <Input className="mt-2" value={sm.text} onChange={(e) => setSamples((x) => x.map((y, j) => j === i ? { ...y, text: e.target.value } : y))} placeholder="اختياري: اكتب الكلام اللي قيل في المقطع بالضبط (يحسن النطق)" />
+              </li>
+            ))}
+          </ul>
+        )}
         <Input className="mt-3" value={name} onChange={(e) => setName(e.target.value)} placeholder="اسم الصوت (مثلاً: صوت ندى)" />
-        <label className="mt-2 flex items-center gap-2 text-sm"><input type="checkbox" checked={priv} onChange={(e) => setPriv(e.target.checked)} /> خاص بي فقط</label>
-        <Button className="mt-3" onClick={doClone} disabled={!!busy}>{busy === "clone" ? "…جاري الحفظ" : "استنساخ وحفظ البصمة"}</Button>
+        <label className="mt-3 block text-sm font-medium">مين يشوف الصوت؟</label>
+        <select value={vis} onChange={(e) => setVis(e.target.value as typeof vis)} className="mt-1 w-full rounded-md border bg-background px-2 py-2 text-sm">
+          <option value="private">🔒 خاص بي فقط</option>
+          <option value="unlist">🔗 بالرابط/المعرّف (أي أحد معه المعرّف يستخدمه)</option>
+          <option value="public">🌍 عام للناس</option>
+        </select>
+        {vis === "public" && <p className="mt-1 text-xs text-muted-foreground">ملاحظة: مزود الأصوات ما يسمح بالنشر العام من خارج موقعه، فبيُحفظ «بالرابط» وتقدر تشارك المعرّف مع الناس يستنسخون منه.</p>}
+        <Button className="mt-3" onClick={doClone} disabled={!!busy}>{busy === "clone" ? `🧬 ${stage}` : `استنساخ وحفظ البصمة (${samples.length} مقطع)`}</Button>
         {s.mine.length > 0 && (
           <div className="mt-4 flex flex-wrap gap-2">
             {s.mine.map((m) => (
