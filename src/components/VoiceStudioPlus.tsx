@@ -38,6 +38,9 @@ export function VoiceStudioPlus() {
   const [rec, setRec] = useState(false);
   const [filter, setFilter] = useState("");
   const [to, setTo] = useState("");
+  const [samples, setSamples] = useState<{ data: string; text: string }[]>([]);
+  const [vis, setVis] = useState<"private" | "unlist" | "public">("private");
+  const [stage, setStage] = useState("");
   const [last, setLast] = useState<{ text: string; audio: string; sec: number } | null>(null);
   const mr = useRef<MediaRecorder | null>(null);
   const speak = useServerFn(fishSpeak);
