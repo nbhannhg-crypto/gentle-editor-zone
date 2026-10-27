@@ -268,26 +268,46 @@ export const fishVoiceInfo = createServerFn({ method: "POST" })
     return { id: String(m._id ?? data.id), title: String(m.title ?? "صوت خارجي"), cover: m.cover_image ? `https://public-platform.r2.fish.audio/${m.cover_image}` : "" };
   });
 
-/** Create a private custom voice from a 15-30s sample (base64 data URL). */
+/** Create a custom voice from one or more samples (base64 data URLs, ideally WAV). */
 export const fishClone = createServerFn({ method: "POST" })
-  .inputValidator((d) => z.object({ name: z.string().trim().min(1).max(60), audio: z.string().min(100).max(15_000_000), priv: z.boolean().default(true) }).parse(d))
+  .inputValidator((d) => z.object({
+    name: z.string().trim().min(1).max(60),
+    audio: z.string().min(100).max(15_000_000).optional(),
+    audios: z.array(z.string().min(100).max(15_000_000)).max(20).optional(),
+    texts: z.array(z.string().max(2000)).max(20).optional(),
+    priv: z.boolean().default(true),
+    visibility: z.enum(["private", "unlist", "public"]).optional(),
+  }).parse(d))
   .handler(async ({ data }) => {
     const key = process.env['FISH_AUDIO_API_KEY'];
     if (!key) throw new Error("خدمة الأصوات غير مربوطة");
-    const m = data.audio.match(/^data:([^;,]+)[^,]*,(.*)$/);
-    if (!m) throw new Error("ملف الصوت غير صالح");
-    const mime = m[1] ?? "audio/webm";
-    const buf = Buffer.from(m[2] ?? "", "base64");
+    const list = (data.audios?.length ? data.audios : data.audio ? [data.audio] : []);
+    if (!list.length) throw new Error("ارفع مقطع واحد على الأقل");
     const form = new FormData();
     form.append("type", "tts");
     form.append("train_mode", "fast");
     form.append("title", data.name);
-    form.append("visibility", data.priv ? "private" : "unlist");
-    form.append("voices", new Blob([new Uint8Array(buf)], { type: mime }), `sample.${mime.split("/")[1]?.split(";")[0] || "webm"}`);
+    form.append("visibility", data.visibility ?? (data.priv ? "private" : "unlist"));
+    form.append("enhance_audio_quality", "true");
+    form.append("tags", "saudi"); form.append("tags", "arabic");
+    list.forEach((a, i) => {
+      const m = a.match(/^data:([^;,]+)[^,]*,(.*)$/);
+      if (!m) throw new Error(`المقطع ${i + 1} غير صالح`);
+      const mime = m[1] ?? "audio/wav";
+      const buf = Buffer.from(m[2] ?? "", "base64");
+      form.append("voices", new Blob([new Uint8Array(buf)], { type: mime }), `sample${i + 1}.${mime.split("/")[1]?.split(";")[0] || "wav"}`);
+    });
+    const texts = (data.texts ?? []).slice(0, list.length);
+    if (texts.length === list.length && texts.every((t) => t.trim())) texts.forEach((t) => form.append("texts", t.trim()));
     const res = await fetch(`${FISH}/model`, { method: "POST", headers: { Authorization: `Bearer ${key}` }, body: form });
-    if (!res.ok) throw new Error(res.status === 402 ? "رصيد الأصوات خلص" : `تعذر الاستنساخ (${res.status}): ${(await res.text()).slice(0, 150)}`);
+    if (!res.ok) {
+      const body = (await res.text()).slice(0, 300);
+      if (res.status === 402) throw new Error("رصيد الأصوات خلص");
+      if (body.includes("preprocess")) throw new Error("ملف الصوت تالف أو صيغته غير مدعومة — سجّل مرة ثانية");
+      throw new Error(`تعذر الاستنساخ (${res.status})`);
+    }
     const j: any = await res.json();
-    return { id: String(j._id), title: String(j.title ?? data.name) };
+    return { id: String(j._id), title: String(j.title ?? data.name), visibility: String(j.visibility ?? "") };
   });
 
 export const fishSpeak = createServerFn({ method: "POST" })

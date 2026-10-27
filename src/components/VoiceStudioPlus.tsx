@@ -38,6 +38,9 @@ export function VoiceStudioPlus() {
   const [rec, setRec] = useState(false);
   const [filter, setFilter] = useState("");
   const [to, setTo] = useState("");
+  const [samples, setSamples] = useState<{ data: string; text: string }[]>([]);
+  const [vis, setVis] = useState<"private" | "unlist" | "public">("private");
+  const [stage, setStage] = useState("");
   const [last, setLast] = useState<{ text: string; audio: string; sec: number } | null>(null);
   const mr = useRef<MediaRecorder | null>(null);
   const speak = useServerFn(fishSpeak);
@@ -108,22 +111,55 @@ export function VoiceStudioPlus() {
   };
 
   const toData = (b: Blob) => new Promise<string>((r) => { const f = new FileReader(); f.onload = () => r(String(f.result)); f.readAsDataURL(b); });
+  // Decode any browser recording/upload and re-encode as clean 16-bit mono WAV (fixes broken WebM headers)
+  const toWav = async (b: Blob): Promise<string> => {
+    const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const ctx = new Ctx();
+    try {
+      const ab = await ctx.decodeAudioData(await b.arrayBuffer());
+      const rate = ab.sampleRate, n = ab.length, ch = ab.numberOfChannels;
+      const mono = new Float32Array(n);
+      for (let c = 0; c < ch; c++) { const d = ab.getChannelData(c); for (let i = 0; i < n; i++) mono[i]! += d[i]! / ch; }
+      let peak = 0; for (let i = 0; i < n; i++) peak = Math.max(peak, Math.abs(mono[i]!));
+      const g = peak > 0 ? Math.min(0.9 / peak, 4) : 1; // normalize level without clipping
+      const buf = new ArrayBuffer(44 + n * 2); const v = new DataView(buf);
+      const w = (o: number, s: string) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+      w(0, "RIFF"); v.setUint32(4, 36 + n * 2, true); w(8, "WAVE"); w(12, "fmt "); v.setUint32(16, 16, true);
+      v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true);
+      v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, "data"); v.setUint32(40, n * 2, true);
+      for (let i = 0; i < n; i++) { const s = Math.max(-1, Math.min(1, mono[i]! * g)); v.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true); }
+      return await toData(new Blob([buf], { type: "audio/wav" }));
+    } finally { void ctx.close(); }
+  };
+  const addFiles = async (fs: Blob[]) => {
+    for (const f of fs) {
+      if (samples.length >= 20) { toast.error("الحد 20 مقطع"); break; }
+      if (f.size > 25e6) { toast.error("ملف أكبر من 25MB"); continue; }
+      try { const data = await toWav(f); setSamples((x) => x.length >= 20 ? x : [...x, { data, text: "" }]); }
+      catch { toast.error("ما قدرنا نقرأ الملف — جرّب صيغة ثانية"); }
+    }
+  };
   const startRec = async () => {
     try {
-      const st = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const st = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 } });
       const m = new MediaRecorder(st); const parts: Blob[] = [];
       m.ondataavailable = (e) => parts.push(e.data);
-      m.onstop = async () => { st.getTracks().forEach((t) => t.stop()); setFile(await toData(new Blob(parts, { type: m.mimeType }))); setRec(false); };
+      m.onstop = async () => { st.getTracks().forEach((t) => t.stop()); setRec(false); await addFiles([new Blob(parts, { type: m.mimeType })]); };
       m.start(); mr.current = m; setRec(true);
       setTimeout(() => { if (m.state === "recording") m.stop(); }, 30000);
     } catch { toast.error("اسمح للمتصفح باستخدام المايك"); }
   };
   const doClone = async () => {
-    if (!name.trim() || !file) { toast.error("سجّل أو ارفع مقطع واكتب اسم"); return; }
-    setBusy("clone");
-    try { const v = await clone({ data: { name, audio: file, priv } }); up({ mine: [...s.mine, v], chosen: v }); toast.success("✅ انحفظت البصمة الصوتية"); setName(""); setFile(""); }
-    catch (e) { toast.error((e as Error).message); }
-    setBusy("");
+    if (!name.trim() || !samples.length) { toast.error("سجّل أو ارفع مقطع واكتب اسم"); return; }
+    setBusy("clone"); setStage("تجهيز المقاطع…");
+    const t = setTimeout(() => setStage("توليد البصمة عالية الدقة… (~15–40 ثانية)"), 1200);
+    try {
+      const v = await clone({ data: { name, audios: samples.map((x) => x.data), texts: samples.map((x) => x.text), priv: vis === "private", visibility: vis } });
+      up({ mine: [...s.mine, { id: v.id, title: v.title }], chosen: { id: v.id, title: v.title } });
+      toast.success(`✅ انحفظت البصمة وصارت الصوت المعتمد${v.visibility !== "private" ? ` — المعرّف: ${v.id}` : ""}`);
+      setName(""); setSamples([]);
+    } catch (e) { toast.error((e as Error).message); }
+    clearTimeout(t); setBusy(""); setStage("");
   };
   const sendClip = async (c: Clip) => {
     if (to.replace(/\D/g, "").length < 8) { toast.error("اكتب رقم العميل"); return; }
@@ -200,16 +236,35 @@ export function VoiceStudioPlus() {
 
       <section className={card}>
         <h2 className="font-display mb-2 text-lg text-primary">🧬 استنساخ صوت جديد</h2>
-        <p className="text-xs text-muted-foreground">سجّل 15–30 ثانية بصوت واضح أو ارفع ملف (MP3/WAV/OGG). استخدم صوتك أو صوت شخص وافق على ذلك.</p>
+        <p className="text-xs text-muted-foreground">سجّل أو ارفع من 1 إلى 20 مقطع (كل مقطع 15–30 ثانية بصوت واضح بدون موسيقى). كل ما زادت المقاطع تعلّم النبرة والنطق السعودي أدق. استخدم صوتك أو صوت شخص وافق على ذلك.</p>
         <div className="mt-3 flex flex-wrap gap-2">
-          {rec ? <Button variant="destructive" onClick={() => mr.current?.stop()}>⏹️ إيقاف التسجيل</Button> : <Button variant="secondary" onClick={startRec}>🎙️ سجّل من المايك</Button>}
-          <label className="cursor-pointer rounded-md border px-3 py-2 text-sm">📁 رفع ملف
-            <input type="file" accept="audio/*" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (f) { if (f.size > 10e6) toast.error("الملف أكبر من 10MB"); else setFile(await toData(f)); } }} /></label>
-          {file && <audio controls src={file} className="h-9" />}
+          {rec ? <Button variant="destructive" onClick={() => mr.current?.stop()}>⏹️ إيقاف التسجيل</Button> : <Button variant="secondary" onClick={startRec} disabled={samples.length >= 20}>🎙️ سجّل مقطع</Button>}
+          <label className="cursor-pointer rounded-md border px-3 py-2 text-sm">📁 رفع ملفات
+            <input type="file" accept="audio/*" multiple className="hidden" onChange={async (e) => { const fs = Array.from(e.target.files ?? []); e.target.value = ""; await addFiles(fs); }} /></label>
         </div>
+        {samples.length > 0 && (
+          <ul className="mt-3 space-y-2">
+            {samples.map((sm, i) => (
+              <li key={i} className="rounded-xl border p-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium">#{i + 1}</span>
+                  <audio controls src={sm.data} className="h-9 flex-1" />
+                  <button onClick={() => setSamples((x) => x.filter((_, j) => j !== i))} aria-label="حذف المقطع">✕</button>
+                </div>
+                <Input className="mt-2" value={sm.text} onChange={(e) => setSamples((x) => x.map((y, j) => j === i ? { ...y, text: e.target.value } : y))} placeholder="اختياري: اكتب الكلام اللي قيل في المقطع بالضبط (يحسن النطق)" />
+              </li>
+            ))}
+          </ul>
+        )}
         <Input className="mt-3" value={name} onChange={(e) => setName(e.target.value)} placeholder="اسم الصوت (مثلاً: صوت ندى)" />
-        <label className="mt-2 flex items-center gap-2 text-sm"><input type="checkbox" checked={priv} onChange={(e) => setPriv(e.target.checked)} /> خاص بي فقط</label>
-        <Button className="mt-3" onClick={doClone} disabled={!!busy}>{busy === "clone" ? "…جاري الحفظ" : "استنساخ وحفظ البصمة"}</Button>
+        <label className="mt-3 block text-sm font-medium">مين يشوف الصوت؟</label>
+        <select value={vis} onChange={(e) => setVis(e.target.value as typeof vis)} className="mt-1 w-full rounded-md border bg-background px-2 py-2 text-sm">
+          <option value="private">🔒 خاص بي فقط</option>
+          <option value="unlist">🔗 بالرابط/المعرّف (أي أحد معه المعرّف يستخدمه)</option>
+          <option value="public">🌍 عام للناس</option>
+        </select>
+        {vis === "public" && <p className="mt-1 text-xs text-muted-foreground">ملاحظة: مزود الأصوات ما يسمح بالنشر العام من خارج موقعه، فبيُحفظ «بالرابط» وتقدر تشارك المعرّف مع الناس يستنسخون منه.</p>}
+        <Button className="mt-3" onClick={doClone} disabled={!!busy}>{busy === "clone" ? `🧬 ${stage}` : `استنساخ وحفظ البصمة (${samples.length} مقطع)`}</Button>
         {s.mine.length > 0 && (
           <div className="mt-4 flex flex-wrap gap-2">
             {s.mine.map((m) => (
