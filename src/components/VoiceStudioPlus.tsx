@@ -154,26 +154,31 @@ export function VoiceStudioPlus() {
     setBusy("clone"); setStage("تجهيز المقاطع…");
     const t = setTimeout(() => setStage("توليد البصمة عالية الدقة… (~15–40 ثانية)"), 1200);
     try {
+      const allTexts = [...(retrain?.texts ?? []), ...samples.map((x) => x.text)];
       const v = await clone({ data: { name, audios: samples.map((x) => x.data), texts: samples.map((x) => x.text), priv: vis === "private", visibility: vis } });
-      up({ mine: [...s.mine, { id: v.id, title: v.title }], chosen: { id: v.id, title: v.title } });
-      toast.success(`✅ انحفظت البصمة وصارت الصوت المعتمد${v.visibility !== "private" ? ` — المعرّف: ${v.id}` : ""}`);
-      setName(""); setSamples([]);
+      const entry: Voice = { id: v.id, title: v.title, kind: "clone", vis: vis === "private" ? "private" : "unlist", texts: allTexts.filter(Boolean).slice(0, 40), at: Date.now() };
+      up({ mine: [...s.mine.filter((m) => m.id !== retrain?.id), entry], chosen: entry });
+      toast.success(`✅ انحفظت البصمة في ${vis === "private" ? "أصواتي الخاصة" : "أصواتي المنشورة"} وصارت الصوت المعتمد${v.visibility !== "private" ? ` — المعرّف: ${v.id}` : ""}`);
+      setName(""); setSamples([]); setRetrain(null); setTab("clone");
     } catch (e) { toast.error((e as Error).message); }
     clearTimeout(t); setBusy(""); setStage("");
   };
-  const sendClip = async (c: Clip) => {
-    if (to.replace(/\D/g, "").length < 8) { toast.error("اكتب رقم العميل"); return; }
-    setBusy(c.id);
-    const inst = fromWa || accs.find((a) => a.status === "open")?.name || "";
-    if (!inst) { toast.error("ما فيه واتساب متصل — اربط رقم أول من لوحة الواتساب"); setBusy(""); return; }
-    try { await send({ data: { instance: inst, to: to.replace(/\D/g, ""), text: c.text, voice: true, audio: c.audio } }); toast.success("🎙️ انرسل كفويس أزرق بنفس الصوت"); }
+  const startRetrain = (m: Voice) => { setRetrain(m); setName(m.title); setVis(m.vis === "private" ? "private" : "unlist"); window.scrollTo({ top: 0, behavior: "smooth" }); toast("أضف مقاطع جديدة في قسم الاستنساخ"); };
+  const fixes = s.fixes ?? [];
+  const rate = (ok: Fix["ok"]) => {
+    const w = word.trim(); if (!w) return;
+    up({ fixes: [{ w, say: ok === "fix" ? say.trim() : "", ok }, ...fixes.filter((f) => f.w !== w)].slice(0, 200) });
+    toast.success(ok === "ok" ? "✅ اعتمدناها" : ok === "fix" ? "🛠️ انحفظ التصحيح ويطبق تلقائياً" : "🤔 انحفظت للمراجعة");
+    setWord(""); setSay("");
+  };
+  const importIdRaw = async (id: string) => {
+    setBusy("id");
+    try { const v = await info({ data: { id } }); up({ mine: [...s.mine.filter((m) => m.id !== v.id), { id: v.id, title: v.title, kind: "id" }], chosen: { id: v.id, title: v.title } }); toast.success(`✅ ثبّتنا ${v.title}`); setVid(""); setQ(""); }
     catch (e) { toast.error((e as Error).message); }
     setBusy("");
   };
-
-  const list = STUDIO_VOICES.filter(([, t]) => !filter || t.includes(filter) || (filter === "سعود" && true));
-  const card = "rounded-2xl border bg-card p-5 shadow-soft";
-  const pill = (on: boolean) => `shrink-0 rounded-full border px-3 py-1.5 text-xs ${on ? "bg-primary text-primary-foreground" : "bg-background"}`;
+  const mineOf = (k: string) => s.mine.filter((m) => k === "clone" ? m.kind === "clone" : k === "pub" ? m.kind === "clone" && m.vis !== "private" : k === "priv" ? m.kind === "clone" && m.vis === "private" : k === "fav" ? m.kind !== "clone" : false);
+  const searchList: [string, string][] = q.trim() ? [...STUDIO_VOICES, ...s.mine.map((m) => [m.id, m.title] as [string, string])].filter(([id, t], i, a) => (t.includes(q.trim()) || id.startsWith(q.trim())) && a.findIndex((x) => x[0] === id) === i) : [];
 
   return (
     <div className="space-y-6">
