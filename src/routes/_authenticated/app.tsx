@@ -22,6 +22,7 @@ import { LiveHybrid } from "@/components/LiveHybrid";
 import { StaffSwitcher, useStaff, CallIdentity } from "@/components/CallIdentity";
 import { searchCallSources } from "@/lib/call-brains";
 import { LiveCockpit, loadCockpit, DEFAULT_COCKPIT, COCKPIT_KEY, EXTRA_HINT, applyFixes, hitBanned, isBlocked, type Cockpit } from "@/components/LiveCockpit";
+import { applyCable } from "@/lib/cable-audio";
 import { Channels } from "@/components/Channels";
 import { Customers } from "@/components/Customers";
 import { Products } from "@/components/Products";
@@ -819,6 +820,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
     a.volume = loud ? 1 : 0.3;
     (a as any).preservesPitch = t.pitch === 1;
     a.playbackRate = Math.min(2, Math.max(0.5, t.speed * t.pitch));
+    applyCable(a);
   };
   const say = async (text: string) => {
     if (!text.trim()) return;
