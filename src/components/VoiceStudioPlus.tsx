@@ -226,26 +226,28 @@ export function VoiceStudioPlus() {
         )}
       </section>
 
-      <section className={card}>
-        <h2 className="font-display mb-2 text-lg text-primary">🔗 ربط صوت خارجي بالمعرّف</h2>
+      <Sec title="🔗 ربط صوت خارجي بالمعرّف">
         <div className="flex gap-2">
           <Input dir="ltr" value={vid} onChange={(e) => setVid(e.target.value)} placeholder="Voice ID" />
           <Button onClick={importId} disabled={!vid.trim() || !!busy}>{busy === "id" ? "…" : "فحص وتثبيت"}</Button>
         </div>
-      </section>
+      </Sec>
 
-      <section className={card}>
-        <h2 className="font-display mb-2 text-lg text-primary">🧬 استنساخ صوت جديد</h2>
-        <p className="text-xs text-muted-foreground">سجّل أو ارفع من 1 إلى 20 مقطع (كل مقطع 15–30 ثانية بصوت واضح بدون موسيقى). كل ما زادت المقاطع تعلّم النبرة والنطق السعودي أدق. استخدم صوتك أو صوت شخص وافق على ذلك.</p>
+      <Sec title={retrain ? `🧬 إعادة تدريب: ${retrain.title}` : "🧬 استنساخ صوت جديد"} open={!!retrain || samples.length > 0}>
+        <p className="text-xs text-muted-foreground">سجّل أو ارفع من 1 إلى 20 مقطع (كل مقطع 15–30 ثانية بصوت واضح بدون موسيقى). كل ما زادت المقاطع تعلّم النبرة والنطق السعودي أدق. التسجيل يكون بنقاوة استوديو بدون وشيش وبدون تضخيم.</p>
+        {retrain && <p className="mt-2 rounded-lg bg-secondary p-2 text-xs">رجعنا لك نصوص التدريب المحفوظة لهذا الصوت. أضف مقاطع جديدة واضغط استنساخ، وبيتحدث الصوت مكان القديم. <button className="underline" onClick={() => { setRetrain(null); setName(""); setSamples([]); }}>إلغاء</button></p>}
         <div className="mt-3 flex flex-wrap gap-2">
           {rec ? <Button variant="destructive" onClick={() => mr.current?.stop()}>⏹️ إيقاف التسجيل</Button> : <Button variant="secondary" onClick={startRec} disabled={samples.length >= 20}>🎙️ سجّل مقطع</Button>}
           <label className="cursor-pointer rounded-md border px-3 py-2 text-sm">📁 رفع ملفات
             <input type="file" accept="audio/*" multiple className="hidden" onChange={async (e) => { const fs = Array.from(e.target.files ?? []); e.target.value = ""; await addFiles(fs); }} /></label>
         </div>
+        {retrain?.texts?.filter(Boolean).length ? (
+          <ul className="mt-2 space-y-1 text-xs text-muted-foreground">{retrain.texts.filter(Boolean).map((t, i) => <li key={i}>📖 {t}</li>)}</ul>
+        ) : null}
         {samples.length > 0 && (
           <ul className="mt-3 space-y-2">
             {samples.map((sm, i) => (
-              <li key={i} className="rounded-xl border p-2">
+              <li key={i} className="animate-in fade-in slide-in-from-bottom-2 rounded-xl border p-2">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-medium">#{i + 1}</span>
                   <audio controls src={sm.data} className="h-9 flex-1" />
@@ -257,41 +259,100 @@ export function VoiceStudioPlus() {
           </ul>
         )}
         <Input className="mt-3" value={name} onChange={(e) => setName(e.target.value)} placeholder="اسم الصوت (مثلاً: صوت ندى)" />
-        <label className="mt-3 block text-sm font-medium">مين يشوف الصوت؟</label>
+        <label className="mt-3 block text-sm font-medium">وين ينحفظ الصوت؟</label>
         <select value={vis} onChange={(e) => setVis(e.target.value as typeof vis)} className="mt-1 w-full rounded-md border bg-background px-2 py-2 text-sm">
-          <option value="private">🔒 خاص بي فقط</option>
-          <option value="unlist">🔗 بالرابط/المعرّف (أي أحد معه المعرّف يستخدمه)</option>
-          <option value="public">🌍 عام للناس</option>
+          <option value="private">🔒 أصواتي الخاصة (لي فقط)</option>
+          <option value="unlist">🔗 أصواتي المنشورة بالمعرّف</option>
+          <option value="public">🌍 أصواتي المنشورة للناس</option>
         </select>
         {vis === "public" && <p className="mt-1 text-xs text-muted-foreground">ملاحظة: مزود الأصوات ما يسمح بالنشر العام من خارج موقعه، فبيُحفظ «بالرابط» وتقدر تشارك المعرّف مع الناس يستنسخون منه.</p>}
-        <Button className="mt-3" onClick={doClone} disabled={!!busy}>{busy === "clone" ? `🧬 ${stage}` : `استنساخ وحفظ البصمة (${samples.length} مقطع)`}</Button>
-        {s.mine.length > 0 && (
-          <div className="mt-4 flex flex-wrap gap-2">
-            {s.mine.map((m) => (
-              <span key={m.id} className={`flex items-center gap-1 rounded-full border px-3 py-1 text-sm ${s.chosen?.id === m.id ? "border-primary bg-secondary" : ""}`}>
-                <button onClick={() => gen(m)}>▶</button><button onClick={() => choose(m)}>{m.title}</button>
-                <button onClick={() => up({ mine: s.mine.filter((x) => x.id !== m.id) })} aria-label="إزالة">✕</button>
-              </span>
+        <Button className="mt-3" onClick={doClone} disabled={!!busy}>{busy === "clone" ? `🧬 ${stage}` : `${retrain ? "إعادة استنساخ" : "استنساخ"} وحفظ البصمة (${samples.length} مقطع)`}</Button>
+      </Sec>
+
+      <Sec title="🎓 مختبر تعليم النطق" open={false}>
+        <p className="text-xs text-muted-foreground">اكتب كلمة أو جملة واسمعها بالصوت المعتمد، ثم قيّمها. الكلمات المصححة تنطبق تلقائياً في كل توليد.</p>
+        <div className="mt-2 flex gap-2">
+          <Input value={word} onChange={(e) => setWord(e.target.value)} placeholder="مثلاً: يا عمري، وش تبي؟" />
+          <Button variant="secondary" onClick={() => word.trim() && gen(s.chosen, word)} disabled={!!busy || !word.trim()}>▶</Button>
+        </div>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Button size="sm" onClick={() => rate("ok")} disabled={!word.trim()}>✅ صح واعتمدها</Button>
+          <Button size="sm" variant="outline" onClick={() => rate("unclear")} disabled={!word.trim()}>🤔 مو واضحة</Button>
+          <Button size="sm" variant="destructive" onClick={() => rate("fix")} disabled={!word.trim() || !say.trim()}>❌ غلط — صححها</Button>
+        </div>
+        <Input className="mt-2" value={say} onChange={(e) => setSay(e.target.value)} placeholder="كيف تنطق صح؟ اكتبها بالتشكيل أو مثل ما تنقال (مثلاً: يَا عُمْرِي)" />
+        {say.trim() && <Button size="sm" variant="ghost" className="mt-1" onClick={() => gen(s.chosen, say)} disabled={!!busy}>▶ اسمع التصحيح</Button>}
+        {fixes.length > 0 && (
+          <ul className="mt-3 space-y-1">
+            {fixes.map((f, i) => (
+              <li key={i} className="flex items-center gap-2 rounded-lg border p-2 text-sm">
+                <span>{f.ok === "ok" ? "✅" : f.ok === "fix" ? "🛠️" : "🤔"}</span>
+                <span className="flex-1 truncate">{f.w}{f.say ? ` ← ${f.say}` : ""}</span>
+                <button onClick={() => gen(s.chosen, f.say || f.w)}>▶</button>
+                <button onClick={() => up({ fixes: fixes.filter((_, j) => j !== i) })} aria-label="حذف">✕</button>
+              </li>
             ))}
+          </ul>
+        )}
+      </Sec>
+
+      <section className={card}>
+        <h2 className="font-display mb-3 text-lg text-primary">🎭 كتالوج الأصوات</h2>
+        <div className="flex gap-2 overflow-x-auto pb-2">
+          {TABS.map(([k, l]) => <button key={k} className={pill(tab === k)} onClick={() => setTab(k)}>{l}{k !== "catalog" && k !== "search" ? ` (${mineOf(k).length})` : ""}</button>)}
+        </div>
+        {tab === "search" && (
+          <div className="mt-2 space-y-2">
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="ابحث بالاسم أو الصق المعرّف (Voice ID)" />
+            {/^[a-f0-9]{24,40}$/i.test(q.trim()) && <Button size="sm" onClick={() => { setVid(q.trim()); void importIdRaw(q.trim()); }} disabled={!!busy}>🔗 فحص وتثبيت هذا المعرّف</Button>}
           </div>
+        )}
+        {tab === "catalog" && <div className="flex gap-2 overflow-x-auto pb-2">{FILTERS.map(([k, l]) => <button key={k} className={pill(filter === k)} onClick={() => setFilter(k)}>{l}</button>)}</div>}
+        {(tab === "catalog" || tab === "search") ? (
+          <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+            {(tab === "search" ? searchList : list).map(([id, t]) => (
+              <li key={id} className={`flex items-center gap-2 rounded-xl border p-2 transition-all ${s.chosen?.id === id ? "border-primary bg-secondary" : "bg-background"}`}>
+                <span className="flex-1 truncate text-sm">{t}</span>
+                <Button size="sm" variant="secondary" onClick={() => gen({ id, title: t })} disabled={!!busy}>{busy === id ? "🔊" : "▶"}</Button>
+                <Button size="sm" onClick={() => choose({ id, title: t })}>اختر</Button>
+                <button onClick={() => up({ mine: s.mine.some((m) => m.id === id) ? s.mine.filter((m) => m.id !== id) : [...s.mine, { id, title: t }] })}>{s.mine.some((m) => m.id === id) ? "⭐" : "☆"}</button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          !mineOf(tab).length ? <p className="mt-3 text-sm text-muted-foreground">ما فيه أصوات هنا للحين. استنسخ صوت واختر وين ينحفظ.</p> : (
+            <ul className="mt-3 space-y-2">
+              {mineOf(tab).map((m) => (
+                <li key={m.id} className={`animate-in fade-in rounded-xl border p-2 ${s.chosen?.id === m.id ? "border-primary bg-secondary" : "bg-background"}`}>
+                  <div className="flex items-center gap-2">
+                    <span className="flex-1 truncate text-sm">{m.vis === "private" ? "🔒" : m.vis ? "🌍" : "⭐"} {m.title}</span>
+                    <Button size="sm" variant="secondary" onClick={() => gen(m)} disabled={!!busy}>{busy === m.id ? "🔊" : "▶"}</Button>
+                    <Button size="sm" onClick={() => choose(m)}>{s.chosen?.id === m.id ? "📌 مثبت" : "اختر"}</Button>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                    {m.vis && m.vis !== "private" && <button className="rounded-full border px-2 py-1" onClick={() => { navigator.clipboard?.writeText(m.id); toast.success("انسخ المعرّف — شاركه"); }}>📋 نسخ المعرّف</button>}
+                    {m.kind === "clone" && <button className="rounded-full border px-2 py-1" onClick={() => startRetrain(m)}>🔁 إعادة استنساخ وتدريب</button>}
+                    {m.kind === "clone" && <button className="rounded-full border px-2 py-1" onClick={() => up({ mine: s.mine.map((x) => x.id === m.id ? { ...x, vis: x.vis === "private" ? "unlist" : "private" } : x) })}>{m.vis === "private" ? "🌍 انقله للمنشورة" : "🔒 انقله للخاصة"}</button>}
+                    <button className="rounded-full border px-2 py-1" onClick={() => up({ mine: s.mine.filter((x) => x.id !== m.id) })}>✕ إزالة</button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )
         )}
       </section>
 
-      <section className={card}>
-        <h2 className="font-display mb-3 text-lg text-primary">🎭 كتالوج الأصوات الجاهزة</h2>
-        <div className="flex gap-2 overflow-x-auto pb-2">{FILTERS.map(([k, l]) => <button key={k} className={pill(filter === k)} onClick={() => setFilter(k)}>{l}</button>)}</div>
-        <ul className="mt-3 grid gap-2 sm:grid-cols-2">
-          {list.map(([id, t]) => (
-            <li key={id} className={`flex items-center gap-2 rounded-xl border p-2 ${s.chosen?.id === id ? "border-primary bg-secondary" : "bg-background"}`}>
-              <span className="flex-1 truncate text-sm">{t}</span>
-              <Button size="sm" variant="secondary" onClick={() => gen({ id, title: t })} disabled={!!busy}>{busy === id ? "🔊" : "▶"}</Button>
-              <Button size="sm" onClick={() => choose({ id, title: t })}>اختر</Button>
-              <button onClick={() => up({ mine: s.mine.some((m) => m.id === id) ? s.mine.filter((m) => m.id !== id) : [...s.mine, { id, title: t }] })}>{s.mine.some((m) => m.id === id) ? "⭐" : "☆"}</button>
-            </li>
-          ))}
-        </ul>
-      </section>
-
     </div>
+  );
+}
+
+function Sec({ title, open = false, children }: { title: string; open?: boolean; children: React.ReactNode }) {
+  return (
+    <details open={open} className="group rounded-2xl border bg-card p-5 shadow-soft">
+      <summary className="font-display flex cursor-pointer list-none items-center justify-between text-lg text-primary">
+        {title}<span className="text-sm transition-transform group-open:rotate-180">⌄</span>
+      </summary>
+      <div className="mt-3 animate-in fade-in slide-in-from-top-1">{children}</div>
+    </details>
   );
 }
