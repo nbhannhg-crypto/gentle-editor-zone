@@ -331,8 +331,19 @@ export async function staffContext(db: any, storeId?: string | null, instance = 
       const { data } = await db.from("training_rules").select("response_text").like("trigger_text", "call_staff:%").limit(500);
       for (const r of (data ?? []) as any[]) { try { const j = JSON.parse(r.response_text); if (j?.ch?.[ch]) { roster = j; break; } } catch { /* ignore */ } }
     }
-    if (!roster) return "";
-    const a = pickFor(roster, ch);
-    return a ? staffPromptLine(identityText(a)) : "";
+    const a = roster ? pickFor(roster, ch) : null;
+    const who = a ? staffPromptLine(identityText(a)) : "";
+    // 💗🚫👑 المربعات الأربعة (نفس مكالمة المملكة): خاص المتجر + العام من الملكة
+    const boxes: { persona: string[]; banned: string[] } = { persona: [], banned: [] };
+    const keys = ["call_boxes:global", ...(storeId ? [`call_boxes:${storeId}`] : [])];
+    const { data: bx } = await db.from("training_rules").select("response_text").in("trigger_text", keys).limit(5);
+    for (const r of (bx ?? []) as any[]) {
+      try { const j = JSON.parse(r.response_text); boxes.persona.push(...(j.persona ?? [])); boxes.banned.push(...(j.banned ?? [])); } catch { /* ignore */ }
+    }
+    const extra = [
+      boxes.persona.length ? `معلومات وقصة الموظفة وتعليمات لازم تنفذينها حرفياً:\n- ${boxes.persona.join("\n- ")}` : "",
+      boxes.banned.length ? `كلام ممنوع تقولينه أبداً:\n- ${boxes.banned.join("\n- ")}` : "",
+    ].filter(Boolean).join("\n\n");
+    return [who, extra].filter(Boolean).join("\n\n");
   } catch { return ""; }
 }
