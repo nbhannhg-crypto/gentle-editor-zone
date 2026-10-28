@@ -106,7 +106,28 @@ export async function getAIResponse(system: string, prompt: string): Promise<str
       }));
     } catch { /* whole batch failed → next batch */ }
   }
+  const g = await callGroqChat(system, prompt).catch(() => null);
+  if (g) return g;
   try { return await callOpenRouter(system, prompt); } catch { return null; }
+}
+
+/** Groq chat fallback (Allam Saudi / Qwen) using the same Groq keys. */
+async function callGroqChat(system: string, prompt: string): Promise<string | null> {
+  const keys = [...new Set([process.env["GROQ_API_KEY"] ?? "", ...(process.env["GROQ_KEYS"] ?? "").split(/[,،;\s]+/)].map((k) => k.trim()).filter(Boolean))];
+  for (const k of keys) for (const model of ["allam-2-7b", "qwen/qwen3.8-27b"]) {
+    try {
+      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST", headers: { Authorization: `Bearer ${k}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model, max_tokens: 400, messages: [{ role: "system", content: system }, { role: "user", content: prompt }] }),
+        signal: AbortSignal.timeout(6000),
+      });
+      if (!r.ok) continue;
+      const j = (await r.json()) as { choices?: { message?: { content?: string } }[] };
+      const t = j.choices?.[0]?.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+      if (t) return t;
+    } catch { /* next */ }
+  }
+  return null;
 }
 
 type GPart = { text: string } | { inlineData: { mimeType: string; data: string } };
