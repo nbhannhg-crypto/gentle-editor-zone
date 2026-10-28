@@ -16,7 +16,7 @@ import { loadCockpit, hitBanned, applyFixes } from "@/components/LiveCockpit";
 import { applyCable, loadCable, saveCable } from "@/lib/cable-audio";
 import { searchCallSources } from "@/lib/call-brains";
 import { CallTranscript, type TMsg } from "@/components/CallTranscript";
-import { CallBoxes } from "@/components/CallBoxes";
+import { CallBoxes, loadGlobalBoxes } from "@/components/CallBoxes";
 
 type SR = any;
 type Msg = { who: "c" | "a"; t: string };
@@ -121,7 +121,8 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
     setLog((l) => [...l, { who: "c", t: text }]);
     try {
       // 🔗 لوحة تحكم المكالمة المباشرة هي المرجع: الدقة ومصدر الرد والقواعد والمكتبات
-      const ck = loadCockpit();
+      const ck0 = loadCockpit(); const gb = loadGlobalBoxes();
+      const ck = { ...ck0, persona: [...gb.persona, ck0.persona].filter(Boolean).join("\n"), banned: [...gb.banned, ...ck0.banned] };
       const b = (ck as { brains?: { mine?: boolean; ai?: boolean } }).brains;
       const ckSrc = b ? (b.mine && b.ai ? "hybrid" : b.ai ? "ai" : "rules") : ctlRef.current.src;
       const c0 = { ...ctlRef.current, match: ck.match ?? ctlRef.current.match, src: ckSrc };
@@ -447,7 +448,7 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
 
       <section className="mt-4 rounded-2xl border bg-card p-3"><StaffSwitcher storeId={storeId} channel="call" />
         <details className="mt-2 rounded-xl border p-2"><summary className="cursor-pointer text-sm font-semibold">👯 إدارة طاقم الموظفات (إظهار / إخفاء)</summary><div className="mt-2"><CallIdentity storeId={storeId} /></div></details></section>
-      <CallBoxes />
+      <CallBoxes storeId={storeId} />
 
       {/* 🎛️ لوحة تحكم مكالمة المملكة */}
       <section className="mt-4 rounded-2xl border bg-card p-4">
