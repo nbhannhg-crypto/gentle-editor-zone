@@ -116,7 +116,11 @@ function App() {
     isAdmin().then(setAdmin);
   }, []);
   useEffect(() => { localStorage.setItem("kingdom_product", product); }, [product]);
-  useEffect(() => { window.scrollTo({ top: 0, behavior: "auto" }); }, [tab]);
+  useEffect(() => {
+    const up = () => { window.scrollTo(0, 0); document.documentElement.scrollTop = 0; document.body.scrollTop = 0; };
+    up(); const r = requestAnimationFrame(up); const t = setTimeout(up, 150);
+    return () => { cancelAnimationFrame(r); clearTimeout(t); };
+  }, [tab]);
 
   return (
     <div className="min-h-screen">
