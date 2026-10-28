@@ -92,6 +92,8 @@ export function WhatsApp({ was, reload }: { was: Wa[]; reload: () => Promise<voi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [qr?.name, qr?.demo]);
   const connected = was.filter((w) => w.status === "open");
+  const [sel, setSel] = useState<string | null>(null);
+  const cur = was.find((w) => w.name === sel) ?? was[0];
   const checkStatus = async () => {
     await reload(); await loadAuto();
     toast(connected.length ? "متصل ✅" : "لسه ما انربط — امسح الكود وانتظر ثانيتين ثم حدّث");
@@ -134,10 +136,23 @@ export function WhatsApp({ was, reload }: { was: Wa[]; reload: () => Promise<voi
           </div>
         </DialogContent>
       </Dialog>
-      {was.map((w) => {
+      {was.length > 0 && (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {was.map((w) => (
+            <button key={w.name} onClick={() => setSel(w.name)}
+              className={`flex min-h-[84px] flex-col items-center justify-center gap-1 rounded-2xl border p-2 text-center shadow-soft transition active:scale-95 ${cur?.name === w.name ? "border-primary bg-secondary" : "bg-card"}`}>
+              <span className="text-2xl">📲</span>
+              <b className="text-sm">{w.label.replace(/_/g, " ")}</b>
+              <span className="text-[11px]">{w.status === "open" ? "🟢 متصل" : w.status === "connecting" ? "🟡 جاري الربط" : "🔴 غير متصل"}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {was.filter((w) => w.name === cur?.name).map((w) => {
         const c = auto.cfg.find((x) => x.instance === w.name);
         return (
         <div key={w.name} className="space-y-2 rounded-xl border bg-card p-3">
+          <p className="text-xs font-semibold text-primary">🎛️ لوحة تحكم هذا الرقم</p>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <b>{w.label}</b>{" "}
