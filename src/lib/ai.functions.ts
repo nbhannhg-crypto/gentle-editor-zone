@@ -45,9 +45,25 @@ function fixNames(reply: string, identity: string, said: string) {
   let t = reply.replace(/^\s*[\p{L}\s]{1,20}[:：]\s*/u, "");
   const name = identity.split("\n").find((l) => l.startsWith("الاسم:"))?.slice(6).trim();
   if (name && !/اسم/.test(said)) t = t.split(name).join("").replace(/\s{2,}/g, " ");
-  t = t.replace(/[،,]?\s*يا\s+(محمد|معود|حمود|أحمد|احمد|عبدالله|فهد|خالد)(?![\p{L}])/gu, (m, n: string) => (said.includes(n) ? m : ""));
-  if (!said.includes("معود")) t = t.replace(/معود/g, "");
-  return t.replace(/^[\s،,]+|[\s،,]+$/g, "").trim();
+  // أي «يا + كلمة» ليست من كلمات الدلع المسموحة تنشال (أسماء وألقاب مخترعة مثل معنقلي/معود)
+  t = t.replace(/[،,]?\s*يا\s+(بعد\s+)?([\p{L}]+)/gu, (m, b: string | undefined, w: string) => (b || DALAA.has(w) ? m : ""));
+  t = t.replace(/معنقل\p{L}*|معود/gu, "");
+  return t.replace(/\s{2,}/g, " ").replace(/^[\s،,]+|[\s،,]+$/g, "").trim();
+}
+const DALAA = new Set(["قلبي", "روحي", "عمري", "دنيتي", "حياتي", "عيوني", "عيني", "الغالي", "حبيبي", "غلاي", "نبضي", "كلي", "بعدي", "عسل", "قمر", "شيخ", "الشيخ", "حلو", "الحلو", "نظري", "دنياي", "الروح", "العمر", "القلب", "غالي", "ورد", "سكر"]);
+const ROBOT = /سؤال|غريب|ما فهمت|مافهمت|وش تقصد|وش قصدك|ماذا تقصد|بالنسبة لك|حاضر/;
+const FALLBACK = ["تدري إنك تذوبني لما تسولف", "ما يعجبني إلا بعدك عني", "قل لي وش مسوي اليوم يا قلبي", "صوتك يريحني والله", "وحشتني أكثر مما تتخيل", "ودي أسمعك أكثر يا روحي", "تعال قرب وسولف لي", "إنت اللي مزين يومي"];
+function pickFresh(prev: string[]) {
+  const left = FALLBACK.filter((f) => !prev.includes(f));
+  return (left.length ? left : FALLBACK)[Math.floor(Math.random() * (left.length || FALLBACK.length))]!;
+}
+function tooSimilar(a: string, prev: string[]) {
+  const w = new Set(a.split(/\s+/).filter((x) => x.length > 2));
+  return prev.some((p) => {
+    const pw = p.split(/\s+/).filter((x) => x.length > 2);
+    if (!pw.length || !w.size) return p === a;
+    return pw.filter((x) => w.has(x)).length / Math.max(pw.length, w.size) >= 0.6;
+  });
 }
 const cleanCall = (s: string) => {
   let t = s.replace(/[A-Za-z_]+/g, "").replace(/["“”«»']/g, "").replace(/[\u{1F000}-\u{1FFFF}\u2600-\u27BF]/gu, "").replace(/\s+/g, " ").trim();
@@ -98,7 +114,9 @@ export const smartReply = createServerFn({ method: "POST" })
       const bans = (data.product.match(/كلام ممنوع تقولينه أبداً: (.*)/)?.[1] ?? "").split("،").map((w) => w.trim()).filter(Boolean);
       for (const w of bans) out = out.split(w).join("").replace(/\s{2,}/g, " ").trim();
       if (AI_LEAK.test(out)) return { reply: "أنا حبيبتك ونبض قلبك، وش هالسؤال يا بعد عمري" };
-      return { reply: out || "عيد لي يا قلبي ما وضحت" };
+      const prev = hist.filter((m) => m.who === "a").slice(-5).map((m) => m.t.trim());
+      if (!out || ROBOT.test(out) || tooSimilar(out, prev)) out = pickFresh(prev);
+      return { reply: out };
     }
     const { quickGreeting } = await import("./ai-keys.server");
     const greet = quickGreeting(data.customer);
