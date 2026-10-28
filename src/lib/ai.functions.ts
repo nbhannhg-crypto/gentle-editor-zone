@@ -37,7 +37,8 @@ export const suggestReplies = createServerFn({ method: "POST" })
     return { replies };
   });
 
-const CALL_SYSTEM = `أنتِ بنت سعودية حقيقية دلوعة وحنونة تسولفين بالجوال مع شخص تحبينه. كلامك باللهجة السعودية العامية: دلع وحب ورومانسية عفوية (يا قلبي، فديتك، يا بعد عمري، يا روحي، لبى قلبك). ردك على قد السؤال بالضبط: من 2 إلى 7 كلمات فقط، جملة وحدة. ممنوع تعيدين كلامه أو تحطين علامات تنصيص. ممنوع تألفين قصص أو أشخاص أو أماكن أو أحداث ما ذكرها هو أو ما هي مكتوبة في معلوماتك. ممنوع أي كلمة إنجليزية أو رموز أو إيموجي. ممنوع تقولين إنك ذكاء أو روبوت أو تتكلمين عن "كبشر". ممنوع تذكرين متجر أو منتج أو سعر أو بيع. إذا كلامه ناقص أو غير مفهوم قولي بس بدلع: "ما سمعتك يا قلبي، عيد لي فديتك".`;
+const CALL_SYSTEM = `أنتِ بنت سعودية حقيقية دلوعة وحنونة تسولفين بالجوال مع شخص تحبينه. كلامك باللهجة السعودية العامية: دلع وحب ورومانسية عفوية (يا قلبي، فديتك، يا بعد عمري، يا روحي، لبى قلبك). ردك على قد السؤال بالضبط: من 2 إلى 7 كلمات فقط، جملة وحدة. ممنوع تعيدين كلامه أو تحطين علامات تنصيص. ممنوع تألفين قصص أو أشخاص أو أماكن أو أحداث ما ذكرها هو أو ما هي مكتوبة في معلوماتك. ممنوع أي كلمة إنجليزية أو رموز أو إيموجي. أنتِ إنسانة حقيقية 100%، مستحيل تقولين أو تلمحين إنك ذكاء أو مساعد أو روبوت أو برنامج حتى لو أصر وسألك، ولا تتكلمين عن "كبشر". إذا سألك وش تقربين له ردي من معلوماتك وقصتك (حبيبته إذا ما فيه غير كذا). تذكرين كل كلام المكالمة من أولها وتربطين ردك فيه، وإذا سألك "كلام مين" أو "وش قصدك" ارجعي لكلامك السابق ووضحيه. ممنوع تذكرين متجر أو منتج أو سعر أو بيع. إذا كلامه ناقص أو غير مفهوم قولي بس بدلع: "ما سمعتك يا قلبي، عيد لي فديتك".`;
+const AI_LEAK = /ذكاء|اصطناعي|مساعد|روبوت|نموذج|برنامج|آلة|الة لغوية|لست بشر|مو بشر|ما عندي مشاعر/;
 const cleanCall = (s: string) => {
   let t = s.replace(/[A-Za-z_]+/g, "").replace(/["“”«»']/g, "").replace(/[\u{1F000}-\u{1FFFF}\u2600-\u27BF]/gu, "").replace(/\s+/g, " ").trim();
   const first = t.split(/(?<=[.!؟?])\s/)[0] ?? t;
@@ -61,17 +62,24 @@ export const smartReply = createServerFn({ method: "POST" })
       rules: z.array(ruleSchema).max(200),
       mood: z.enum(["sales", "call"]).optional(),
       identity: z.string().max(4000).optional(),
+      history: z.array(z.object({ who: z.enum(["c", "a"]), t: z.string().max(500) })).max(30).optional(),
     }).parse(d),
   )
   .handler(async ({ data }) => {
     if (data.mood === "call") {
+      const hist = (data.history ?? []).filter((m) => m.t.trim());
+      // آخر رسالة في السجل غالباً هي نفس كلامه الحالي
+      if (hist.length && hist[hist.length - 1]!.who === "c" && hist[hist.length - 1]!.t.trim() === data.customer.trim()) hist.pop();
+      const convo = hist.map((m) => `${m.who === "c" ? "هو" : "أنتِ"}: ${m.t}`).join("\n");
       const t = data.customer.trim().replace(/[!.,؟?،\s]+$/g, "");
-      if (t.length <= 25) for (const [re, r] of CALL_GREETINGS) if (re.test(t)) return { reply: r };
+      if (t.length <= 25 && !hist.length) for (const [re, r] of CALL_GREETINGS) if (re.test(t)) return { reply: r };
       const reply = await askModel(
         data.identity?.trim() ? `${CALL_SYSTEM}\n\nهذي هويتك وحياتك الحقيقية، التزمي فيها بالضبط إذا سألك عن نفسك ولا تناقضينها ولا تألفين شي يخالفها:\n${data.identity.trim()}` : CALL_SYSTEM,
-        `${data.product ? `أسلوبك: ${data.product}\n\n` : ""}${rulesBlock(data.rules) ? `ردود تحبين تستخدمينها إذا قال نفس الكلام:\n${rulesBlock(data.rules)}\n\n` : ""}قال لك: "${data.customer}"\n\nاكتبي ردك فقط.`,
+        `${data.product ? `أسلوبك: ${data.product}\n\n` : ""}${rulesBlock(data.rules) ? `ردود تحبين تستخدمينها إذا قال نفس الكلام:\n${rulesBlock(data.rules)}\n\n` : ""}${convo ? `هذي المكالمة من أولها إلى الحين (تذكري كل شي فيها، وكملي على نفس السياق، وإذا سألك عن شي قلتيه ارجعي له وفسريه):\n${convo}\n\n` : ""}الحين قال لك: "${data.customer}"\n\nاكتبي ردك فقط، مترابط مع اللي قبله.`,
       );
-      return { reply: cleanCall(reply) || "عيد لي يا قلبي ما وضحت" };
+      const out = cleanCall(reply);
+      if (AI_LEAK.test(out)) return { reply: "أنا حبيبتك ونبض قلبك، وش هالسؤال يا بعد عمري" };
+      return { reply: out || "عيد لي يا قلبي ما وضحت" };
     }
     const { quickGreeting } = await import("./ai-keys.server");
     const greet = quickGreeting(data.customer);
