@@ -819,7 +819,12 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
               askAgainAt.current = Date.now();
               const say = ASK_AGAIN[Math.floor(Math.random() * ASK_AGAIN.length)] ?? "ما سمعتك يا قلبي، عيد لي فديتك";
               setAnswer(say); autoSay(say);
-            } else if (!heard && r.busy) toast.error("المفاتيح مشغولة لحظة، كرر كلامك");
+            } else if (!heard && r.busy && Date.now() - askAgainAt.current > 6000) {
+              // بدل رسالة "المفاتيح مشغولة" تطلب منه يعيد بدلع
+              askAgainAt.current = Date.now();
+              const say = ASK_AGAIN[Math.floor(Math.random() * ASK_AGAIN.length)] ?? "ما سمعتك يا قلبي، عيد لي فديتك";
+              setAnswer(say); autoSay(say);
+            }
             return;
           }
           const playing = !!audioRef.current && !audioRef.current.paused;
