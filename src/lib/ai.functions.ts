@@ -79,14 +79,17 @@ export const smartReply = createServerFn({ method: "POST" })
       const hist = (data.history ?? []).filter((m) => m.t.trim());
       // آخر رسالة في السجل غالباً هي نفس كلامه الحالي
       if (hist.length && hist[hist.length - 1]!.who === "c" && hist[hist.length - 1]!.t.trim() === data.customer.trim()) hist.pop();
-      const convo = hist.map((m) => `${m.who === "c" ? "هو" : "أنتِ"}: ${m.t}`).join("\n");
+      const said = [...hist.filter((m) => m.who === "c").map((m) => m.t), data.customer, data.product].join(" ");
+      const convo = hist.slice(-6).map((m) => `${m.who === "c" ? "هو" : "أنتِ"}: ${m.t}`).join("\n");
       const t = data.customer.trim().replace(/[!.,؟?،\s]+$/g, "");
       if (t.length <= 25 && !hist.length) for (const [re, r] of CALL_GREETINGS) if (re.test(t)) return { reply: r };
       const reply = await askModel(
-        data.identity?.trim() ? `${CALL_SYSTEM}\n\nهذي هويتك وحياتك الحقيقية، التزمي فيها بالضبط إذا سألك عن نفسك ولا تناقضينها ولا تألفين شي يخالفها:\n${data.identity.trim()}` : CALL_SYSTEM,
+        data.identity?.trim() ? `${CALL_SYSTEM}\n\nهذي هويتك وحياتك الحقيقية، التزمي فيها بالضبط إذا سألك عن نفسك ولا تناقضينها ولا تألفين شي يخالفها:\n${data.identity.trim()}${CALL_EXTRA}` : CALL_SYSTEM + CALL_EXTRA,
         `${data.product ? `أسلوبك: ${data.product}\n\n` : ""}${rulesBlock(data.rules) ? `ردود تحبين تستخدمينها إذا قال نفس الكلام:\n${rulesBlock(data.rules)}\n\n` : ""}${convo ? `هذي المكالمة من أولها إلى الحين (تذكري كل شي فيها، وكملي على نفس السياق، وإذا سألك عن شي قلتيه ارجعي له وفسريه):\n${convo}\n\n` : ""}الحين قال لك: "${data.customer}"\n\nاكتبي ردك فقط، مترابط مع اللي قبله.`,
       );
-      const out = cleanCall(reply);
+      let out = fixNames(cleanCall(reply), data.identity ?? "", said);
+      const bans = (data.product.match(/كلام ممنوع تقولينه أبداً: (.*)/)?.[1] ?? "").split("،").map((w) => w.trim()).filter(Boolean);
+      for (const w of bans) out = out.split(w).join("").replace(/\s{2,}/g, " ").trim();
       if (AI_LEAK.test(out)) return { reply: "أنا حبيبتك ونبض قلبك، وش هالسؤال يا بعد عمري" };
       return { reply: out || "عيد لي يا قلبي ما وضحت" };
     }
