@@ -498,9 +498,13 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
         {log.length > 0 && <Button variant="outline" size="sm" className="mt-3" onClick={() => { setLog([]); setCustomer(""); setAnswer(""); }}>🗑️ مسح المحادثة</Button>}
       </section>
 
-      {/* إدخال كلام الزبون يدوياً */}
+      <CallTranscript log={log as TMsg[]} setLog={(f) => setLog((l) => f(l as TMsg[]) as Msg[])} storeId={storeId} kind="kcall" live={live} onSay={(t) => void say(t)} reload={reload} onTaught={teachNow} />
+
+      {interim && <p className="mt-3 text-sm text-muted-foreground">الزبون يقول الآن: … {interim}</p>}
+
+      {/* إدخال كلام الزبون يدوياً — تحت المحادثة وفوق الرد المقترح */}
       {live && (
-        <div className="mt-4 flex gap-2">
+        <div className="mt-3 flex gap-2">
           <Input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="اكتب كلام الزبون هنا…"
             onKeyDown={(e) => { if (e.key === "Enter" && typed.trim()) { handleCustomer(typed.trim()); setTyped(""); } }} />
           <Button variant="secondary" onClick={() => { if (typed.trim()) { handleCustomer(typed.trim()); setTyped(""); } }}>أرسل</Button>
@@ -509,10 +513,6 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
           </select>
         </div>
       )}
-
-      {interim && <p className="mt-3 text-sm text-muted-foreground">الزبون يقول الآن: … {interim}</p>}
-
-      <CallTranscript log={log as TMsg[]} setLog={(f) => setLog((l) => f(l as TMsg[]) as Msg[])} storeId={storeId} kind="kcall" live={live} onSay={(t) => void say(t)} reload={reload} onTaught={teachNow} />
 
       {/* رد الموظفة */}
       {live && customer && (

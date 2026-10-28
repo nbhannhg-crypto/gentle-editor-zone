@@ -93,8 +93,18 @@ async function callOpenRouter(system: string, prompt: string): Promise<string | 
  * Tries each Gemini key in rotation, then OpenRouter.
  * Returns null when no external key works, so the caller keeps its original AI path (nothing breaks).
  */
-export async function getAIResponse(system: string, prompt: string): Promise<string | null> {
+export async function getAIResponse(system: string, prompt: string, fast = false): Promise<string | null> {
   const keys = geminiKeys();
+  // Fast mode (live calls): race 3 Gemini keys + Groq together, first answer wins.
+  if (fast && keys.length) {
+    const batch = Array.from({ length: Math.min(3, keys.length) }, () => keys[cursor++ % keys.length]!);
+    try {
+      return await Promise.any([
+        ...batch.map(async (k) => { const r = await callGemini(k, system, prompt); if (r.ok) return r.text; throw new Error("fail"); }),
+        callGroqChat(system, prompt).then((g) => { if (g) return g; throw new Error("fail"); }),
+      ]);
+    } catch { /* fall through to normal rotation */ }
+  }
   // Race 3 keys at a time: first good answer wins, so one slow/busy key never blocks the call.
   for (let tried = 0; tried < keys.length; tried += 3) {
     const batch = Array.from({ length: Math.min(3, keys.length - tried) }, () => keys[cursor++ % keys.length]!);

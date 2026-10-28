@@ -144,7 +144,7 @@ export function CallTranscript({ log, setLog, storeId, kind, live, onSay, reload
               {audioUrl ? <audio controls src={audioUrl} className="mt-2 w-full" /> : view.hasAudio ? <p className="text-xs">يحمّل التسجيل…</p> : <p className="text-xs text-muted-foreground">بدون تسجيل صوتي</p>}
             </div>
           )}
-          <div className="mt-2 max-h-[60vh] space-y-2 overflow-y-auto rounded-xl bg-muted/50 p-2">
+          <div className={`mt-2 ${kind === "kcall" ? "max-h-[38vh]" : "max-h-[60vh]"} space-y-2 overflow-y-auto rounded-xl bg-muted/50 p-2`}>
             {!shown.length && <p className="p-3 text-center text-sm text-muted-foreground">ما فيه كلام للحين.</p>}
             {shown.map((m, i) => (
               <div key={i} className={`flex flex-col ${m.who === "a" ? "items-start" : "items-end"}`}>
