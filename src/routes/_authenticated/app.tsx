@@ -65,8 +65,11 @@ export const Route = createFileRoute("/_authenticated/app")({
 export type Mode = "learn" | "smart";
 type Tab = "train" | "call" | "kcall" | "voice" | "channels" | "customers" | "products" | "wallet" | "dash" | "bots" | "profile" | "deals" | "campaigns" | "appointments" | "brains" | "magic" | "mother" | "library" | "inbox" | "complaints" | "design";
 
+const NAV: [Tab, string][] = [["mother", "👑 العقل المدبر"], ["brains", "🏭 مصنع العقول"], ["magic", "✨ بنك الإلهام"], ["bots", "🤖 كتيبة البوتات"], ["profile", "🏪 هوية المتجر"], ["train", "🎯 أكاديمية التدريب"], ["call", "📞 قمرة المكالمات"], ["kcall", "📱 مكالمة المملكة"], ["voice", "🎙️ النبرة والصوتيات"], ["channels", "📡 رادار القنوات"], ["inbox", "💬 صندوق المحادثات"], ["library", "📚 خزينة الوسائط"], ["design", "🎨 استوديو التصاميم"], ["complaints", "📮 العناية بالعملاء"], ["customers", "👥 كبار العملاء"], ["campaigns", "📣 صانع الحملات"], ["deals", "👁️ رادار الصفقات"], ["appointments", "📅 المواعيد"], ["products", "🛍️ كتالوج المنتجات"], ["wallet", "💰 المحفظة"], ["dash", "📊 مؤشرات الأداء"]];
+
 function App() {
   const [tab, setTab] = useState<Tab>("brains");
+  const [menu, setMenu] = useState(false);
   const [mode, setMode] = useState<Mode>("learn");
   const [rules, setRules] = useState<Rule[]>([]);
   const [product, setProduct] = useState("");
@@ -111,11 +114,20 @@ function App() {
             </div>
           </div>
           <nav className="-mx-3 mt-3 flex gap-1 overflow-x-auto px-3 sm:mx-0 sm:mt-5 sm:gap-2 sm:px-0 [scrollbar-width:none]">
-            {([["mother", "🧠 مملكة العقول"], ["brains", "🏭 مصنع العقول"], ["magic", "✨ عقول الإلهام"], ["bots", "🤖 فريق البوتات"], ["profile", "🏪 ملفي"], ["train", "علّم الموظفة"], ["call", "المكالمة المباشرة"], ["kcall", "📱 مكالمة المملكة"], ["voice", "🎙️ الصوت"], ["channels", "📡 القنوات"], ["inbox", "💬 المحادثات"], ["library", "📚 المكتبة"], ["design", "🎨 التصميم"], ["complaints", "📮 الشكاوى"], ["customers", "👥 الزبائن"], ["campaigns", "📣 الحملات"], ["deals", "👁️ عين الصفقة"], ["appointments", "📅 المواعيد"], ["products", "🛍️ المنتجات"], ["wallet", "💰 المحفظة"], ["dash", "لوحة الأداء"]] as const).map(([k, l]) => (
+            <button onClick={() => setMenu(!menu)} className="shrink-0 rounded-t-xl bg-gold px-3 py-1.5 text-xs font-semibold text-accent-foreground sm:text-sm">🎛️ كل الأقسام</button>
+            {NAV.map(([k, l]) => (
               <button key={k} onClick={() => setTab(k)}
                 className={`shrink-0 rounded-t-xl px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm font-medium transition ${tab === k ? "bg-background text-foreground" : k === "mother" ? "animate-pulse bg-gold text-accent-foreground" : "text-primary-foreground/80 hover:bg-primary-foreground/10"}`}>{l}</button>
             ))}
           </nav>
+          {menu && (
+            <div className="mt-2 grid grid-cols-3 gap-1.5 rounded-2xl bg-background p-2 text-foreground shadow-soft sm:grid-cols-6">
+              {NAV.map(([k, l]) => (
+                <button key={k} onClick={() => { setTab(k); setMenu(false); }}
+                  className={`rounded-xl border p-2 text-[11px] leading-tight transition active:scale-95 ${tab === k ? "border-primary bg-secondary" : "bg-card"}`}>{l}</button>
+              ))}
+            </div>
+          )}
         </div>
       </header>
       <main className="mx-auto max-w-6xl px-3 py-4 sm:px-4 sm:py-6">
