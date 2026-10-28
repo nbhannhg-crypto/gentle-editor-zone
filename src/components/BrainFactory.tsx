@@ -183,9 +183,11 @@ export function BrainFactory({ onTab }: { onTab: (t: string) => void }) {
         <p className="text-xs text-muted-foreground">{brains.length} عقل • {Object.values(counts).reduce((a, c) => a + c, 0).toLocaleString()} رد • {brains.filter((b) => !counts[b.id]).length} فاضي</p>
         <button onClick={() => setActiveId(undefined)} className={`w-full rounded-xl border p-2 text-right text-sm ${!activeId ? "border-primary bg-secondary" : ""}`}>🧠 مصنع العقول (يختار تلقائي)</button>
         {brains.some((b) => !counts[b.id]) && <Button size="sm" variant="ghost" className="w-full text-destructive" onClick={cleanEmpty}>🧹 احذف العقول الفاضية</Button>}
+        <details open={brains.length <= 4} className="space-y-2"><summary className="cursor-pointer text-xs font-semibold">📂 عقولي ({brains.length})</summary>
         {brains.map((b) => (
           <BrainCard key={b.id} b={b} count={counts[b.id] ?? 0} active={activeId === b.id} onPick={() => setActiveId(b.id)} onDelete={() => del(b.id)} onChanged={loadBrains} />
         ))}
+        </details>
         {brains.length === 0 && <p className="text-xs text-muted-foreground">اكتب "ابي عقل يبيع عطوري" ويبنيه لك ويسألك الباقي.</p>}
         <Button variant="outline" className="w-full" onClick={() => { setActiveId(undefined); send("ابي انشئ عقل جديد خاص فيني"); }}>➕ أنشئ عقل جديد</Button>
       </aside>
