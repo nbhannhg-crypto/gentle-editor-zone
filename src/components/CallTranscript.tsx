@@ -51,7 +51,8 @@ export function CallTranscript({ log, setLog, storeId, kind, live, onSay, reload
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { setSaved(loadList(lk)); }, [lk]);
-  useEffect(() => { if (open && !view) endRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }, [log.length, open, view]);
+  // ينزل لآخر رسالة داخل الصندوق فقط — بدون تحريك شاشة الموقع
+  useEffect(() => { if (open && !view) { const box = endRef.current?.parentElement; if (box) box.scrollTop = box.scrollHeight; } }, [log.length, open, view]);
 
   // السجل الحالي يبقى محفوظ دائماً (ما ينمسح بالخروج أو إعادة التشغيل)
   const curKey = `call-current:${store}:${kind}`;
