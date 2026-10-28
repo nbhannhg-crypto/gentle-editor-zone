@@ -7,9 +7,9 @@ const GATEWAY = "https://ai.gateway.lovable.dev";
 
 const ruleSchema = z.object({ trigger: z.string().max(500), response: z.string().max(2000) });
 
-async function askModel(system: string, prompt: string) {
+async function askModel(system: string, prompt: string, fast = false) {
   const { getAIResponse } = await import("./ai-keys.server");
-  const ext = await getAIResponse(system, prompt);
+  const ext = await getAIResponse(system, prompt, fast);
   if (ext) return ext;
   throw new Error("المفاتيح المجانية مشغولة الحين، انتظر دقيقة وجرّب مرة ثانية");
 }
@@ -92,6 +92,7 @@ export const smartReply = createServerFn({ method: "POST" })
       const reply = await askModel(
         data.identity?.trim() ? `${CALL_SYSTEM}\n\nهذي هويتك وحياتك الحقيقية، التزمي فيها بالضبط إذا سألك عن نفسك ولا تناقضينها ولا تألفين شي يخالفها:\n${data.identity.trim()}${CALL_EXTRA}` : CALL_SYSTEM + CALL_EXTRA,
         `${data.product ? `أسلوبك: ${data.product}\n\n` : ""}${rulesBlock(data.rules) ? `ردود تحبين تستخدمينها إذا قال نفس الكلام:\n${rulesBlock(data.rules)}\n\n` : ""}${convo ? `هذي المكالمة من أولها إلى الحين (تذكري كل شي فيها، وكملي على نفس السياق، وإذا سألك عن شي قلتيه ارجعي له وفسريه):\n${convo}\n\n` : ""}الحين قال لك: "${data.customer}"\n\nاكتبي ردك فقط، مترابط مع اللي قبله.`,
+        true,
       );
       let out = fixNames(cleanCall(reply), data.identity ?? "", said);
       const bans = (data.product.match(/كلام ممنوع تقولينه أبداً: (.*)/)?.[1] ?? "").split("،").map((w) => w.trim()).filter(Boolean);
