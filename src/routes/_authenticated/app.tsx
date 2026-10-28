@@ -116,6 +116,7 @@ function App() {
     isAdmin().then(setAdmin);
   }, []);
   useEffect(() => { localStorage.setItem("kingdom_product", product); }, [product]);
+  useEffect(() => { window.scrollTo({ top: 0, behavior: "auto" }); }, [tab]);
 
   return (
     <div className="min-h-screen">
