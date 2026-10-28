@@ -54,7 +54,7 @@ export function SiteGuideEditor() {
   useEffect(() => { loadGuide().then(setItems); }, []);
   const up = (i: number, p: Partial<GuideItem>) => setItems((a) => a.map((x, j) => (j === i ? { ...x, ...p } : x)));
   const move = (i: number, d: number) => setItems((a) => {
-    const b = [...a]; const j = i + d; if (j < 0 || j >= b.length) return a; [b[i], b[j]] = [b[j], b[i]]; return b;
+    const b = [...a]; const j = i + d; if (j < 0 || j >= b.length) return a; const t = b[i]!; b[i] = b[j]!; b[j] = t; return b;
   });
   const save = async () => {
     setSaving(true);
