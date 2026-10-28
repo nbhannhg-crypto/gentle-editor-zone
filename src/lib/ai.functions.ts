@@ -97,7 +97,7 @@ export const smartReply = createServerFn({ method: "POST" })
       // آخر رسالة في السجل غالباً هي نفس كلامه الحالي
       if (hist.length && hist[hist.length - 1]!.who === "c" && hist[hist.length - 1]!.t.trim() === data.customer.trim()) hist.pop();
       const said = [...hist.filter((m) => m.who === "c").map((m) => m.t), data.customer, data.product].join(" ");
-      const convo = hist.slice(-6).map((m) => `${m.who === "c" ? "هو" : "أنتِ"}: ${m.t}`).join("\n");
+      const convo = hist.slice(-2).map((m) => `${m.who === "c" ? "هو" : "أنتِ"}: ${m.t}`).join("\n");
       const t = data.customer.trim().replace(/[!.,؟?،\s]+$/g, "");
       // «ألو / تسمعيني» رد فوري بدون انتظار الذكاء، وبدون ما تعيد الكلمة
       if (/^(ا|أ)?ل+و+(\s*(ا|أ)?ل+و+)*$|^تسمع(يني|ني)/.test(t)) {
@@ -107,7 +107,7 @@ export const smartReply = createServerFn({ method: "POST" })
       if (t.length <= 25 && !hist.length) for (const [re, r] of CALL_GREETINGS) if (re.test(t)) return { reply: r };
       const reply = await askModel(
         data.identity?.trim() ? `${CALL_SYSTEM}\n\nهذي هويتك وحياتك الحقيقية، التزمي فيها بالضبط إذا سألك عن نفسك ولا تناقضينها ولا تألفين شي يخالفها:\n${data.identity.trim()}${CALL_EXTRA}` : CALL_SYSTEM + CALL_EXTRA,
-        `${data.product ? `أسلوبك: ${data.product}\n\n` : ""}${rulesBlock(data.rules) ? `ردود تحبين تستخدمينها إذا قال نفس الكلام:\n${rulesBlock(data.rules)}\n\n` : ""}${convo ? `هذي المكالمة من أولها إلى الحين (تذكري كل شي فيها، وكملي على نفس السياق، وإذا سألك عن شي قلتيه ارجعي له وفسريه):\n${convo}\n\n` : ""}الحين قال لك: "${data.customer}"\n\nاكتبي ردك فقط، مترابط مع اللي قبله.`,
+        `${data.product ? `أسلوبك: ${data.product}\n\n` : ""}${rulesBlock(data.rules) ? `ردود تحبين تستخدمينها إذا قال نفس الكلام:\n${rulesBlock(data.rules)}\n\n` : ""}${convo ? `آخر كلام بينكم (للفهم فقط، لا تعيدين منه شي):\n${convo}\n\n` : ""}الحين قال لك: "${data.customer}"\n\nردي على هذي الكلمة بالضبط وخلاص، من 2 إلى 6 كلمات بدلع. لا تعيدين كلامه، ولا تجيبين تحية أو جملة قديمة، ولا تألفين شي من راسك. مثال: كيفك ← بخير يا بعد قلبي، وأنت كيفك.`,
         true,
       );
       let out = fixNames(cleanCall(reply), data.identity ?? "", said);
