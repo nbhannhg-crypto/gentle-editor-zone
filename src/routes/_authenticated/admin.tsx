@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { isAdmin } from "@/lib/stores";
 import FactoryLab from "@/components/FactoryLab";
+import { SiteGuideEditor } from "@/components/SiteGuide";
 import { getBranding, setBranding } from "@/lib/branding.functions";
 import { adminReviewPayment } from "@/lib/payments.functions";
 import { BRAND_DEFAULTS, type BrandNames } from "@/lib/branding";
@@ -136,6 +137,10 @@ function AdminPage() {
         <BrandNamesCard />
         <AdminBrains />
         <FactoryLab />
+        <section className="rounded-2xl border bg-card p-5 shadow-soft">
+          <h2 className="font-display mb-4 text-lg text-primary">📖 تعليمات الموقع (تحكم الملكة)</h2>
+          <SiteGuideEditor />
+        </section>
       </main>
     </div>
   );

@@ -84,14 +84,7 @@ const GUIDE: [string, string][] = [
 function Home({ go }: { go: (k: string) => void }) {
   return (
     <div className="space-y-5">
-      <details className="rounded-2xl border bg-card p-4 shadow-soft" open>
-        <summary className="cursor-pointer font-display text-primary">📖 تعليمات وتسهيلات سريعة</summary>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          {GUIDE.map(([t, d]) => (
-            <div key={t} className="rounded-xl bg-secondary p-3 text-sm text-secondary-foreground"><b className="block">{t}</b><span className="text-xs leading-relaxed">{d}</span></div>
-          ))}
-        </div>
-      </details>
+      <SiteGuideButton />
       {HOME.map(([g, items]) => (
         <section key={g}>
           <h2 className="mb-2 font-display text-lg text-primary">{g}</h2>
