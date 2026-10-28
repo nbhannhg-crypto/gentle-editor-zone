@@ -10,6 +10,7 @@ import { CTRL_PREFIX, GENERAL_OR, defaultCtrl, digits, parseCtrl, type WaCtrl, t
 import { guessCategory } from "@/lib/rules";
 import { waCtrlSend, waOutreach, waVoicePreview } from "@/lib/wa-ctrl.functions";
 import { CallIdentity, StaffSwitcher } from "@/components/CallIdentity";
+import { CallBoxes } from "@/components/CallBoxes";
 import { loadMySections } from "@/lib/sections-cloud";
 
 type Brain = { id: string; name: string };
@@ -411,7 +412,8 @@ export function WaControls({ instance, myNumber = "" }: { instance: string; myNu
           {pop === "staff" && <><DialogHeader><DialogTitle>👯 طاقم الموظفات</DialogTitle></DialogHeader>
             <p className="text-xs text-muted-foreground">موظفة هذا الرقم فقط 🟢 — كل رقم واتساب له موظفته وزر إطفائه المستقل.</p>
             <StaffSwitcher storeId={storeId} channel={`wa:${instance}`} />
-            <CallIdentity storeId={storeId} /></>}
+            <CallIdentity storeId={storeId} />
+            <CallBoxes storeId={storeId} /></>}
           {state && <p className="text-xs text-muted-foreground">{state}</p>}
         </DialogContent>
       </Dialog>
