@@ -13,7 +13,15 @@ import { BrainCard, type CardBrain } from "@/components/BrainCard";
 
 type Msg = { role: "user" | "assistant"; content: string; image?: string; sp?: string; tab?: string; voice?: string; created?: string };
 
-const QUICK = ["ابي عقل يبيع منتجاتي", "ابي اربط الواتس تبعي", "ابي عقل يشحن موقعي", "ابي اربط تيك توك وارد على التعليقات", "ابي ارسل مساء الخير صوت لزبوني", "ابي عقل يدير البث المباشر", "صمم لي بوستر عرض", "ابي عقل يتصل واتس لرقم"];
+const QUICK = ["ابي عقل سوالف ودلع سعودي", "ابي ارسل مساء الخير صوت دلع", "صمم لي بوستر بناتي", "ابي عقل يبيع منتجاتي", "ابي اربط الواتس تبعي", "ابي عقل يشحن موقعي", "ابي اربط تيك توك وارد على التعليقات", "ابي عقل يدير البث المباشر", "ابي عقل يتصل واتس لرقم"];
+
+/** Launcher: every button opens a real working section */
+export const LAUNCH: [string, [string, string, string][]][] = [
+  ["🎙️ المكالمات والأصوات", [["kcall", "📱", "مكالمة المملكة"], ["call", "📞", "قمرة المكالمات"], ["studio", "🎤", "استوديو البصمات"], ["voice", "🎙️", "النبرة والصوتيات"]]],
+  ["💬 القنوات والمحادثات", [["inbox", "💬", "صندوق المحادثات"], ["channels", "📡", "رادار القنوات"], ["deals", "👁️", "رادار الصفقات"], ["complaints", "📮", "العناية بالعملاء"]]],
+  ["🧠 العقول والتدريب", [["mother", "👑", "العقل المدبر"], ["train", "🎯", "أكاديمية التدريب"], ["magic", "✨", "بنك الإلهام"], ["bots", "🤖", "كتيبة البوتات"], ["library", "📚", "خزينة الوسائط"]]],
+  ["🛍️ التصميم والمتجر", [["design", "🎨", "استوديو التصاميم"], ["products", "🛍️", "كتالوج المنتجات"], ["campaigns", "📣", "صانع الحملات"], ["customers", "👥", "كبار العملاء"], ["appointments", "📅", "المواعيد"], ["wallet", "💰", "المحفظة"], ["profile", "🏪", "هوية المتجر"], ["dash", "📊", "مؤشرات الأداء"]]],
+];
 
 async function shrink(file: File): Promise<string> {
   const url = URL.createObjectURL(file);
@@ -109,12 +117,22 @@ export function BrainFactory({ onTab }: { onTab: (t: string) => void }) {
         {!hidden && <>
         <div className="max-h-[55vh] min-h-[200px] flex-1 space-y-4 overflow-y-auto p-3 sm:max-h-[520px] sm:p-4">
           {msgs.length === 0 && (
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-6 [&_button]:min-w-0">
-              {SPECIALISTS.map((s) => (
-                <button key={s.id} onClick={() => (s.tab ? open(s.tab) : send("ابي انشئ عقل جديد خاص فيني"))} className="rounded-xl border bg-background p-2 text-center text-xs hover:border-primary">
-                  <div className="text-2xl">{s.emoji}</div>{s.name.replace("عقل ", "")}
-                </button>
+            <div className="space-y-2">
+              {LAUNCH.map(([title, items], gi) => (
+                <details key={title} open={gi === 0} className="group rounded-xl border bg-background">
+                  <summary className="flex cursor-pointer list-none items-center justify-between p-2 text-sm font-semibold">
+                    <span>{title}</span><span className="text-xs text-muted-foreground transition group-open:rotate-180">▼</span>
+                  </summary>
+                  <div className="grid grid-cols-3 gap-2 p-2 pt-0 sm:grid-cols-6 [&_button]:min-w-0">
+                    {items.map(([k, e, n]) => (
+                      <button key={k} onClick={() => open(k)} className="rounded-xl border bg-card p-2 text-center text-xs transition hover:border-primary active:scale-95">
+                        <div className="text-2xl">{e}</div>{n}
+                      </button>
+                    ))}
+                  </div>
+                </details>
               ))}
+              <button onClick={() => send("ابي انشئ عقل جديد خاص فيني")} className="w-full rounded-xl border border-dashed p-2 text-xs hover:border-primary">🏗️ أنشئ عقل جديد بكلامك</button>
             </div>
           )}
           {msgs.map((m, i) => {
@@ -165,9 +183,11 @@ export function BrainFactory({ onTab }: { onTab: (t: string) => void }) {
         <p className="text-xs text-muted-foreground">{brains.length} عقل • {Object.values(counts).reduce((a, c) => a + c, 0).toLocaleString()} رد • {brains.filter((b) => !counts[b.id]).length} فاضي</p>
         <button onClick={() => setActiveId(undefined)} className={`w-full rounded-xl border p-2 text-right text-sm ${!activeId ? "border-primary bg-secondary" : ""}`}>🧠 مصنع العقول (يختار تلقائي)</button>
         {brains.some((b) => !counts[b.id]) && <Button size="sm" variant="ghost" className="w-full text-destructive" onClick={cleanEmpty}>🧹 احذف العقول الفاضية</Button>}
+        <details open={brains.length <= 4} className="space-y-2"><summary className="cursor-pointer text-xs font-semibold">📂 عقولي ({brains.length})</summary>
         {brains.map((b) => (
           <BrainCard key={b.id} b={b} count={counts[b.id] ?? 0} active={activeId === b.id} onPick={() => setActiveId(b.id)} onDelete={() => del(b.id)} onChanged={loadBrains} />
         ))}
+        </details>
         {brains.length === 0 && <p className="text-xs text-muted-foreground">اكتب "ابي عقل يبيع عطوري" ويبنيه لك ويسألك الباقي.</p>}
         <Button variant="outline" className="w-full" onClick={() => { setActiveId(undefined); send("ابي انشئ عقل جديد خاص فيني"); }}>➕ أنشئ عقل جديد</Button>
       </aside>
