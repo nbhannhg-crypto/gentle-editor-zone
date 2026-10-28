@@ -63,12 +63,56 @@ export const Route = createFileRoute("/_authenticated/app")({
 });
 
 export type Mode = "learn" | "smart";
-type Tab = "train" | "call" | "kcall" | "voice" | "channels" | "customers" | "products" | "wallet" | "dash" | "bots" | "profile" | "deals" | "campaigns" | "appointments" | "brains" | "magic" | "mother" | "library" | "inbox" | "complaints" | "design";
+type Tab = "home" | "train" | "call" | "kcall" | "voice" | "channels" | "customers" | "products" | "wallet" | "dash" | "bots" | "profile" | "deals" | "campaigns" | "appointments" | "brains" | "magic" | "mother" | "library" | "inbox" | "complaints" | "design";
 
-const NAV: [Tab, string][] = [["mother", "👑 العقل المدبر"], ["brains", "🏭 مصنع العقول"], ["magic", "✨ بنك الإلهام"], ["bots", "🤖 كتيبة البوتات"], ["profile", "🏪 هوية المتجر"], ["train", "🎯 أكاديمية التدريب"], ["call", "📞 قمرة المكالمات"], ["kcall", "📱 مكالمة المملكة"], ["voice", "🎙️ النبرة والصوتيات"], ["channels", "📡 رادار القنوات"], ["inbox", "💬 صندوق المحادثات"], ["library", "📚 خزينة الوسائط"], ["design", "🎨 استوديو التصاميم"], ["complaints", "📮 العناية بالعملاء"], ["customers", "👥 كبار العملاء"], ["campaigns", "📣 صانع الحملات"], ["deals", "👁️ رادار الصفقات"], ["appointments", "📅 المواعيد"], ["products", "🛍️ كتالوج المنتجات"], ["wallet", "💰 المحفظة"], ["dash", "📊 مؤشرات الأداء"]];
+const NAV: [Tab, string][] = [["home", "🏠 الرئيسية"], ["mother", "👑 العقل المدبر"], ["brains", "🏭 مصنع العقول"], ["magic", "✨ بنك الإلهام"], ["bots", "🤖 كتيبة البوتات"], ["profile", "🏪 هوية المتجر"], ["train", "🎯 علّم الموظفة"], ["call", "📞 المكالمة المباشرة"], ["kcall", "📱 مكالمة المملكة"], ["voice", "🎙️ النبرة والصوتيات"], ["channels", "📡 رادار القنوات"], ["inbox", "💬 صندوق المحادثات"], ["library", "📚 خزينة الوسائط"], ["design", "🎨 استوديو التصاميم"], ["complaints", "📮 العناية بالعملاء"], ["customers", "👥 كبار العملاء"], ["campaigns", "📣 صانع الحملات"], ["deals", "👁️ رادار الصفقات"], ["appointments", "📅 المواعيد"], ["products", "🛍️ كتالوج المنتجات"], ["wallet", "💰 المحفظة"], ["dash", "📊 مؤشرات الأداء"]];
+
+const HOME: [string, [string, string, string, string][]][] = [
+  ["🎙️ المكالمات والأصوات", [["kcall", "📱", "مكالمة المملكة", "سوالف حية وسلك الجوال"], ["call", "📞", "المكالمة المباشرة", "لوحة تحكم المكالمات"], ["studio", "🎤", "استوديو الأصوات", "استنساخ وتوليد النبرة"], ["voice", "🎙️", "النبرة والصوتيات", "موازين الصوت والمشاعر"]]],
+  ["💬 الواتساب والمحادثات", [["channels", "📲", "لوحة الواتسابات", "ربط الأرقام والتحكم بكل رقم"], ["inbox", "💬", "صندوق المحادثات", "رسائل الزبائن الحية"], ["deals", "👁️", "رادار الصفقات", "متابعة المهتمين"], ["complaints", "📮", "العناية بالعملاء", "الشكاوى والردود"]]],
+  ["🧠 العقول والتعليم", [["train", "🎯", "علّم الموظفة", "سؤال وجواب تحفظه للأبد"], ["brains", "🏭", "مصنع العقول", "أنشئ عقل بكلامك"], ["mother", "👑", "العقل المدبر", "إشراف وتحكم كامل"], ["magic", "✨", "بنك الإلهام", "ردود وسوالف جاهزة"], ["bots", "🤖", "كتيبة البوتات", "رفيقات السوالف"], ["library", "📚", "خزينة الوسائط", "صور وفويسات ومقاطع"]]],
+  ["🎨 التصميم والمتجر", [["design", "🎨", "استوديو التصاميم", "صور وتصاميم بناتية"], ["campaigns", "📣", "صانع الحملات", "رسائل جماعية"], ["products", "🛍️", "كتالوج المنتجات", "المنتجات والأسعار"], ["customers", "👥", "كبار العملاء", "قائمة الزبائن"], ["appointments", "📅", "المواعيد", "الحجوزات"], ["wallet", "💰", "المحفظة", "الرصيد والشحن"], ["profile", "🏪", "هوية المتجر", "الاسم والنبذة"], ["dash", "📊", "مؤشرات الأداء", "الأرقام والتقارير"]]],
+];
+
+const GUIDE: [string, string][] = [
+  ["🎧 مكالمة السلك", "اشبك السلك بين الجوالين ← افتح «مكالمة المملكة» ← شغّل زر 🎧 ← اضغط 📞 وخلها تسمع وترد."],
+  ["🎤 استنساخ الصوت", "سجّل أو ارفع مقطع واضح 15-30 ثانية بدون إزعاج ← اختر عام أو خاص ← «استنساخ وحفظ» ← اضغط «اختر»."],
+  ["📲 الواتساب", "افتح «لوحة الواتسابات» ← أضف رقم وصوّر الكود ← اضغط زر الرقم يفتح لوحته ← اختر الموظفة وشغّل الرد."],
+  ["🎯 تعليم الموظفة", "اكتب كلام الزبون وردك بلهجتك ← حفظ ← تطبّقه في المكالمة والواتس فوراً وما تنساه."],
+];
+
+function Home({ go }: { go: (k: string) => void }) {
+  return (
+    <div className="space-y-5">
+      <details className="rounded-2xl border bg-card p-4 shadow-soft" open>
+        <summary className="cursor-pointer font-display text-primary">📖 تعليمات وتسهيلات سريعة</summary>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {GUIDE.map(([t, d]) => (
+            <div key={t} className="rounded-xl bg-secondary p-3 text-sm text-secondary-foreground"><b className="block">{t}</b><span className="text-xs leading-relaxed">{d}</span></div>
+          ))}
+        </div>
+      </details>
+      {HOME.map(([g, items]) => (
+        <section key={g}>
+          <h2 className="mb-2 font-display text-lg text-primary">{g}</h2>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {items.map(([k, ic, n, d]) => (
+              <button key={k} onClick={() => go(k)}
+                className="flex min-h-[120px] flex-col items-center justify-center gap-1 rounded-2xl border bg-card p-3 text-center shadow-soft transition hover:border-primary active:scale-95">
+                <span className="text-4xl">{ic}</span>
+                <b className="text-sm">{n}</b>
+                <span className="text-[11px] leading-tight text-muted-foreground">{d}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
 
 function App() {
-  const [tab, setTab] = useState<Tab>("brains");
+  const [tab, setTab] = useState<Tab>("home");
   const [menu, setMenu] = useState(false);
   const [mode, setMode] = useState<Mode>("learn");
   const [rules, setRules] = useState<Rule[]>([]);
@@ -134,6 +178,8 @@ function App() {
         <p className="mb-4 rounded-xl bg-secondary px-3 py-2 text-xs sm:px-4 sm:text-sm text-secondary-foreground">
           {mode === "learn" ? "📘 الموظفة ترد فقط من اللي علمتها إياه (100% من قواعدك)." : "✨ الموظفة ترد من تعليمك، وتستخدم ذكاءها للأسئلة الجديدة."}
         </p>
+        {tab !== "home" && <button onClick={() => setTab("home")} className="mb-3 rounded-full border bg-card px-4 py-1.5 text-sm font-semibold shadow-soft">🏠 الرئيسية</button>}
+        {tab === "home" && <Home go={(k) => { if (k === "studio") navigate({ to: "/studio" }); else { setTab(k as Tab); if (k === "train") reload(store?.id); } }} />}
         {tab === "train" && <Training rules={rules} reload={() => reload(store?.id)} setRules={setRules} mode={mode} product={product} setProduct={setProduct} storeId={store?.id} />}
         {tab === "call" && <LiveCall rules={rules} reload={() => reload(store?.id)} mode={mode} product={product} storeId={store?.id} />}
         {tab === "kcall" && <KingdomCall rules={rules} reload={() => reload(store?.id)} mode={mode} product={product} storeId={store?.id} />}
