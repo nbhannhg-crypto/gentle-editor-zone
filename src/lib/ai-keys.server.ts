@@ -22,7 +22,7 @@ let cursor = 0;
 // Model fallback: if Google is busy (503/429/404) on one model, try the next — all free keys.
 // Fastest stable model first (~0.8s, also handles audio); 3.5-flash / flash-latest removed — constantly 429.
 // gemini-3.5-transcribe removed: always 429 on free keys and wrongly rested good keys for 60s.
-const GEMINI_MODELS = ["gemini-flash-lite-latest", "gemini-3.5-flash-lite"];
+const GEMINI_MODELS = ["gemini-3.5-flash", "gemini-flash-lite-latest", "gemini-3.5-flash-lite"];
 
 // Keys that got 429 on every model rest for 60s so other keys answer instantly instead of waiting.
 const resting = new Map<string, number>();
@@ -59,6 +59,7 @@ async function callGemini(key: string, system: string, prompt: string): Promise<
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: system }] },
       contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: { thinkingConfig: { thinkingBudget: 0 } },
     }),
   });
   if (!res.ok) {
