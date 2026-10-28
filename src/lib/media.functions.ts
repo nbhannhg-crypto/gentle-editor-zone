@@ -13,8 +13,8 @@ export const transcribeMedia = createServerFn({ method: "POST" })
     const { data: file, error } = await sb.storage.from("media-library").download(row.path);
     if (error || !file) throw new Error("تعذر قراءة الملف");
     let out = "";
-    const groqKey = process.env["GROQ_API_KEY"];
-    if (groqKey) {
+    const { groqTranscribe } = await import("./ai-keys.server");
+    {
       try {
         const mime = row.mime || "audio/webm";
         const ext = (mime.split("/")[1] || "webm").split(";")[0];
@@ -24,9 +24,8 @@ export const transcribeMedia = createServerFn({ method: "POST" })
         fd.append("language", "ar");
         fd.append("temperature", "0");
         fd.append("response_format", "json");
-        const r = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-          method: "POST", headers: { Authorization: `Bearer ${groqKey}` }, body: fd,
-        });
+        const r = await groqTranscribe(fd, 30000);
+        if (!r) throw new Error("no groq keys");
         if (r.ok) out = String(((await r.json()) as { text?: string }).text ?? "").trim();
         else console.error("groq media stt", r.status, (await r.text()).slice(0, 200));
       } catch (e) { console.error("groq media stt error", e); }
@@ -47,15 +46,14 @@ export const transcribeMedia = createServerFn({ method: "POST" })
 export const transcribeSample = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ audio: z.string().max(40_000_000) }).parse(d))
   .handler(async ({ data }) => {
-    const key = process.env["GROQ_API_KEY"];
-    if (!key) return { text: "" };
+    const { groqTranscribe } = await import("./ai-keys.server");
     const m = data.audio.match(/^data:([^;,]+)[^,]*,(.*)$/);
     if (!m) return { text: "" };
     const mime = m[1] ?? "audio/wav";
     const fd = new FormData();
     fd.append("file", new Blob([new Uint8Array(Buffer.from(m[2] ?? "", "base64"))], { type: mime }), `a.${(mime.split("/")[1] || "wav").split(";")[0]}`);
     fd.append("model", "whisper-large-v3"); fd.append("language", "ar"); fd.append("temperature", "0");
-    const r = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", { method: "POST", headers: { Authorization: `Bearer ${key}` }, body: fd });
-    if (!r.ok) return { text: "" };
+    const r = await groqTranscribe(fd, 30000);
+    if (!r || !r.ok) return { text: "" };
     return { text: String(((await r.json()) as { text?: string }).text ?? "").trim() };
   });
