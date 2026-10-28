@@ -1,3 +1,4 @@
+import { SiteGuideButton } from "@/components/SiteGuide";
 import { VoiceModelPicker } from "@/components/VoiceModelPicker";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { BalanceBadge } from "@/components/BalanceBadge";
@@ -74,24 +75,10 @@ const HOME: [string, [string, string, string, string][]][] = [
   ["🎨 التصميم والمتجر", [["design", "🎨", "استوديو التصاميم", "صور وتصاميم بناتية"], ["campaigns", "📣", "صانع الحملات", "رسائل جماعية"], ["products", "🛍️", "كتالوج المنتجات", "المنتجات والأسعار"], ["customers", "👥", "كبار العملاء", "قائمة الزبائن"], ["appointments", "📅", "المواعيد", "الحجوزات"], ["wallet", "💰", "المحفظة", "الرصيد والشحن"], ["profile", "🏪", "هوية المتجر", "الاسم والنبذة"], ["dash", "📊", "مؤشرات الأداء", "الأرقام والتقارير"]]],
 ];
 
-const GUIDE: [string, string][] = [
-  ["🎧 مكالمة السلك", "اشبك السلك بين الجوالين ← افتح «مكالمة المملكة» ← شغّل زر 🎧 ← اضغط 📞 وخلها تسمع وترد."],
-  ["🎤 استنساخ الصوت", "سجّل أو ارفع مقطع واضح 15-30 ثانية بدون إزعاج ← اختر عام أو خاص ← «استنساخ وحفظ» ← اضغط «اختر»."],
-  ["📲 الواتساب", "افتح «لوحة الواتسابات» ← أضف رقم وصوّر الكود ← اضغط زر الرقم يفتح لوحته ← اختر الموظفة وشغّل الرد."],
-  ["🎯 تعليم الموظفة", "اكتب كلام الزبون وردك بلهجتك ← حفظ ← تطبّقه في المكالمة والواتس فوراً وما تنساه."],
-];
-
 function Home({ go }: { go: (k: string) => void }) {
   return (
     <div className="space-y-5">
-      <details className="rounded-2xl border bg-card p-4 shadow-soft" open>
-        <summary className="cursor-pointer font-display text-primary">📖 تعليمات وتسهيلات سريعة</summary>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          {GUIDE.map(([t, d]) => (
-            <div key={t} className="rounded-xl bg-secondary p-3 text-sm text-secondary-foreground"><b className="block">{t}</b><span className="text-xs leading-relaxed">{d}</span></div>
-          ))}
-        </div>
-      </details>
+      <SiteGuideButton />
       {HOME.map(([g, items]) => (
         <section key={g}>
           <h2 className="mb-2 font-display text-lg text-primary">{g}</h2>
