@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { timingSafeEqual } from "crypto";
-import { aiReplyWith, bestRule, evoSend, fishTts, kingdomAutoReply, kingdomWelcome, markSeen, staffContext, mediaToText, numberAllowed, typingDelay, type AiOpts } from "@/lib/autoreply.server";
+import { aiReplyWith, bestRule, evoSend, fishTts, kingdomAutoReply, kingdomWelcome, markSeen, staffContext, mediaToText, numberAllowed, tidyReply, typingDelay, type AiOpts } from "@/lib/autoreply.server";
 import { staffAnswer } from "@/lib/staff";
 import { replyDelay } from "@/lib/wa-learn";
 import { CTRL_PREFIX, GENERAL_OR, cleanReply, ctrlPrompt, digits, listHas, parseCtrl } from "@/lib/wa-controls";
