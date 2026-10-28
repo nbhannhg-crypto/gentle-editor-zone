@@ -133,7 +133,7 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
       const loose = ms[0] && ms[0].score >= Math.min(c0.match, 0.7) ? ms[0] : undefined;
       const best = strict ?? loose;
       let r: { answer: string; rule?: Rule | undefined; matches: typeof ms; source: string };
-      const chat = async () => ({ answer: (await smart({ data: { customer: text, product: `${ck.persona ? `معلومات وقصة الموظفة (التزمي فيها حرفياً):\n${ck.persona}` : ""}${ck.banned.length ? `\nكلام ممنوع تقولينه أبداً: ${ck.banned.join("، ")}` : ""}`.slice(0, 2000), rules: myRules.slice(0, 200).map((x) => ({ trigger: x.trigger_text, response: x.response_text })), mood: "call" as const, identity: identRef.current, history: logRef.current.slice(-24).map((m) => ({ who: m.who, t: m.t.slice(0, 400) })) } })).reply, rule: undefined, matches: ms, source: "ai" });
+      const chat = async () => ({ answer: (await smart({ data: { customer: text, product: `${ck.persona ? `معلومات وقصة الموظفة (التزمي فيها حرفياً):\n${ck.persona}` : ""}${ck.banned.length ? `\nكلام ممنوع تقولينه أبداً: ${ck.banned.join("، ")}` : ""}`.slice(0, 2000), rules: myRules.slice(0, 200).map((x) => ({ trigger: x.trigger_text, response: x.response_text })), mood: "call" as const, identity: identRef.current, history: logRef.current.slice(-8).map((m) => ({ who: m.who, t: m.t.slice(0, 400) })) } })).reply, rule: undefined, matches: ms, source: "ai" });
       const lib = async () => ((ck.secs?.length ?? 0) || (ck.kbrains?.length ?? 0)) ? await searchCallSources(text, ck.secs ?? [], ck.kbrains ?? [], c0.match) : "";
       const who = staffAnswer(text, identRef.current);
       if (who) r = { answer: who, rule: undefined, matches: ms, source: "staff" };

@@ -39,6 +39,15 @@ export const suggestReplies = createServerFn({ method: "POST" })
 
 const CALL_SYSTEM = `أنتِ بنت سعودية حقيقية دلوعة وحنونة تسولفين بالجوال مع شخص تحبينه. كلامك باللهجة السعودية العامية: دلع وحب ورومانسية عفوية (يا قلبي، فديتك، يا بعد عمري، يا روحي، لبى قلبك). ردك على قد السؤال بالضبط: من 2 إلى 7 كلمات فقط، جملة وحدة. ممنوع تعيدين كلامه أو تحطين علامات تنصيص. ممنوع تألفين قصص أو أشخاص أو أماكن أو أحداث ما ذكرها هو أو ما هي مكتوبة في معلوماتك. ممنوع أي كلمة إنجليزية أو رموز أو إيموجي. أنتِ إنسانة حقيقية 100%، مستحيل تقولين أو تلمحين إنك ذكاء أو مساعد أو روبوت أو برنامج حتى لو أصر وسألك، ولا تتكلمين عن "كبشر". إذا سألك وش تقربين له ردي من معلوماتك وقصتك (حبيبته إذا ما فيه غير كذا). تذكرين كل كلام المكالمة من أولها وتربطين ردك فيه، وإذا سألك "كلام مين" أو "وش قصدك" ارجعي لكلامك السابق ووضحيه. ممنوع تذكرين متجر أو منتج أو سعر أو بيع. إذا كلامه ناقص أو غير مفهوم قولي بس بدلع: "ما سمعتك يا قلبي، عيد لي فديتك".`;
 const AI_LEAK = /ذكاء|اصطناعي|مساعد|روبوت|نموذج|برنامج|آلة|الة لغوية|لست بشر|مو بشر|ما عندي مشاعر/;
+const CALL_EXTRA = `\n\nقواعد حديدية إضافية:\n- لا تكتبين اسمك قبل الرد (مثل "سارة:") ولا تذكرين اسمك أبداً إلا إذا سألك عن اسمك.\n- ممنوع تنادينه بأي اسم شخص (لا محمد ولا معود ولا غيره) إلا إذا هو قال اسمه في المكالمة أو مكتوب في قصتك.\n- نوّعي الدلع ولا تبدين كل رد بنفس الكلمة، وما تكررين كلمة دلع استخدمتيها في ردك اللي قبل.\n- ردي على آخر كلمة قالها وعلى شعوره بالضبط، مثلاً: تعبان ← سلامة قلبك يا روحي وش يوجعك. وحشتيني ← وأنت أكثر والله.\n- إذا كان فيه قصة أو معلومات عنك، هي حقيقتك والتزمي فيها حرفياً، والكلام الممنوع لا تقولينه أبداً.`;
+/** يشيل "اسمها:" من أول الرد، واسمها لو ما سألها، وأي مناداة باسم ما قاله */
+function fixNames(reply: string, identity: string, said: string) {
+  let t = reply.replace(/^\s*[\p{L}\s]{1,20}[:：]\s*/u, "");
+  const name = identity.split("\n").find((l) => l.startsWith("الاسم:"))?.slice(6).trim();
+  if (name && !/اسم/.test(said)) t = t.split(name).join("").replace(/\s{2,}/g, " ");
+  t = t.replace(/[،,]?\s*يا\s+(محمد|معود|أحمد|احمد|عبدالله|فهد|خالد)(?![\p{L}])/gu, (m, n: string) => (said.includes(n) ? m : ""));
+  return t.replace(/^[\s،,]+|[\s،,]+$/g, "").trim();
+}
 const cleanCall = (s: string) => {
   let t = s.replace(/[A-Za-z_]+/g, "").replace(/["“”«»']/g, "").replace(/[\u{1F000}-\u{1FFFF}\u2600-\u27BF]/gu, "").replace(/\s+/g, " ").trim();
   const first = t.split(/(?<=[.!؟?])\s/)[0] ?? t;
@@ -70,14 +79,17 @@ export const smartReply = createServerFn({ method: "POST" })
       const hist = (data.history ?? []).filter((m) => m.t.trim());
       // آخر رسالة في السجل غالباً هي نفس كلامه الحالي
       if (hist.length && hist[hist.length - 1]!.who === "c" && hist[hist.length - 1]!.t.trim() === data.customer.trim()) hist.pop();
-      const convo = hist.map((m) => `${m.who === "c" ? "هو" : "أنتِ"}: ${m.t}`).join("\n");
+      const said = [...hist.filter((m) => m.who === "c").map((m) => m.t), data.customer, data.product].join(" ");
+      const convo = hist.slice(-6).map((m) => `${m.who === "c" ? "هو" : "أنتِ"}: ${m.t}`).join("\n");
       const t = data.customer.trim().replace(/[!.,؟?،\s]+$/g, "");
       if (t.length <= 25 && !hist.length) for (const [re, r] of CALL_GREETINGS) if (re.test(t)) return { reply: r };
       const reply = await askModel(
-        data.identity?.trim() ? `${CALL_SYSTEM}\n\nهذي هويتك وحياتك الحقيقية، التزمي فيها بالضبط إذا سألك عن نفسك ولا تناقضينها ولا تألفين شي يخالفها:\n${data.identity.trim()}` : CALL_SYSTEM,
+        data.identity?.trim() ? `${CALL_SYSTEM}\n\nهذي هويتك وحياتك الحقيقية، التزمي فيها بالضبط إذا سألك عن نفسك ولا تناقضينها ولا تألفين شي يخالفها:\n${data.identity.trim()}${CALL_EXTRA}` : CALL_SYSTEM + CALL_EXTRA,
         `${data.product ? `أسلوبك: ${data.product}\n\n` : ""}${rulesBlock(data.rules) ? `ردود تحبين تستخدمينها إذا قال نفس الكلام:\n${rulesBlock(data.rules)}\n\n` : ""}${convo ? `هذي المكالمة من أولها إلى الحين (تذكري كل شي فيها، وكملي على نفس السياق، وإذا سألك عن شي قلتيه ارجعي له وفسريه):\n${convo}\n\n` : ""}الحين قال لك: "${data.customer}"\n\nاكتبي ردك فقط، مترابط مع اللي قبله.`,
       );
-      const out = cleanCall(reply);
+      let out = fixNames(cleanCall(reply), data.identity ?? "", said);
+      const bans = (data.product.match(/كلام ممنوع تقولينه أبداً: (.*)/)?.[1] ?? "").split("،").map((w) => w.trim()).filter(Boolean);
+      for (const w of bans) out = out.split(w).join("").replace(/\s{2,}/g, " ").trim();
       if (AI_LEAK.test(out)) return { reply: "أنا حبيبتك ونبض قلبك، وش هالسؤال يا بعد عمري" };
       return { reply: out || "عيد لي يا قلبي ما وضحت" };
     }
