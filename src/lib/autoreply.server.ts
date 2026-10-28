@@ -97,6 +97,13 @@ export async function aiReplyWith(customer: string, context: string, o: AiOpts =
 export const cleanNum = (s: string) => s.replace(/\D/g, "");
 
 /** Empty list → everyone allowed. Otherwise exact or suffix match (country code). */
+/** ينظف رد الذكاء: يحذف التفكير المسرب <...>، الأرقام بين أقواس، ويأخذ رداً واحداً بدل دمج ردود بفواصل منقوطة. */
+export function tidyReply(s: string): string {
+  let t = (s || "").replace(/<[^>]*>?/g, " ").replace(/[<>]/g, " ").replace(/\(\s*\d+\s*\)/g, " ");
+  if ((t.match(/[;؛]/g) ?? []).length >= 2) t = t.split(/[;؛]/)[0]!;
+  return t.replace(/\s+/g, " ").trim();
+}
+
 export function numberAllowed(list: string | null | undefined, sender: string): boolean {
   const nums = (list ?? "").split(/[,\n،;]+/).map(cleanNum).filter((n) => n.length >= 5);
   if (!nums.length) return true;
