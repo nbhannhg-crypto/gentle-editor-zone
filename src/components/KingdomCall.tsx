@@ -155,7 +155,16 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
       if (evoOn.current && ctlRef.current.evoLearn && !r.rule && r.answer && r.source === "ai") {
         void addRule(text, r.answer, storeId).then(({ error }) => { if (!error) { toast.success("🧬 تعلّمت رد جديد"); void reload(); } });
       }
-    } catch (e) { toast.error((e as Error).message); }
+    } catch (e) {
+      const m = (e as Error).message || "";
+      // بدل إشعار «المفاتيح مشغولة» ترد الموظفة بدلع وتكمل المكالمة
+      if (/مشغول/.test(m) && liveRef.current) {
+        if (seq === replySeq.current) {
+          const say = ["ما سمعتك يا بعد عمري، عيد لي فديتك", "الصوت يقطع عندك يا روحي، وش قلت؟", "عيدها لي يا قلبي ما وضحت"][Math.floor(Math.random() * 3)]!;
+          setAnswer(say); if (ctlRef.current.autoSay) sayRef.current(say);
+        }
+      } else toast.error(m);
+    }
     setBusy(false);
   };
 
@@ -426,6 +435,11 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
           )}
         </div>
         {recording && live && <p className="pb-4 text-center text-xs text-rose-300">⏺️ جاري تسجيل المكالمة</p>}
+        <div className="mx-4 mb-4 rounded-xl bg-white/10 px-3 py-2 text-xs">
+          <div className="flex items-center justify-between"><span>⏱️ انتظار نهاية الجملة (السلك)</span><b dir="ltr">{(ctl.waitMs / 1000).toFixed(1)}s</b></div>
+          <input type="range" min={0} max={2000} step={100} value={ctl.waitMs} onChange={(e) => setCtl((c) => ({ ...c, waitMs: Number(e.target.value) }))} className="mt-1 w-full accent-primary" aria-label="توقيت انتظار الجملة" />
+          <div className="flex justify-between opacity-70"><span>⚡ أسرع</span><span>🐢 يكمل الجملة</span></div>
+        </div>
       </section>
 
       <section className="mt-4 rounded-2xl border bg-card p-3"><StaffSwitcher storeId={storeId} channel="call" />
