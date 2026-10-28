@@ -151,3 +151,24 @@ export async function geminiMedia(instruction: string, mimeType: string, base64:
   }
   return "";
 }
+
+// Groq Whisper rotation: GROQ_API_KEY plus GROQ_KEYS (comma/Arabic-comma separated).
+const groqCool = new Map<string, number>();
+let groqIdx = 0;
+export async function groqTranscribe(fd: FormData, timeoutMs = 8000): Promise<Response | null> {
+  const keys = [...new Set([process.env["GROQ_API_KEY"] ?? "", ...(process.env["GROQ_KEYS"] ?? "").split(/[,،;\s]+/)].map((k) => k.trim()).filter(Boolean))];
+  if (!keys.length) return null;
+  const now = Date.now();
+  const start = groqIdx++ % keys.length;
+  const order = keys.map((_, i) => keys[(start + i) % keys.length]!).sort((a, b) => (groqCool.get(a) ?? 0) > now ? 1 : (groqCool.get(b) ?? 0) > now ? -1 : 0);
+  let last: Response | null = null;
+  for (const k of order) {
+    try {
+      const r = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", { method: "POST", headers: { Authorization: `Bearer ${k}` }, body: fd, signal: AbortSignal.timeout(timeoutMs) });
+      if (r.ok) return r;
+      if (r.status === 429 || r.status === 401 || r.status === 403) { groqCool.set(k, Date.now() + 30_000); last = r; continue; }
+      return r;
+    } catch (e) { console.error("groq key error", e); }
+  }
+  return last;
+}

@@ -9,8 +9,8 @@ export const transcribeLive = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const vocab = (data.vocab ?? []).filter(Boolean).join("، ");
     // Primary: Groq Whisper Large-v3 (fast, literal). Fallback: Gemini.
-    const groqKey = process.env['GROQ_API_KEY'];
-    if (groqKey) {
+    const { groqTranscribe } = await import("./ai-keys.server");
+    {
       try {
         const bin = Uint8Array.from(atob(data.audio), (c) => c.charCodeAt(0));
         const mime = data.mime || "audio/webm";
@@ -24,12 +24,8 @@ export const transcribeLive = createServerFn({ method: "POST" })
         // Whisper treats the prompt as preceding speech, so give natural Saudi chat, not instructions.
         const base = "هلا والله، مساء الخير يا قلبي. مساء النور، كيفك؟ الحمد لله، وش مسوي؟ والله وحشتني. فديتك، أحبك.";
         fd.append("prompt", (base + (vocab ? " " + vocab : "")).slice(0, 400));
-        const r = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${groqKey}` },
-          body: fd,
-          signal: AbortSignal.timeout(8000),
-        });
+        const r = await groqTranscribe(fd, 8000);
+        if (!r) throw new Error("no groq keys");
         if (r.ok) {
           const j = (await r.json()) as { text?: string };
           const t = (j.text ?? "").trim();
