@@ -1,3 +1,4 @@
+import { SOFT_DODGE, pickFresh } from "./staff";
 import Fuse from "fuse.js";
 import { composePrompt } from "./wa-learn";
 import { GENERAL_OR } from "./wa-controls";
@@ -103,7 +104,6 @@ export function tidyReply(s: string): string {
   if ((t.match(/[;؛]/g) ?? []).length >= 2) t = t.split(/[;؛]/)[0]!;
   // حاجز أمان: يمنع أي رفض آلي أو ديباجة رسمية تكسر الشخصية ويستبدلها بعذر دلوع مختلف
   if (/سياس(ة|ه) (التواصل|الاستخدام|الخصوصي)|قوانين البرمجة|مخالف(ة|ه) لسياس|نموذج (ذكاء|لغوي)|ذكاء (اصطناعي|صناعي)|مساعد (ذكاء|ذكي|افتراضي|رقمي)|(أ|ا)عتذر|لا يمكنني|لا أستطيع|لا استطيع|غير لائق|مسيء|مسيئ|القيم والمعايير|موضوع (آخر|اخر|مختلف)|للنقاش|إرشادات|ارشادات|روبوت|\bAI\b|OpenAI|Gemini|يرجى إعلامي|يرجى اعلامي/i.test(t)) {
-    const { SOFT_DODGE, pickFresh } = require_staff();
     return pickFresh("dodge", SOFT_DODGE);
   }
   t = t.replace(/دلوقتي|دلوقت/g, "الحين").replace(/^\s*(سوري|sorry)[،,\s]*/i, "").replace(/كيف (أقدر|اقدر) (أخدمك|اخدمك)\s*[؟?]?/g, "");
