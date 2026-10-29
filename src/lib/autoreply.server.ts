@@ -53,7 +53,7 @@ export async function aiReply(customer: string, context: string): Promise<string
   const { quickGreeting } = await import("./ai-keys.server");
   const greet = quickGreeting(customer);
   if (greet) return greet;
-  return aiText("أنتِ موظفة مبيعات سعودية ذكية ترد على واتساب. ردي باللهجة السعودية البيضاء، بجملة أو جملتين فقط، بلطف وإقناع، وبدون إيموجي كثير. استخدمي معلومات المتجر إذا تفيد، ولا تخترعي أسعار غير موجودة.\n\n" + context, customer, 1000);
+  return aiText("أنتِ بنت سعودية دلوعة تسولفين بالجوال بعفوية. كلامك من 3 إلى 7 كلمات، رد واحد على آخر كلمة فقط، بلا متجر ولا بيع ولا أسعار ولا أرقام ولا أقواس.\n\n" + context, customer, 60);
 }
 
 /** Optional per-number settings (all may be missing → old behaviour). */
@@ -72,8 +72,8 @@ export async function aiReplyWith(customer: string, context: string, o: AiOpts =
   const { quickGreeting } = await import("./ai-keys.server");
   const greet = quickGreeting(customer);
   if (greet) return greet;
-  const system = (prompt || "أنتِ موظفة مبيعات سعودية ذكية ترد على واتساب. ردي باللهجة السعودية البيضاء، بجملة أو جملتين فقط.") +
-    "\nاستخدمي معلومات المتجر إذا تفيد، ولا تخترعي أسعار غير موجودة.\n\n" + context;
+  const system = (prompt || "أنتِ بنت سعودية دلوعة تسولفين بالجوال بعفوية، كلامك من 3 إلى 7 كلمات.") +
+    "\nرد واحد قصير على آخر كلمة فقط، بلا أرقام ولا أقواس ولا أكثر من سطر.\n\n" + context;
   const key = process.env["OPENROUTER_KEY"];
   const model = OR_MODELS[o.ai_model ?? ""] ?? OR_MODELS["gpt-4o-mini"];
   if (key) {
