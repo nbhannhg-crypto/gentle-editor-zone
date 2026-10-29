@@ -7,7 +7,14 @@ import { simliCreateFace, simliFaceStatus, simliToken, roomCreate, roomWatch, ro
 import { smartReply } from "@/lib/ai.functions";
 import { useSpeaker, loadVoice } from "@/components/VoiceStudio";
 import { getStudioVoice } from "@/lib/voice-model";
-import { toPcm16, sendPaced, export function LiveVideoCall({ rules = [], storeId, reload }: { rules?: Rule[]; storeId?: string | undefined; reload?: () => Promise<void> } = {}) {
+import { toPcm16, sendPaced, type SimliLike } from "@/lib/simli-talk";
+import { addRule, findMatches, type Rule } from "@/lib/rules";
+
+const FACE_KEY = "kingdom_simli_face";
+const DONE = /complete|success|done|ready|finished/i;
+const BAD = /fail|error/i;
+
+export function LiveVideoCall({ rules = [], storeId, reload }: { rules?: Rule[]; storeId?: string | undefined; reload?: () => Promise<void> } = {}) {
   const mkRoom = useServerFn(roomCreate);
   const watch = useServerFn(roomWatch);
   const pushFn = useServerFn(roomPush);
