@@ -101,6 +101,9 @@ export const cleanNum = (s: string) => s.replace(/\D/g, "");
 export function tidyReply(s: string): string {
   let t = (s || "").replace(/<[^>]*>?/g, " ").replace(/[<>]/g, " ").replace(/\(\s*\d+\s*\)/g, " ");
   if ((t.match(/[;؛]/g) ?? []).length >= 2) t = t.split(/[;؛]/)[0]!;
+  // يمنع عبارات الأنظمة الرسمية التي تكسر الشخصية
+  if (/سياس(ة|ه) (التواصل|الاستخدام|الخصوصي)|قوانين البرمجة|مخالف(ة|ه) لسياس|نموذج (ذكاء|لغوي)|ذكاء اصطناعي/.test(t)) return "يا بعد عمري أستحي، خلها بيني وبينك فديتك 🤍";
+  t = t.replace(/دلوقتي|دلوقت/g, "الحين").replace(/^\s*(سوري|sorry)[،,\s]*/i, "").replace(/كيف (أقدر|اقدر) (أخدمك|اخدمك)\s*[؟?]?/g, "");
   return t.replace(/\s+/g, " ").trim();
 }
 
