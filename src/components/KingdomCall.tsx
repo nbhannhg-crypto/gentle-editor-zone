@@ -394,7 +394,7 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
     <div className="mx-auto max-w-2xl">
       <details className="mb-4">
         <summary className="cursor-pointer rounded-xl bg-card p-3 text-center font-bold shadow">📹 مكالمة فيديو حية (صورة تتكلم)</summary>
-        <div className="mt-3"><LiveVideoCall /></div>
+        <div className="mt-3"><LiveVideoCall rules={rules} storeId={storeId} reload={reload} /></div>
       </details>
       {/* شاشة الاتصال */}
       <section className="overflow-hidden rounded-3xl bg-[#0b1220] text-white shadow-2xl">
