@@ -78,7 +78,7 @@ export function LiveVideoCall() {
   }, [faceId, faceState]);
 
   const upload = async (f: File) => {
-    if (f.size > 10_000_000) return toast.error("الصورة كبيرة، أقل من 10 ميجا");
+    if (f.size > 10_000_000) { toast.error("الصورة كبيرة، أقل من 10 ميجا"); return; }
     setUploading(true);
     try {
       const data = await new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = rej; r.readAsDataURL(f); });
