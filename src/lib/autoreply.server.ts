@@ -53,7 +53,7 @@ export async function aiReply(customer: string, context: string): Promise<string
   const { quickGreeting } = await import("./ai-keys.server");
   const greet = quickGreeting(customer);
   if (greet) return greet;
-  return aiText("أنتِ موظفة مبيعات سعودية ذكية ترد على واتساب. ردي باللهجة السعودية البيضاء، بجملة أو جملتين فقط، بلطف وإقناع، وبدون إيموجي كثير. استخدمي معلومات المتجر إذا تفيد، ولا تخترعي أسعار غير موجودة.\n\n" + context, customer, 1000);
+  return aiText("أنتِ بنت سعودية دلوعة تسولفين بالجوال بعفوية. كلامك من 3 إلى 7 كلمات، رد واحد على آخر كلمة فقط، بلا متجر ولا بيع ولا أسعار ولا أرقام ولا أقواس.\n\n" + context, customer, 200).then((t) => tidyReply(t.split("\n")[0]!));
 }
 
 /** Optional per-number settings (all may be missing → old behaviour). */
@@ -72,8 +72,8 @@ export async function aiReplyWith(customer: string, context: string, o: AiOpts =
   const { quickGreeting } = await import("./ai-keys.server");
   const greet = quickGreeting(customer);
   if (greet) return greet;
-  const system = (prompt || "أنتِ موظفة مبيعات سعودية ذكية ترد على واتساب. ردي باللهجة السعودية البيضاء، بجملة أو جملتين فقط.") +
-    "\nاستخدمي معلومات المتجر إذا تفيد، ولا تخترعي أسعار غير موجودة.\n\n" + context;
+  const system = (prompt || "أنتِ بنت سعودية دلوعة تسولفين بالجوال بعفوية، كلامك من 3 إلى 7 كلمات.") +
+    "\nرد واحد قصير على آخر كلمة فقط، بلا أرقام ولا أقواس ولا أكثر من سطر.\n\n" + context;
   const key = process.env["OPENROUTER_KEY"];
   const model = OR_MODELS[o.ai_model ?? ""] ?? OR_MODELS["gpt-4o-mini"];
   if (key) {
@@ -81,16 +81,16 @@ export async function aiReplyWith(customer: string, context: string, o: AiOpts =
       const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model, temperature: o.ai_temperature ?? 0.7, max_tokens: 600, messages: [{ role: "system", content: system }, { role: "user", content: customer }] }),
+        body: JSON.stringify({ model, temperature: o.ai_temperature ?? 0.7, max_tokens: 60, messages: [{ role: "system", content: system }, { role: "user", content: customer }] }),
       });
       if (res.ok) {
         const j = (await res.json()) as { choices?: { message?: { content?: string } }[] };
         const t = j.choices?.[0]?.message?.content?.trim();
-        if (t) return t.slice(0, 1000);
+        if (t) return tidyReply(t.split("\n")[0]!).slice(0, 200);
       }
     } catch (e) { console.error("custom model failed", e); }
   }
-  return aiText(system, customer, 1000);
+  return tidyReply((await aiText(system, customer, 200)).split("\n")[0]!);
 }
 
 /** Keep digits only. */
@@ -330,19 +330,20 @@ export async function staffContext(db: any, storeId?: string | null, instance = 
     const { staffKey, pickFor, identityText, staffPromptLine } = await import("./staff");
     const ch = (instance ? `wa:${instance}` : "wa") as `wa:${string}`;
     let roster: any = null;
+    let rosterStore: string | null = storeId ?? null;
     if (storeId) {
       const { data } = await db.from("training_rules").select("response_text").eq("trigger_text", staffKey(storeId)).limit(1).maybeSingle();
       if (data) roster = JSON.parse(data.response_text);
     } else if (instance) {
       // بدون متجر: نأخذ فقط الطاقم اللي صاحبه حدّد موظفة لهذا الرقم بالذات (ما نخلط حسابات المستخدمين)
-      const { data } = await db.from("training_rules").select("response_text").like("trigger_text", "call_staff:%").limit(500);
-      for (const r of (data ?? []) as any[]) { try { const j = JSON.parse(r.response_text); if (j?.ch?.[ch]) { roster = j; break; } } catch { /* ignore */ } }
+      const { data } = await db.from("training_rules").select("trigger_text, response_text").like("trigger_text", "call_staff:%").limit(500);
+      for (const r of (data ?? []) as any[]) { try { const j = JSON.parse(r.response_text); if (j?.ch?.[ch]) { roster = j; rosterStore = String(r.trigger_text).slice("call_staff:".length) || null; break; } } catch { /* ignore */ } }
     }
     const a = roster ? pickFor(roster, ch) : null;
     const who = a ? staffPromptLine(identityText(a)) : "";
     // 💗🚫👑 المربعات الأربعة (نفس مكالمة المملكة): خاص المتجر + العام من الملكة
     const boxes: { persona: string[]; banned: string[] } = { persona: [], banned: [] };
-    const keys = ["call_boxes:global", ...(storeId ? [`call_boxes:${storeId}`] : [])];
+    const keys = ["call_boxes:global", ...(rosterStore ? [`call_boxes:${rosterStore}`] : [])];
     const { data: bx } = await db.from("training_rules").select("response_text").in("trigger_text", keys).limit(5);
     for (const r of (bx ?? []) as any[]) {
       try { const j = JSON.parse(r.response_text); boxes.persona.push(...(j.persona ?? [])); boxes.banned.push(...(j.banned ?? [])); } catch { /* ignore */ }

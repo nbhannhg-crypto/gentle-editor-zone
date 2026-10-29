@@ -64,6 +64,11 @@ export const Route = createFileRoute("/api/public/evolution")({
         const msgId: string = d?.key?.id ?? "";
         // Accept direct chats only: @s.whatsapp.net, @c.us and @lid (groups/status ignored)
         if (!d || d.key?.fromMe || !msgId || !/@(s\.whatsapp\.net|c\.us|lid)$/.test(jid)) return ok();
+        // 🔒 نفس الرسالة توصل مرتين أحياناً — نرد عليها مرة وحدة بس
+        const g = globalThis as any; const seen: Map<string, number> = (g.__waSeen ??= new Map());
+        const dk = instance + ":" + msgId; const now = Date.now();
+        if (seen.has(dk) && now - seen.get(dk)! < 600000) return ok();
+        seen.set(dk, now); if (seen.size > 2000) for (const [k, t] of seen) if (now - t > 600000) seen.delete(k);
         const text: string = d.message?.conversation ?? d.message?.extendedTextMessage?.text ?? "";
         if (!text.trim()) return ok();
         // For WAHA reply to the exact chat id (works for @lid); Evolution uses plain number
