@@ -421,12 +421,15 @@ export function WaControls({ instance, myNumber = "" }: { instance: string; myNu
       <Dialog open={!!chat} onOpenChange={(o) => { if (!o) setChat(null); }}>
         <DialogContent className="max-h-[92vh] max-w-md overflow-y-auto">
           <DialogHeader><DialogTitle dir="ltr">💬 {chat && showNum(chat)}</DialogTitle></DialogHeader>
-          <div className="max-h-[45vh] space-y-1.5 overflow-y-auto rounded-lg bg-muted p-2">
+          <div ref={(el) => { if (el) requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; }); }} className="max-h-[45vh] space-y-1.5 overflow-y-auto rounded-lg bg-muted p-2">
             {history.map((m, i) => (
               <div key={i} className="space-y-1">
                 {m.t && <p className="w-fit max-w-[85%] rounded-xl bg-background p-2 text-sm">{m.t}</p>}
                 {m.r && <p className="mr-auto w-fit max-w-[85%] rounded-xl bg-primary p-2 text-sm text-primary-foreground">{m.r}</p>}
-                {m.t && !m.r && !m.me && <button className="text-xs underline" onClick={() => { setTeach({ n: m.n, t: m.t }); setAns(""); }}>💡 علّم الموظفة الرد</button>}
+                <div className="flex gap-1.5">
+                  {m.t && <button className="rounded-full bg-primary px-2.5 py-1 text-xs text-primary-foreground" onClick={() => { setTeach({ n: m.n, t: m.t }); setAns(m.r ?? ""); }}>💡 علّمها</button>}
+                  <button className="rounded-full border bg-background px-2.5 py-1 text-xs" onClick={() => update({ log: c.log.filter((x) => !(x.n === m.n && x.at === m.at && x.t === m.t && x.r === m.r)) }, true)}>🗑️ حذف</button>
+                </div>
               </div>
             ))}
           </div>
