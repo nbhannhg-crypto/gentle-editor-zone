@@ -17,6 +17,7 @@ import { applyCable, loadCable, saveCable } from "@/lib/cable-audio";
 import { searchCallSources } from "@/lib/call-brains";
 import { CallTranscript, type TMsg } from "@/components/CallTranscript";
 import { CallBoxes, loadGlobalBoxes } from "@/components/CallBoxes";
+import { LiveVideoCall } from "@/components/LiveVideoCall";
 
 type SR = any;
 type Msg = { who: "c" | "a"; t: string };
@@ -391,6 +392,10 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
 
   return (
     <div className="mx-auto max-w-2xl">
+      <details className="mb-4">
+        <summary className="cursor-pointer rounded-xl bg-card p-3 text-center font-bold shadow">📹 مكالمة فيديو حية (صورة تتكلم)</summary>
+        <div className="mt-3"><LiveVideoCall /></div>
+      </details>
       {/* شاشة الاتصال */}
       <section className="overflow-hidden rounded-3xl bg-[#0b1220] text-white shadow-2xl">
         <div className="flex flex-col items-center px-6 pt-8">
