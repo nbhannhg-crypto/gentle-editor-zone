@@ -11,3 +11,4 @@ test("tidy",()=>{expect(tidyReply("أحبك (23)؛ وأشتاق (17)؛ وأكث�
 test("رفض آلي يُستبدل",()=>{const r=tidyReply("أعتذر، لكن لا يمكنني تقديم محتوى غير لائق. كوني مساعد ذكاء صناعي");expect(SOFT_DODGE).toContain(r);});
 test("فيديو وهوية",()=>{expect(VIDEO_EXCUSES).toContain(staffAnswer("ارسلي فيديو",id));expect(IDENTITY_EXCUSES).toContain(staffAnswer("انت بنت يمنية",id));});
 test("الأعذار لا تتكرر متتالية",()=>{const a=staffAnswer("ارسلي صورتك",id),b=staffAnswer("ارسلي صورتك",id),c=staffAnswer("ارسلي صورتك",id);expect(new Set([a,b,c]).size).toBe(3);});
+test("تسريب القالب",()=>{expect(tidyReply('إذا قال "اي" يا عمري ما يهمك')).toBe("يا عمري ما يهمك");expect(tidyReply('اذا قال "أحبك والله" هتكون ردودك بالعامية مثل:')).toBe("يا بعد قلبي فديتك 🤍");expect(tidyReply("فديتك smiles smiles")).toBe("فديتك");expect(tidyReply("واحد اثنين ثلاثة اربعة خمسة ستة سبعة ثمانية تسعة عشرة").split(" ").length).toBe(8)});
