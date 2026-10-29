@@ -330,19 +330,20 @@ export async function staffContext(db: any, storeId?: string | null, instance = 
     const { staffKey, pickFor, identityText, staffPromptLine } = await import("./staff");
     const ch = (instance ? `wa:${instance}` : "wa") as `wa:${string}`;
     let roster: any = null;
+    let rosterStore: string | null = storeId;
     if (storeId) {
       const { data } = await db.from("training_rules").select("response_text").eq("trigger_text", staffKey(storeId)).limit(1).maybeSingle();
       if (data) roster = JSON.parse(data.response_text);
     } else if (instance) {
       // بدون متجر: نأخذ فقط الطاقم اللي صاحبه حدّد موظفة لهذا الرقم بالذات (ما نخلط حسابات المستخدمين)
-      const { data } = await db.from("training_rules").select("response_text").like("trigger_text", "call_staff:%").limit(500);
-      for (const r of (data ?? []) as any[]) { try { const j = JSON.parse(r.response_text); if (j?.ch?.[ch]) { roster = j; break; } } catch { /* ignore */ } }
+      const { data } = await db.from("training_rules").select("trigger_text, response_text").like("trigger_text", "call_staff:%").limit(500);
+      for (const r of (data ?? []) as any[]) { try { const j = JSON.parse(r.response_text); if (j?.ch?.[ch]) { roster = j; rosterStore = String(r.trigger_text).slice("call_staff:".length) || null; break; } } catch { /* ignore */ } }
     }
     const a = roster ? pickFor(roster, ch) : null;
     const who = a ? staffPromptLine(identityText(a)) : "";
     // 💗🚫👑 المربعات الأربعة (نفس مكالمة المملكة): خاص المتجر + العام من الملكة
     const boxes: { persona: string[]; banned: string[] } = { persona: [], banned: [] };
-    const keys = ["call_boxes:global", ...(storeId ? [`call_boxes:${storeId}`] : [])];
+    const keys = ["call_boxes:global", ...(rosterStore ? [`call_boxes:${rosterStore}`] : [])];
     const { data: bx } = await db.from("training_rules").select("response_text").in("trigger_text", keys).limit(5);
     for (const r of (bx ?? []) as any[]) {
       try { const j = JSON.parse(r.response_text); boxes.persona.push(...(j.persona ?? [])); boxes.banned.push(...(j.banned ?? [])); } catch { /* ignore */ }
