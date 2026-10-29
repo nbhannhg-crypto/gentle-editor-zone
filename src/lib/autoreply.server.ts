@@ -330,7 +330,7 @@ export async function staffContext(db: any, storeId?: string | null, instance = 
     const { staffKey, pickFor, identityText, staffPromptLine } = await import("./staff");
     const ch = (instance ? `wa:${instance}` : "wa") as `wa:${string}`;
     let roster: any = null;
-    let rosterStore: string | null = storeId;
+    let rosterStore: string | null = storeId ?? null;
     if (storeId) {
       const { data } = await db.from("training_rules").select("response_text").eq("trigger_text", staffKey(storeId)).limit(1).maybeSingle();
       if (data) roster = JSON.parse(data.response_text);
