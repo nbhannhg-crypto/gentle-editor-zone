@@ -17,6 +17,7 @@ import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedStudioRouteImport } from './routes/_authenticated/studio'
 import { Route as SStoreIdRouteImport } from './routes/s.$storeId'
+import { Route as VRoomIdRouteImport } from './routes/v.$roomId'
 import { Route as AuthenticatedAdminKingdomRouteImport } from './routes/_authenticated/admin_.kingdom'
 import { Route as ApiPublicApproveRouteImport } from './routes/api/public/approve'
 import { Route as ApiPublicEvolutionRouteImport } from './routes/api/public/evolution'
@@ -63,6 +64,11 @@ const SStoreIdRoute = SStoreIdRouteImport.update({
   path: '/s/$storeId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const VRoomIdRoute = VRoomIdRouteImport.update({
+  id: '/v/$roomId',
+  path: '/v/$roomId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedAdminKingdomRoute =
   AuthenticatedAdminKingdomRouteImport.update({
     id: '/admin_/kingdom',
@@ -103,6 +109,7 @@ export interface FileRoutesByFullPath {
   '/app': typeof AuthenticatedAppRoute
   '/studio': typeof AuthenticatedStudioRoute
   '/s/$storeId': typeof SStoreIdRoute
+  '/v/$roomId': typeof VRoomIdRoute
   '/admin/kingdom': typeof AuthenticatedAdminKingdomRoute
   '/api/public/approve': typeof ApiPublicApproveRoute
   '/api/public/evolution': typeof ApiPublicEvolutionRoute
@@ -118,6 +125,7 @@ export interface FileRoutesByTo {
   '/app': typeof AuthenticatedAppRoute
   '/studio': typeof AuthenticatedStudioRoute
   '/s/$storeId': typeof SStoreIdRoute
+  '/v/$roomId': typeof VRoomIdRoute
   '/admin/kingdom': typeof AuthenticatedAdminKingdomRoute
   '/api/public/approve': typeof ApiPublicApproveRoute
   '/api/public/evolution': typeof ApiPublicEvolutionRoute
@@ -135,6 +143,7 @@ export interface FileRoutesById {
   '/_authenticated/app': typeof AuthenticatedAppRoute
   '/_authenticated/studio': typeof AuthenticatedStudioRoute
   '/s/$storeId': typeof SStoreIdRoute
+  '/v/$roomId': typeof VRoomIdRoute
   '/_authenticated/admin_/kingdom': typeof AuthenticatedAdminKingdomRoute
   '/api/public/approve': typeof ApiPublicApproveRoute
   '/api/public/evolution': typeof ApiPublicEvolutionRoute
@@ -152,6 +161,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/studio'
     | '/s/$storeId'
+    | '/v/$roomId'
     | '/admin/kingdom'
     | '/api/public/approve'
     | '/api/public/evolution'
@@ -167,6 +177,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/studio'
     | '/s/$storeId'
+    | '/v/$roomId'
     | '/admin/kingdom'
     | '/api/public/approve'
     | '/api/public/evolution'
@@ -183,6 +194,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app'
     | '/_authenticated/studio'
     | '/s/$storeId'
+    | '/v/$roomId'
     | '/_authenticated/admin_/kingdom'
     | '/api/public/approve'
     | '/api/public/evolution'
@@ -197,6 +209,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SStoreIdRoute: typeof SStoreIdRoute
+  VRoomIdRoute: typeof VRoomIdRoute
   ApiPublicApproveRoute: typeof ApiPublicApproveRoute
   ApiPublicEvolutionRoute: typeof ApiPublicEvolutionRoute
   ApiPublicFactoryDailyRoute: typeof ApiPublicFactoryDailyRoute
@@ -260,6 +273,13 @@ declare module '@tanstack/react-router' {
       path: '/s/$storeId'
       fullPath: '/s/$storeId'
       preLoaderRoute: typeof SStoreIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/v/$roomId': {
+      id: '/v/$roomId'
+      path: '/v/$roomId'
+      fullPath: '/v/$roomId'
+      preLoaderRoute: typeof VRoomIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin_/kingdom': {
@@ -330,6 +350,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SStoreIdRoute: SStoreIdRoute,
+  VRoomIdRoute: VRoomIdRoute,
   ApiPublicApproveRoute: ApiPublicApproveRoute,
   ApiPublicEvolutionRoute: ApiPublicEvolutionRoute,
   ApiPublicFactoryDailyRoute: ApiPublicFactoryDailyRoute,

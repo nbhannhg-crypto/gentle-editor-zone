@@ -3,33 +3,32 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { simliCreateFace, simliFaceStatus, simliToken } from "@/lib/simli.functions";
+import { simliCreateFace, simliFaceStatus, simliToken, roomCreate, roomWatch, roomPush } from "@/lib/simli.functions";
 import { smartReply } from "@/lib/ai.functions";
-import { useSpeaker } from "@/components/VoiceStudio";
+import { useSpeaker, loadVoice } from "@/components/VoiceStudio";
+import { getStudioVoice } from "@/lib/voice-model";
+import { toPcm16, sendPaced, type SimliLike } from "@/lib/simli-talk";
+import { addRule, findMatches, type Rule } from "@/lib/rules";
 
 const FACE_KEY = "kingdom_simli_face";
 const DONE = /complete|success|done|ready|finished/i;
 const BAD = /fail|error/i;
 
-type SimliLike = { start: () => Promise<void>; stop: () => Promise<void>; sendAudioData: (d: Uint8Array) => void; ClearBuffer: () => void; on: (e: string, cb: (...a: unknown[]) => void) => void };
-
-/** يحوّل أي ملف صوت إلى PCM16 أحادي 16kHz اللي يحتاجه تحريك الشفايف */
-async function toPcm16(url: string): Promise<Uint8Array> {
-  const buf = await (await fetch(url)).arrayBuffer();
-  const Ctx = window.OfflineAudioContext;
-  const tmp = new AudioContext();
-  const decoded = await tmp.decodeAudioData(buf);
-  tmp.close();
-  const len = Math.ceil(decoded.duration * 16000);
-  const off = new Ctx(1, len, 16000);
-  const src = off.createBufferSource(); src.buffer = decoded; src.connect(off.destination); src.start();
-  const out = (await off.startRendering()).getChannelData(0);
-  const pcm = new Int16Array(out.length);
-  for (let i = 0; i < out.length; i++) { const s = Math.max(-1, Math.min(1, out[i] ?? 0)); pcm[i] = s < 0 ? s * 0x8000 : s * 0x7fff; }
-  return new Uint8Array(pcm.buffer);
-}
-
-export function LiveVideoCall() {
+export function LiveVideoCall({ rules = [], storeId, reload }: { rules?: Rule[]; storeId?: string | undefined; reload?: () => Promise<void> } = {}) {
+  const mkRoom = useServerFn(roomCreate);
+  const watch = useServerFn(roomWatch);
+  const pushFn = useServerFn(roomPush);
+  const [typed, setTyped] = useState("");
+  const [teachQ, setTeachQ] = useState("");
+  const [teachA, setTeachA] = useState("");
+  const [room, setRoom] = useState("");
+  const [roomLog, setRoomLog] = useState<{ who: "c" | "a"; t: string }[]>([]);
+  const [roomSnap, setRoomSnap] = useState("");
+  const [roomEnded, setRoomEnded] = useState(false);
+  const [roomSay, setRoomSay] = useState("");
+  const seqRef = useRef({ cur: 0 });
+  const rulesRef = useRef(rules);
+  useEffect(() => { rulesRef.current = rules; }, [rules]);
   const create = useServerFn(simliCreateFace);
   const status = useServerFn(simliFaceStatus);
   const getToken = useServerFn(simliToken);
@@ -97,11 +96,8 @@ export function LiveVideoCall() {
     setSaid(text); setLog((l) => [...l, { who: "a", t: text }]);
     const url = await tts(text);
     const pcm = await toPcm16(url);
-    c.ClearBuffer();
-    const CH = 6000;
-    for (let i = 0; i < pcm.length; i += CH) c.sendAudioData(pcm.subarray(i, i + CH));
-    // تقدير مدة الكلام عشان ما تسمع نفسها
-    await new Promise((r) => setTimeout(r, (pcm.length / 32000) * 1000 + 400));
+    // إرسال بتوقيت حقيقي = شفايف مطابقة للصوت
+    await sendPaced(c, pcm, () => liveRef.current, seqRef.current);
   };
 
   const onHeard = async (text: string) => {
@@ -110,9 +106,11 @@ export function LiveVideoCall() {
     setLog((l) => [...l, { who: "c", t: text }]);
     try { recRef.current?.stop(); } catch { /* ignore */ }
     try {
-      const { reply } = await smart({ data: { customer: text.slice(0, 1000), product: "", rules: [], mood: "call", history: logRef.current.slice(-4).map((m) => ({ who: m.who, t: m.t.slice(0, 400) })) } });
+      const hit = findMatches(text, rulesRef.current, 1)[0];
+      if (hit && hit.score >= 0.75) { if (liveRef.current) await speak(hit.rule.response_text); throw "done"; }
+      const { reply } = await smart({ data: { customer: text.slice(0, 1000), product: "", rules: rulesRef.current.slice(0, 60).map((r) => ({ trigger: r.trigger_text.slice(0, 500), response: r.response_text.slice(0, 2000) })), mood: "call", history: logRef.current.slice(-4).map((m) => ({ who: m.who, t: m.t.slice(0, 400) })) } });
       if (reply && liveRef.current) await speak(reply);
-    } catch (e) { toast.error((e as Error).message); }
+    } catch (e) { if (e !== "done") toast.error((e as Error).message); }
     busyRef.current = false;
     if (liveRef.current) { try { recRef.current?.start(); } catch { /* ignore */ } }
   };
@@ -158,6 +156,54 @@ export function LiveVideoCall() {
   };
   useEffect(() => () => end(), []);
 
+  // نطق جملة مكتوبة مباشرة (تقاطع أي كلام)
+  const sayNow = async (t: string) => {
+    if (!t.trim() || !clientRef.current) return;
+    seqRef.current.cur++;
+    busyRef.current = true;
+    try { recRef.current?.stop(); } catch { /* ignore */ }
+    try { await speak(t.trim()); } catch (e) { toast.error((e as Error).message); }
+    busyRef.current = false;
+    if (liveRef.current) { try { recRef.current?.start(); } catch { /* ignore */ } }
+  };
+  const teach = async (speakToo: boolean) => {
+    const q = teachQ.trim(), a = teachA.trim();
+    if (!a) { toast.error("اكتب الرد"); return; }
+    if (q) {
+      const { error } = await addRule(q, a, storeId);
+      if (error) toast.error("تعذر الحفظ"); else { toast.success("🧠 تعلّمته وانحفظ"); void reload?.(); }
+    }
+    if (speakToo) { if (room) await pushFn({ data: { id: room, text: a } }).catch(() => {}); else void sayNow(a); }
+    setTeachA(""); if (q) setTeachQ("");
+  };
+
+  const shareRoom = async () => {
+    if (!ready) { toast.error("جهّز الوجه أول"); return; }
+    try {
+      const v = loadVoice();
+      const { id } = await mkRoom({ data: {
+        faceId, storeId: storeId ?? null, preview: preview.length < 4000 ? preview : "",
+        voice: { voiceId: getStudioVoice() || v.voiceId, speed: v.speed, emotion: v.emotion },
+        rules: rules.slice(0, 200).map((r) => ({ trigger: r.trigger_text.slice(0, 500), response: r.response_text.slice(0, 2000) })),
+      } });
+      setRoom(id); setRoomLog([]); setRoomSnap(""); setRoomEnded(false);
+      const url = `${window.location.origin}/v/${id}`;
+      try { await navigator.clipboard.writeText(url); toast.success("🔗 انسخ الرابط — أرسله للشخص"); } catch { toast.success("الرابط جاهز تحت"); }
+    } catch (e) { toast.error((e as Error).message); }
+  };
+  useEffect(() => {
+    if (!room) return undefined;
+    let stop = false;
+    const tick = async () => {
+      try { const r = await watch({ data: { id: room } }); if (stop) return; setRoomLog(r.log); setRoomSnap(r.snap); setRoomEnded(r.ended); } catch { /* ignore */ }
+      if (!stop) setTimeout(tick, 2500);
+    };
+    void tick();
+    return () => { stop = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room]);
+  const roomUrl = room && typeof window !== "undefined" ? `${window.location.origin}/v/${room}` : "";
+
   return (
     <div className="space-y-4 rounded-2xl border border-border bg-card p-4">
       <div className="flex items-center justify-between gap-2">
@@ -201,9 +247,50 @@ export function LiveVideoCall() {
           <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg bg-muted p-2 text-xs">
             {log.map((m, i) => <div key={i} className={m.who === "a" ? "text-primary" : ""}>{m.who === "a" ? "هي: " : "أنت: "}{m.t}</div>)}
           </div>
+          <div className="flex gap-2">
+            <Input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="✍️ اكتب كلام الزبون — ترد عليه" onKeyDown={(e) => { if (e.key === "Enter" && typed.trim()) { void onHeard(typed.trim()); setTyped(""); } }} />
+            <Button variant="secondary" onClick={() => { if (typed.trim()) { void onHeard(typed.trim()); setTyped(""); } }}>أرسل</Button>
+          </div>
           <Button className="w-full" size="lg" variant="destructive" onClick={end}>⛔ إنهاء المكالمة</Button>
         </div>
       )}
+      <div className="space-y-2 rounded-xl border border-border bg-muted/40 p-3">
+        <p className="text-sm font-bold">🧠 علّمها / قوليه</p>
+        <Input value={teachQ} onChange={(e) => setTeachQ(e.target.value)} placeholder="لو قال الزبون… (اختياري للحفظ)" />
+        <Input value={teachA} onChange={(e) => setTeachA(e.target.value)} placeholder="ترد عليه بـ…" onKeyDown={(e) => { if (e.key === "Enter") void teach(true); }} />
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" disabled={!live && !room} onClick={() => void teach(true)}>🗣️ قوليه الحين{teachQ.trim() ? " + احفظ" : ""}</Button>
+          <Button size="sm" variant="secondary" disabled={!teachQ.trim()} onClick={() => void teach(false)}>💾 احفظ فقط</Button>
+        </div>
+        <p className="text-xs text-muted-foreground">الرد المتعلّم له أولوية: لو قال الزبون نفس الكلام ترد فيه فوراً.</p>
+      </div>
+
+      <div className="space-y-2 rounded-xl border border-primary/40 p-3">
+        <p className="text-sm font-bold">🔗 أرسل رابط مكالمة لشخص</p>
+        <p className="text-xs text-muted-foreground">يفتح الرابط من جواله، يرن عنده، يرد ويشوفها وتسمعه، وأنت تتابع وتتدخل من هنا. الرابط صالح 24 ساعة.</p>
+        <Button className="w-full" disabled={!ready} onClick={shareRoom}>{room ? "🔁 رابط جديد" : "🔗 أنشئ وانسخ الرابط"}</Button>
+        {room && (
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <Input readOnly value={roomUrl} className="text-xs" dir="ltr" />
+              <Button size="sm" variant="secondary" onClick={() => { void navigator.clipboard.writeText(roomUrl); toast.success("انسخ"); }}>نسخ</Button>
+              <Button size="sm" variant="secondary" onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(roomUrl)}`, "_blank")}>واتساب</Button>
+            </div>
+            <div className="flex gap-3">
+              {roomSnap ? <img src={roomSnap} alt="الزبون" className="h-24 w-20 rounded-lg object-cover" /> : <div className="flex h-24 w-20 items-center justify-center rounded-lg bg-muted text-xs">📷 بانتظار</div>}
+              <div className="max-h-40 flex-1 space-y-1 overflow-y-auto rounded-lg bg-muted p-2 text-xs">
+                {roomEnded && <p className="font-bold text-destructive">انتهت المكالمة</p>}
+                {roomLog.length === 0 && <p className="text-muted-foreground">لما يرد تظهر المحادثة هنا…</p>}
+                {roomLog.map((m, i) => <div key={i} className={m.who === "a" ? "text-primary" : ""}>{m.who === "a" ? "هي: " : "هو: "}{m.t}</div>)}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Input value={roomSay} onChange={(e) => setRoomSay(e.target.value)} placeholder="اكتب جملة تقولها له فوراً" onKeyDown={(e) => { if (e.key === "Enter" && roomSay.trim()) { void pushFn({ data: { id: room, text: roomSay.trim() } }); setRoomSay(""); } }} />
+              <Button size="sm" onClick={() => { if (roomSay.trim()) { void pushFn({ data: { id: room, text: roomSay.trim() } }); setRoomSay(""); toast.success("راحت"); } }}>🗣️ قوليه</Button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
