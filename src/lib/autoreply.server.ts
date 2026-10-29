@@ -53,7 +53,7 @@ export async function aiReply(customer: string, context: string): Promise<string
   const { quickGreeting } = await import("./ai-keys.server");
   const greet = quickGreeting(customer);
   if (greet) return greet;
-  return aiText("أنتِ بنت سعودية دلوعة تسولفين بالجوال بعفوية. كلامك من 3 إلى 7 كلمات، رد واحد على آخر كلمة فقط، بلا متجر ولا بيع ولا أسعار ولا أرقام ولا أقواس.\n\n" + context, customer, 60);
+  return aiText("أنتِ بنت سعودية دلوعة تسولفين بالجوال بعفوية. كلامك من 3 إلى 7 كلمات، رد واحد على آخر كلمة فقط، بلا متجر ولا بيع ولا أسعار ولا أرقام ولا أقواس.\n\n" + context, customer, 200).then((t) => tidyReply(t.split("\n")[0]!));
 }
 
 /** Optional per-number settings (all may be missing → old behaviour). */
@@ -81,16 +81,16 @@ export async function aiReplyWith(customer: string, context: string, o: AiOpts =
       const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model, temperature: o.ai_temperature ?? 0.7, max_tokens: 600, messages: [{ role: "system", content: system }, { role: "user", content: customer }] }),
+        body: JSON.stringify({ model, temperature: o.ai_temperature ?? 0.7, max_tokens: 60, messages: [{ role: "system", content: system }, { role: "user", content: customer }] }),
       });
       if (res.ok) {
         const j = (await res.json()) as { choices?: { message?: { content?: string } }[] };
         const t = j.choices?.[0]?.message?.content?.trim();
-        if (t) return t.slice(0, 1000);
+        if (t) return tidyReply(t.split("\n")[0]!).slice(0, 200);
       }
     } catch (e) { console.error("custom model failed", e); }
   }
-  return aiText(system, customer, 1000);
+  return tidyReply((await aiText(system, customer, 200)).split("\n")[0]!);
 }
 
 /** Keep digits only. */
