@@ -4,7 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const API = "https://api.simli.ai";
 function key() {
-  const k = process.env.SIMLI_API_KEY;
+  const k = process.env["SIMLI_API_KEY"];
   if (!k) throw new Error("مفتاح Simli غير مضاف");
   return k;
 }
@@ -20,9 +20,10 @@ export const simliCreateFace = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const m = data.image.match(/^data:(image\/\w+);base64,(.+)$/);
     if (!m) throw new Error("صيغة الصورة غير صحيحة");
-    const bytes = Uint8Array.from(atob(m[2]), (c) => c.charCodeAt(0));
+    const mime = m[1] ?? "image/jpeg";
+    const bytes = Uint8Array.from(atob(m[2] ?? ""), (c) => c.charCodeAt(0));
     const fd = new FormData();
-    fd.append("image", new Blob([bytes], { type: m[1] }), `face.${m[1].split("/")[1]}`);
+    fd.append("image", new Blob([bytes], { type: mime }), `face.${mime.split("/")[1] ?? "jpg"}`);
     const r = await fetch(`${API}/faces/trinity?face_name=${encodeURIComponent(data.name)}`, { method: "POST", headers: { "x-simli-api-key": key() }, body: fd });
     if (!r.ok) await fail(r);
     const j = (await r.json()) as { face_id: string; message?: string; dispatch_after?: number };

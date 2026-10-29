@@ -25,7 +25,7 @@ async function toPcm16(url: string): Promise<Uint8Array> {
   const src = off.createBufferSource(); src.buffer = decoded; src.connect(off.destination); src.start();
   const out = (await off.startRendering()).getChannelData(0);
   const pcm = new Int16Array(out.length);
-  for (let i = 0; i < out.length; i++) { const s = Math.max(-1, Math.min(1, out[i])); pcm[i] = s < 0 ? s * 0x8000 : s * 0x7fff; }
+  for (let i = 0; i < out.length; i++) { const s = Math.max(-1, Math.min(1, out[i] ?? 0)); pcm[i] = s < 0 ? s * 0x8000 : s * 0x7fff; }
   return new Uint8Array(pcm.buffer);
 }
 
@@ -62,7 +62,7 @@ export function LiveVideoCall() {
 
   // متابعة تجهيز الوجه
   useEffect(() => {
-    if (!faceId || DONE.test(faceState) || BAD.test(faceState) || faceState === "manual") return;
+    if (!faceId || DONE.test(faceState) || BAD.test(faceState) || faceState === "manual") return undefined;
     let stop = false;
     const tick = async () => {
       try {
