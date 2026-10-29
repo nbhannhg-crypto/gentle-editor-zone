@@ -59,7 +59,7 @@ export const simliToken = createServerFn({ method: "POST" })
 type RoomMsg = { who: "c" | "a"; t: string; at: number };
 type Room = {
   owner: string; faceId: string; storeId: string | null; preview: string;
-  voice: { voiceId?: string; speed?: number; emotion?: string }; rules: { trigger: string; response: string }[];
+  voice: { voiceId?: string | undefined; speed?: number | undefined; emotion?: string | undefined }; rules: { trigger: string; response: string }[];
   log: RoomMsg[]; push: { id: number; t: string } | null; ended: boolean; at: number; snap?: string;
 };
 const ROOM_TTL = 24 * 3600 * 1000;
