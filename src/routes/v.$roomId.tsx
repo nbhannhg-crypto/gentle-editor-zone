@@ -22,7 +22,7 @@ export const Route = createFileRoute("/v/$roomId")({
   component: RoomPage,
 });
 
-type Info = { preview: string; voice: Record<string, unknown>; rules: { trigger: string; response: string }[]; push: { id: number; t: string } | null; ended: boolean };
+type Info = { preview: string; voice: { voiceId?: string; speed?: number; emotion?: string }; rules: { trigger: string; response: string }[]; push: { id: number; t: string } | null; ended: boolean };
 
 function RoomPage() {
   const { roomId } = Route.useParams();

@@ -59,7 +59,7 @@ export const simliToken = createServerFn({ method: "POST" })
 type RoomMsg = { who: "c" | "a"; t: string; at: number };
 type Room = {
   owner: string; faceId: string; storeId: string | null; preview: string;
-  voice: Record<string, unknown>; rules: { trigger: string; response: string }[];
+  voice: { voiceId?: string; speed?: number; emotion?: string }; rules: { trigger: string; response: string }[];
   log: RoomMsg[]; push: { id: number; t: string } | null; ended: boolean; at: number; snap?: string;
 };
 const ROOM_TTL = 24 * 3600 * 1000;
@@ -84,7 +84,7 @@ export const roomCreate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({
     faceId: z.string().min(5).max(100), storeId: z.string().max(100).nullable(), preview: z.string().max(4000).default(""),
-    voice: z.record(z.string(), z.unknown()).default({}), rules: z.array(z.object({ trigger: z.string().max(500), response: z.string().max(2000) })).max(200).default([]),
+    voice: z.object({ voiceId: z.string().max(100).optional(), speed: z.number().optional(), emotion: z.string().max(40).optional() }).default({}), rules: z.array(z.object({ trigger: z.string().max(500), response: z.string().max(2000) })).max(200).default([]),
   }).parse(d))
   .handler(async ({ data, context }) => {
     const id = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => (b % 36).toString(36)).join("") + Date.now().toString(36);
