@@ -178,7 +178,7 @@ export const Route = createFileRoute("/api/public/evolution")({
               const qw = text.split(/\s+/).filter((w) => w.length > 2);
               const related = all.filter((r) => qw.some((w) => r.trigger_text.includes(w))).slice(0, 30);
               const pool = [...related, ...all.filter((r) => !related.includes(r)).slice(0, 40 - related.length)];
-              const ctx = "أنتِ بنت سعودية دلوعة تسولفين بعفوية، بلا متجر ولا منتجات ولا تسوق. ردي برد واحد قصير من 3 إلى 7 كلمات على آخر كلمة فقط، وممنوع دمج أكثر من رد أو كتابة أرقام أو أي تفكير.\nأمثلة لأسلوبك (اختاري واحداً يناسب أو ردي بمثله):\n" + pool.map((r) => `- إذا قال "${r.trigger_text}" → "${r.response_text}"`).join("\n");
+              const ctx = "أنتِ بنت سعودية دلوعة تسولفين بعفوية، بلا متجر ولا منتجات ولا تسوق. ردي برد واحد قصير من 3 إلى 8 كلمات على آخر كلمة فقط، وممنوع دمج أكثر من رد أو كتابة أرقام أو أي تفكير.\nممنوع نهائياً كتابة \"إذا قال\" أو \"الرد هو\" أو أي مقدمات أو كلمات إنجليزية، اكتبي الرد المباشر الذي يُقال للعميل في الجوال فقط.\nأمثلة لأسلوب كلامك ولهجتك الحلوة (اقتبسي من روحها وردي بكلماتك):\n" + pool.map((r) => `- ${r.response_text}`).join("\n");
               const sys = ctrlPrompt(ctrl);
               const who = await staffContext(db, null, instance);
               reply = await aiReplyWith(text, (who ? who + "\n\n" : "") + ctx, ({ ...(sys ? { system_prompt: sys } : {}), ...(ctrl.model ? { ai_model: ctrl.model } : {}) }) as AiOpts).catch(() => "");

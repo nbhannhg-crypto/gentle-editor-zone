@@ -102,6 +102,16 @@ export const cleanNum = (s: string) => s.replace(/\D/g, "");
 export function tidyReply(s: string): string {
   let t = (s || "").replace(/<[^>]*>?/g, " ").replace(/[<>]/g, " ").replace(/\(\s*\d+\s*\)/g, " ");
   if ((t.match(/[;؛]/g) ?? []).length >= 2) t = t.split(/[;؛]/)[0]!;
+  // منع تسريب قوالب التدريب
+  if (/هتكون ردودك|الرد المعتمد|بالعامية مثل|الرد هو|ردودك/.test(t)) return "يا بعد قلبي فديتك 🤍";
+  const lead = t.match(/^\s*(?:إذا|اذا|لو)\s+(?:قال|سأل|سال|كتب)\s*(?:["“«][^"”»]*["”»]|\S+)\s*(?:→|:|،|,)?\s*/u);
+  if (lead) {
+    t = t.slice(lead[0].length).replace(/^["“«\s]+|["”»\s]+$/g, "");
+    if (!t.trim()) return "يا بعد قلبي فديتك 🤍";
+  }
+  t = t.replace(/\b(smiles?|smiling|laughs?|wink|heart|blush(es)?|emoji)\b/gi, " ").replace(/[*_]+/g, " ").replace(/["“”«»]/g, "");
+  const w = t.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+  if (w.length > 8) t = w.slice(0, 8).join(" ");
   // حاجز أمان: يمنع أي رفض آلي أو ديباجة رسمية تكسر الشخصية ويستبدلها بعذر دلوع مختلف
   if (/سياس(ة|ه) (التواصل|الاستخدام|الخصوصي)|قوانين البرمجة|مخالف(ة|ه) لسياس|نموذج (ذكاء|لغوي)|ذكاء (اصطناعي|صناعي)|مساعد (ذكاء|ذكي|افتراضي|رقمي)|(أ|ا)عتذر|لا يمكنني|لا أستطيع|لا استطيع|غير لائق|مسيء|مسيئ|القيم والمعايير|موضوع (آخر|اخر|مختلف)|للنقاش|إرشادات|ارشادات|روبوت|\bAI\b|OpenAI|Gemini|يرجى إعلامي|يرجى اعلامي/i.test(t)) {
     return pickFresh("dodge", SOFT_DODGE);
