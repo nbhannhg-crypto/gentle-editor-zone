@@ -99,7 +99,7 @@ export const cleanNum = (s: string) => s.replace(/\D/g, "");
 
 /** Empty list → everyone allowed. Otherwise exact or suffix match (country code). */
 /** ينظف رد الذكاء: يحذف التفكير المسرب <...>، الأرقام بين أقواس، ويأخذ رداً واحداً بدل دمج ردود بفواصل منقوطة. */
-export function tidyReply(s: string): string {
+export function tidyReply(s: string, userText = ""): string {
   let t = (s || "").replace(/<[^>]*>?/g, " ").replace(/[<>]/g, " ").replace(/\(\s*\d+\s*\)/g, " ");
   if ((t.match(/[;؛]/g) ?? []).length >= 2) t = t.split(/[;؛]/)[0]!;
   // منع تسريب قوالب التدريب
@@ -117,6 +117,18 @@ export function tidyReply(s: string): string {
     return pickFresh("dodge", SOFT_DODGE);
   }
   t = t.replace(/دلوقتي|دلوقت/g, "الحين").replace(/^\s*(سوري|sorry)[،,\s]*/i, "").replace(/كيف (أقدر|اقدر) (أخدمك|اخدمك)\s*[؟?]?/g, "");
+  // 🚫 منع كلام المساعدة وخدمة العملاء والتسويق نهائياً
+  const SERVICE = /كيف (أ|ا)قدر (أ|ا)ساعدك|كيف (أ|ا)قدر (أ|ا)خدمك|شو ممكن (أ|ا)ساعدك|شو (أ|ا)قدر (أ|ا)ساعدك|(أ|ا)قدر (أ|ا)ساعدك|لخدمتك|خدمة العملاء|متجرنا|منتجاتنا|الطلب عندك/g;
+  if (SERVICE.test(t)) {
+    t = t.replace(SERVICE, " ").replace(/[؟?،,.!]+\s*$/u, "").replace(/\s+/g, " ").trim();
+    if (t.replace(/[^\p{L}]/gu, "").length < 3) return Math.random() < 0.5 ? "هلا بك يا بعدي 🌸" : "أمرني يا روحي";
+  }
+  // 📏 طول الرد على قد رسالته: رسالة قصيرة (1–3 كلمات) → رد 2–4 كلمات
+  const uw = userText.trim().split(/\s+/).filter(Boolean).length;
+  if (uw > 0 && uw <= 3) {
+    const rw = t.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+    if (rw.length > 4) t = rw.slice(0, 4).join(" ");
+  }
   return t.replace(/\s+/g, " ").trim();
 }
 
@@ -383,8 +395,8 @@ export async function staffContext(db: any, storeId?: string | null, instance = 
       try { const j = JSON.parse(r.response_text); boxes.persona.push(...(j.persona ?? [])); boxes.banned.push(...(j.banned ?? [])); } catch { /* ignore */ }
     }
     const extra = [
-      boxes.persona.length ? `معلومات وقصة الموظفة وتعليمات لازم تنفذينها حرفياً:\n- ${boxes.persona.join("\n- ")}` : "",
-      boxes.banned.length ? `كلام ممنوع تقولينه أبداً:\n- ${boxes.banned.join("\n- ")}` : "",
+      boxes.persona.length ? `أوامر قطعية — معلومات وقصة الموظفة وتعليمات لازم تنفذينها حرفياً:\n- ${boxes.persona.join("\n- ")}` : "",
+      boxes.banned.length ? `أوامر قطعية — كلام ممنوع تقولينه أبداً (لا تلميح ولا تحوير):\n- ${boxes.banned.join("\n- ")}` : "",
     ].filter(Boolean).join("\n\n");
     return [who, extra].filter(Boolean).join("\n\n");
   } catch { return ""; }
