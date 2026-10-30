@@ -117,6 +117,12 @@ export function tidyReply(s: string, userText = ""): string {
     return pickFresh("dodge", SOFT_DODGE);
   }
   t = t.replace(/دلوقتي|دلوقت/g, "الحين").replace(/^\s*(سوري|sorry)[،,\s]*/i, "").replace(/كيف (أقدر|اقدر) (أخدمك|اخدمك)\s*[؟?]?/g, "");
+  // 🚫 ممنوع كلام الروبوت اللي يأكد استلام الأوامر
+  if (/فهمت (المطلوب|التعليمات|الرغبات|الرغبه|الرغبة|القوانين|القانون|الأوامر|الاوامر|طلبك)|س(أ|ا)تبع|اتباع التعليمات|تطبيق التعليمات|حسب (التعليمات|الرغبة|الرغبه|طلبك)|وفق(اً|ا)? لل?تعليمات|كل اللي تحتاجه|التعليمات|القوانين|الرغبات/.test(t)) {
+    return pickFresh("obey", ["عيوني معك فديتك 🌸", "هلا بك يا بعدي 🤍", "أمرني يا روحي", "معك يا قلبي، وش عندك؟", "فديتك، اشتقت لك 🙈"]);
+  }
+  // 👨 يخاطب رجل: تصحيح المؤنث للمذكر + منع اسم «كوين»
+  t = t.replace(/حبيبتي/g, "حبيبي").replace(/نورتي/g, "نورت").replace(/(^|\s)(انتي|أنتي|إنتي)(?=\s|$|[،,.!؟?])/g, "$1انت").replace(/(^|\s)(أنتِ|انتِ)(?=\s|$|[،,.!؟?])/g, "$1انت").replace(/(معك|معاك|أنا|انا)\s+كوين/g, "معك حبيبتك").replace(/كوين/g, "");
   // 🚫 منع كلام المساعدة وخدمة العملاء والتسويق نهائياً
   const SERVICE = /كيف (أ|ا)قدر (أ|ا)ساعدك|كيف (أ|ا)قدر (أ|ا)خدمك|شو ممكن (أ|ا)ساعدك|شو (أ|ا)قدر (أ|ا)ساعدك|(أ|ا)قدر (أ|ا)ساعدك|لخدمتك|خدمة العملاء|متجرنا|منتجاتنا|الطلب عندك/g;
   if (SERVICE.test(t)) {
@@ -394,9 +400,13 @@ export async function staffContext(db: any, storeId?: string | null, instance = 
     for (const r of (bx ?? []) as any[]) {
       try { const j = JSON.parse(r.response_text); boxes.persona.push(...(j.persona ?? [])); boxes.banned.push(...(j.banned ?? [])); } catch { /* ignore */ }
     }
+    // اسم «كوين» القديم في المربعات ما يصير اسم لها: يتبدل باسم الموظفة أو ينشال
+    const nm = a?.name?.trim() ?? "";
+    const fix = (s: string) => s.replace(/["“«]?كوين["”»]?/g, nm || "").replace(/أنتِ\s*،/g, "أنتِ").trim();
+    const persona = [...new Set(boxes.persona.map(fix))].filter(Boolean);
     const extra = [
-      boxes.persona.length ? `أوامر قطعية — معلومات وقصة الموظفة وتعليمات لازم تنفذينها حرفياً:\n- ${boxes.persona.join("\n- ")}` : "",
-      boxes.banned.length ? `أوامر قطعية — كلام ممنوع تقولينه أبداً (لا تلميح ولا تحوير):\n- ${boxes.banned.join("\n- ")}` : "",
+      persona.length ? `عن نفسك وطبعك (عيشيها بدون ما تذكرينها):\n- ${persona.join("\n- ")}` : "",
+      boxes.banned.length ? `كلام ما تقولينه أبداً:\n- ${boxes.banned.join("\n- ")}` : "",
     ].filter(Boolean).join("\n\n");
     return [who, extra].filter(Boolean).join("\n\n");
   } catch { return ""; }
