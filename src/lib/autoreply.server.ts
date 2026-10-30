@@ -135,7 +135,24 @@ export function tidyReply(s: string, userText = ""): string {
     const rw = t.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
     if (rw.length > 4) t = rw.slice(0, 4).join(" ");
   }
-  return t.replace(/\s+/g, " ").trim();
+  return fixCut(t);
+}
+
+/** لا تترك الرد مبتوراً: يشيل الكلمات المعلقة بالنهاية مثل «يا / و / في / بس» والفواصل. */
+export function fixCut(s: string): string {
+  let w = s.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+  const DANGLE = /^(يا|و|في|على|بس|من|عن|الى|إلى|لين|اللي|عشان|مع|او|أو|ثم|لكن|ب|ل|ما|لا|وش|كيف)$/;
+  while (w.length > 1 && DANGLE.test(w[w.length - 1]!.replace(/[،,.!؟?]+$/u, ""))) w.pop();
+  return w.join(" ").replace(/[،,]+\s*$/u, "").trim();
+}
+
+/** تأخير متنوع طبيعي للردود: 2 ثم 4 ثم 10 ثم 5 ثواني ويعيد الدورة لكل رقم. */
+const DELAY_CYCLE = [2, 4, 10, 5];
+const delayIdx = new Map<string, number>();
+export function nextVariedDelay(key: string): number {
+  const i = delayIdx.get(key) ?? 0;
+  delayIdx.set(key, (i + 1) % DELAY_CYCLE.length);
+  return DELAY_CYCLE[i]!;
 }
 
 export function numberAllowed(list: string | null | undefined, sender: string): boolean {
