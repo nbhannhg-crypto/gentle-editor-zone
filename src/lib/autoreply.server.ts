@@ -364,7 +364,7 @@ export async function staffContext(db: any, storeId?: string | null, instance = 
       }
       if (!roster && !fallback) {
         // طاقم صاحب الرقم عبر إعدادات الرقم في المتجر
-        const { data: cfg } = await db.from("wa_settings").select("store_id").eq("instance_name", instance).limit(1).maybeSingle().then((x: any) => x, () => ({ data: null }));
+        const { data: cfg } = await db.from("wa_autoreply").select("store_id").eq("instance", instance).limit(1).maybeSingle();
         const sid = cfg?.store_id as string | undefined;
         if (sid) {
           const { data: rs } = await db.from("training_rules").select("response_text").eq("trigger_text", staffKey(sid)).limit(1).maybeSingle();
