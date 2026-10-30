@@ -343,7 +343,7 @@ export async function pageAll(q: (from: number, to: number) => any): Promise<{ d
 /** 👯 هوية الموظفة المناوبة (طاقم الموظفات) — تنضاف لسياق الرد التلقائي. */
 export async function staffContext(db: any, storeId?: string | null, instance = ""): Promise<string> {
   try {
-    const { staffKey, pickFor, identityText, staffPromptLine } = await import("./staff");
+    const { staffKey, pickFor, pickActive, identityText, staffPromptLine } = await import("./staff");
     const ch = (instance ? `wa:${instance}` : "wa") as `wa:${string}`;
     let roster: any = null;
     let rosterStore: string | null = storeId ?? null;
@@ -351,11 +351,29 @@ export async function staffContext(db: any, storeId?: string | null, instance = 
       const { data } = await db.from("training_rules").select("response_text").eq("trigger_text", staffKey(storeId)).limit(1).maybeSingle();
       if (data) roster = JSON.parse(data.response_text);
     } else if (instance) {
-      // بدون متجر: نأخذ فقط الطاقم اللي صاحبه حدّد موظفة لهذا الرقم بالذات (ما نخلط حسابات المستخدمين)
+      // بدون متجر: الأولوية للطاقم اللي حدد موظفة لهذا الرقم، وإلا طاقم صاحب الرقم (المرتبط بنفس الـ instance)
       const { data } = await db.from("training_rules").select("trigger_text, response_text").like("trigger_text", "call_staff:%").limit(500);
-      for (const r of (data ?? []) as any[]) { try { const j = JSON.parse(r.response_text); if (j?.ch?.[ch]) { roster = j; rosterStore = String(r.trigger_text).slice("call_staff:".length) || null; break; } } catch { /* ignore */ } }
+      let fallback: { j: any; store: string | null } | null = null;
+      for (const r of (data ?? []) as any[]) {
+        try {
+          const j = JSON.parse(r.response_text);
+          const st = String(r.trigger_text).slice("call_staff:".length) || null;
+          if (j?.ch?.[ch]) { roster = j; rosterStore = st; break; }
+          if (!fallback && j?.ch && Object.keys(j.ch).some((k) => k === ch || k.endsWith(`:${instance}`))) fallback = { j, store: st };
+        } catch { /* ignore */ }
+      }
+      if (!roster && !fallback) {
+        // طاقم صاحب الرقم عبر إعدادات الرقم في المتجر
+        const { data: cfg } = await db.from("wa_settings").select("store_id").eq("instance_name", instance).limit(1).maybeSingle().then((x: any) => x, () => ({ data: null }));
+        const sid = cfg?.store_id as string | undefined;
+        if (sid) {
+          const { data: rs } = await db.from("training_rules").select("response_text").eq("trigger_text", staffKey(sid)).limit(1).maybeSingle();
+          if (rs) fallback = { j: JSON.parse(rs.response_text), store: sid };
+        }
+      }
+      if (!roster && fallback) { roster = fallback.j; rosterStore = fallback.store; }
     }
-    const a = roster ? pickFor(roster, ch) : null;
+    const a = roster ? (pickFor(roster, ch) ?? pickActive(roster)) : null;
     const who = a ? staffPromptLine(identityText(a)) : "";
     // 💗🚫👑 المربعات الأربعة (نفس مكالمة المملكة): خاص المتجر + العام من الملكة
     const boxes: { persona: string[]; banned: string[] } = { persona: [], banned: [] };
