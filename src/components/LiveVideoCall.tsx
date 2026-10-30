@@ -9,6 +9,22 @@ import { useSpeaker, loadVoice } from "@/components/VoiceStudio";
 import { getStudioVoice } from "@/lib/voice-model";
 import { toPcm16, sendPaced, type SimliLike } from "@/lib/simli-talk";
 import { addRule, findMatches, type Rule } from "@/lib/rules";
+import { useIdentity, identityText } from "@/components/CallIdentity";
+import { loadCockpit, hitBanned, applyFixes } from "@/components/LiveCockpit";
+import { loadGlobalBoxes } from "@/components/CallBoxes";
+import { staffAnswer } from "@/lib/staff";
+
+/** الرابط العام المنشور — رابط المعاينة يطلب تسجيل دخول فما يفتح عند الزبون */
+const PUBLIC_ORIGIN = "https://gentle-editor-zone.lovable.app";
+
+/** نفس عقل مكالمة الملكة: قصة الموظفة + الممنوع (العام + الخاص) */
+function kingdomBrain() {
+  const ck0 = loadCockpit(); const gb = loadGlobalBoxes();
+  const persona = [...gb.persona, ck0.persona].filter(Boolean).join("\n");
+  const banned = [...gb.banned, ...ck0.banned];
+  const product = `${persona ? `معلومات وقصة الموظفة (التزمي فيها حرفياً):\n${persona}` : ""}${banned.length ? `\nكلام ممنوع تقولينه أبداً: ${banned.join("، ")}` : ""}`.slice(0, 2000);
+  return { ck: { ...ck0, persona, banned }, product };
+}
 
 const FACE_KEY = "kingdom_simli_face";
 const DONE = /complete|success|done|ready|finished/i;
@@ -33,6 +49,9 @@ export function LiveVideoCall({ rules = [], storeId, reload }: { rules?: Rule[];
   const status = useServerFn(simliFaceStatus);
   const getToken = useServerFn(simliToken);
   const smart = useServerFn(smartReply);
+  const ident = useIdentity(storeId, "call");
+  const identRef = useRef("");
+  identRef.current = identityText(ident.id);
   const tts = useSpeaker();
 
   const [faceId, setFaceId] = useState("");
@@ -106,9 +125,14 @@ export function LiveVideoCall({ rules = [], storeId, reload }: { rules?: Rule[];
     setLog((l) => [...l, { who: "c", t: text }]);
     try { recRef.current?.stop(); } catch { /* ignore */ }
     try {
+      const { ck, product } = kingdomBrain();
+      const who = staffAnswer(text, identRef.current);
+      if (who) { if (liveRef.current) await speak(who); throw "done"; }
       const hit = findMatches(text, rulesRef.current, 1)[0];
       if (hit && hit.score >= 0.75) { if (liveRef.current) await speak(hit.rule.response_text); throw "done"; }
-      const { reply } = await smart({ data: { customer: text.slice(0, 1000), product: "", rules: rulesRef.current.slice(0, 60).map((r) => ({ trigger: r.trigger_text.slice(0, 500), response: r.response_text.slice(0, 2000) })), mood: "call", history: logRef.current.slice(-4).map((m) => ({ who: m.who, t: m.t.slice(0, 400) })) } });
+      let { reply } = await smart({ data: { customer: text.slice(0, 1000), product, rules: rulesRef.current.slice(0, 200).map((r) => ({ trigger: r.trigger_text.slice(0, 500), response: r.response_text.slice(0, 2000) })), mood: "call", identity: identRef.current, history: logRef.current.slice(-8).map((m) => ({ who: m.who, t: m.t.slice(0, 400) })) } });
+      if (reply && hitBanned(reply, ck)) reply = "";
+      if (reply) reply = applyFixes(reply, ck);
       if (reply && liveRef.current) await speak(reply);
     } catch (e) { if (e !== "done") toast.error((e as Error).message); }
     busyRef.current = false;
@@ -181,13 +205,15 @@ export function LiveVideoCall({ rules = [], storeId, reload }: { rules?: Rule[];
     if (!ready) { toast.error("جهّز الوجه أول"); return; }
     try {
       const v = loadVoice();
+      const { product } = kingdomBrain();
       const { id } = await mkRoom({ data: {
         faceId, storeId: storeId ?? null, preview: preview.length < 4000 ? preview : "",
         voice: { voiceId: getStudioVoice() || v.voiceId, speed: v.speed, emotion: v.emotion },
         rules: rules.slice(0, 200).map((r) => ({ trigger: r.trigger_text.slice(0, 500), response: r.response_text.slice(0, 2000) })),
+        product, identity: identRef.current.slice(0, 3000),
       } });
       setRoom(id); setRoomLog([]); setRoomSnap(""); setRoomEnded(false);
-      const url = `${window.location.origin}/v/${id}`;
+      const url = `${PUBLIC_ORIGIN}/v/${id}`;
       try { await navigator.clipboard.writeText(url); toast.success("🔗 انسخ الرابط — أرسله للشخص"); } catch { toast.success("الرابط جاهز تحت"); }
     } catch (e) { toast.error((e as Error).message); }
   };
@@ -202,7 +228,7 @@ export function LiveVideoCall({ rules = [], storeId, reload }: { rules?: Rule[];
     return () => { stop = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room]);
-  const roomUrl = room && typeof window !== "undefined" ? `${window.location.origin}/v/${room}` : "";
+  const roomUrl = room ? `${PUBLIC_ORIGIN}/v/${room}` : "";
 
   return (
     <div className="space-y-4 rounded-2xl border border-border bg-card p-4">

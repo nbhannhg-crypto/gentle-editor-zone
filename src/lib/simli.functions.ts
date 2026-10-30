@@ -59,7 +59,7 @@ export const simliToken = createServerFn({ method: "POST" })
 type RoomMsg = { who: "c" | "a"; t: string; at: number };
 type Room = {
   owner: string; faceId: string; storeId: string | null; preview: string;
-  voice: { voiceId?: string | undefined; speed?: number | undefined; emotion?: string | undefined }; rules: { trigger: string; response: string }[];
+  voice: { voiceId?: string | undefined; speed?: number | undefined; emotion?: string | undefined }; rules: { trigger: string; response: string }[]; product?: string; identity?: string;
   log: RoomMsg[]; push: { id: number; t: string } | null; ended: boolean; at: number; snap?: string;
 };
 const ROOM_TTL = 24 * 3600 * 1000;
@@ -85,10 +85,11 @@ export const roomCreate = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({
     faceId: z.string().min(5).max(100), storeId: z.string().max(100).nullable(), preview: z.string().max(4000).default(""),
     voice: z.object({ voiceId: z.string().max(100).optional(), speed: z.number().optional(), emotion: z.string().max(40).optional() }).default({}), rules: z.array(z.object({ trigger: z.string().max(500), response: z.string().max(2000) })).max(200).default([]),
+    product: z.string().max(2000).default(""), identity: z.string().max(3000).default(""),
   }).parse(d))
   .handler(async ({ data, context }) => {
     const id = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => (b % 36).toString(36)).join("") + Date.now().toString(36);
-    const room: Room = { owner: context.userId, faceId: data.faceId, storeId: data.storeId, preview: data.preview, voice: data.voice, rules: data.rules, log: [], push: null, ended: false, at: Date.now() };
+    const room: Room = { owner: context.userId, faceId: data.faceId, storeId: data.storeId, preview: data.preview, voice: data.voice, rules: data.rules, product: data.product, identity: data.identity, log: [], push: null, ended: false, at: Date.now() };
     const db = await adminDb();
     const { error } = await db.from("training_rules").insert({ trigger_text: rk(id), response_text: JSON.stringify(room), category: "video_room", store_id: data.storeId });
     if (error) throw new Error("تعذر إنشاء الرابط");
@@ -122,7 +123,7 @@ export const roomGet = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ id: roomId }).parse(d))
   .handler(async ({ data }) => {
     const { room } = await readRoom(data.id);
-    return { preview: room.preview, voice: room.voice, rules: room.rules, push: room.push, ended: room.ended };
+    return { preview: room.preview, voice: room.voice, rules: room.rules, product: room.product ?? "", identity: room.identity ?? "", push: room.push, ended: room.ended };
   });
 
 /** صفحة الزبون: تذكرة الفيديو — المفتاح يبقى بالسيرفر */
