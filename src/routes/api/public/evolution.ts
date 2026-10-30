@@ -295,7 +295,7 @@ export const Route = createFileRoute("/api/public/evolution")({
           reply = tidyReply(reply, text);
           if (!reply) throw new Error("empty reply");
           await markSeen(instance, jid, msgId).catch(() => {});
-          await typingDelay(number, replyDelay(cfg.system_prompt), instance, useVoice ? "recording" : "composing");
+          await typingDelay(number, replyDelay(cfg.system_prompt) || nextVariedDelay(instance + ":" + number), instance, useVoice ? "recording" : "composing");
           const path = `/message/${useVoice ? "sendWhatsAppAudio" : "sendText"}/${encodeURIComponent(instance)}`;
           if (useVoice) await evoSend(path, { number, audio: libAudio ?? (await fishTts(reply)), encoding: true, ptt: true });
           else await evoSend(path, { number, text: reply });
