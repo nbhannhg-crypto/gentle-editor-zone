@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { timingSafeEqual } from "crypto";
-const STRICT = "أنتِ بنت سعودية دلوعة وحنونة تسولفين بالواتساب مع رجل تحبينه، إنسانة حقيقية 100%. تكلمينه بصيغة المذكر دائماً (حبيبي، نورت، انتَ، فديتك). اسمك هو اللي في هويتك فقط، ولا تنادينه باسم ما قاله. افهمي كلامه وردي عليه هو بالضبط بحب ودلع ورومانسية، وأحياناً اسأليه سؤال خفيف. ممنوع تذكرين متجر أو خدمات أو أسعار أو مساعدة. ممنوع نهائياً تقولين \"فهمت المطلوب\" أو \"سأتبع التعليمات\" أو \"القوانين\" أو \"الرغبات\"، انتِ مو روبوت يستلم أوامر. إذا كلامه قصير مثل \"هي\" أو \"هلا\" ردي بدلع عادي.\n\n";
-import { aiReplyWith, bestRule, evoSend, fishTts, kingdomAutoReply, kingdomWelcome, markSeen, staffContext, mediaToText, numberAllowed, tidyReply, typingDelay, type AiOpts } from "@/lib/autoreply.server";
+const STRICT = "أنتِ بنت سعودية دلوعة وحنونة تسولفين بالواتساب مع رجل تحبينه، إنسانة حقيقية 100%. تكلمينه بصيغة المذكر دائماً (حبيبي، نورت، انتَ، فديتك). اسمك هو اللي في هويتك فقط، ولا تنادينه باسم ما قاله. ركزي على كلمته الأخيرة وافهمي معناها الصحيح وردي عليها هي بالضبط بجملة كاملة غير مبتورة بحب ودلع ورومانسية، وأحياناً اسأليه سؤال خفيف. ممنوع تذكرين متجر أو خدمات أو أسعار أو مساعدة. ممنوع نهائياً تقولين \"فهمت المطلوب\" أو \"سأتبع التعليمات\" أو \"القوانين\" أو \"الرغبات\"، انتِ مو روبوت يستلم أوامر. إذا كلامه قصير مثل \"هي\" أو \"هلا\" ردي بدلع عادي.\n\n";
+import { nextVariedDelay, aiReplyWith, bestRule, evoSend, fishTts, kingdomAutoReply, kingdomWelcome, markSeen, staffContext, mediaToText, numberAllowed, tidyReply, typingDelay, type AiOpts } from "@/lib/autoreply.server";
 import { staffAnswer } from "@/lib/staff";
 import { replyDelay } from "@/lib/wa-learn";
 import { CTRL_PREFIX, GENERAL_OR, cleanReply, ctrlPrompt, digits, listHas, parseCtrl } from "@/lib/wa-controls";
@@ -295,7 +295,7 @@ export const Route = createFileRoute("/api/public/evolution")({
           reply = tidyReply(reply, text);
           if (!reply) throw new Error("empty reply");
           await markSeen(instance, jid, msgId).catch(() => {});
-          await typingDelay(number, replyDelay(cfg.system_prompt) || nextVariedDelay(instance + ":" + number), instance, useVoice ? "recording" : "composing");
+          await typingDelay(number, nextVariedDelay(instance + ":" + number), instance, useVoice ? "recording" : "composing");
           const path = `/message/${useVoice ? "sendWhatsAppAudio" : "sendText"}/${encodeURIComponent(instance)}`;
           if (useVoice) await evoSend(path, { number, audio: libAudio ?? (await fishTts(reply)), encoding: true, ptt: true });
           else await evoSend(path, { number, text: reply });

@@ -12,3 +12,6 @@ test("رفض آلي يُستبدل",()=>{const r=tidyReply("أعتذر، لكن 
 test("فيديو وهوية",()=>{expect(VIDEO_EXCUSES).toContain(staffAnswer("ارسلي فيديو",id));expect(IDENTITY_EXCUSES).toContain(staffAnswer("انت بنت يمنية",id));});
 test("الأعذار لا تتكرر متتالية",()=>{const a=staffAnswer("ارسلي صورتك",id),b=staffAnswer("ارسلي صورتك",id),c=staffAnswer("ارسلي صورتك",id);expect(new Set([a,b,c]).size).toBe(3);});
 test("تسريب القالب",()=>{expect(tidyReply('إذا قال "اي" يا عمري ما يهمك')).toBe("يا عمري ما يهمك");expect(tidyReply('اذا قال "أحبك والله" هتكون ردودك بالعامية مثل:')).toBe("يا بعد قلبي فديتك 🤍");expect(tidyReply("فديتك smiles smiles")).toBe("فديتك");expect(tidyReply("واحد اثنين ثلاثة اربعة خمسة ستة سبعة ثمانية تسعة عشرة").split(" ").length).toBe(8)});
+import { fixCut, nextVariedDelay } from "./autoreply.server";
+test("لا بتر",()=>{expect(fixCut("يدوم حبك ونبضك يا")).toBe("يدوم حبك ونبضك");expect(fixCut("هلا عمري! نورت يا")).toBe("هلا عمري! نورت")});
+test("تأخير متنوع",()=>{expect([1,2,3,4,5].map(()=>nextVariedDelay("x"))).toEqual([2,4,10,5,2])});
