@@ -21,8 +21,11 @@ export async function toPcm16(url: string): Promise<Uint8Array> {
   let a = 0; while (a < out.length && Math.abs(out[a] ?? 0) < TH) a++;
   let b = out.length - 1; while (b > a && Math.abs(out[b] ?? 0) < TH) b--;
   a = Math.max(0, a - 800); b = Math.min(out.length - 1, b + 1600); // هامش بسيط عشان ما ينقص أول حرف
+  // تضخيم ذكي: نرفع الصوت الهادئ لقمة ~0.95 عشان المحرك يفتح الفم طبيعي (بدون تشويه)
+  let peak = 0; for (let i = a; i <= b; i++) { const v = Math.abs(out[i] ?? 0); if (v > peak) peak = v; }
+  const gain = peak > 0.01 ? Math.min(4, 0.95 / peak) : 1;
   const pcm = new Int16Array(Math.max(0, b - a + 1));
-  for (let i = 0; i < pcm.length; i++) { const s = Math.max(-1, Math.min(1, out[a + i] ?? 0)); pcm[i] = s < 0 ? s * 0x8000 : s * 0x7fff; }
+  for (let i = 0; i < pcm.length; i++) { const s = Math.max(-1, Math.min(1, (out[a + i] ?? 0) * gain)); pcm[i] = s < 0 ? s * 0x8000 : s * 0x7fff; }
   return new Uint8Array(pcm.buffer);
 }
 

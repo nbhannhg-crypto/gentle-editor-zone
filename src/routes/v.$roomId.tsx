@@ -6,6 +6,7 @@ import { smartReply } from "@/lib/ai.functions";
 import { useSpeaker } from "@/components/VoiceStudio";
 import { makeRecognizer, sendPaced, toPcm16, type SimliLike, type SR } from "@/lib/simli-talk";
 import { normalize } from "@/lib/rules";
+import { staffAnswer } from "@/lib/staff";
 
 export const Route = createFileRoute("/v/$roomId")({
   head: () => ({
@@ -22,7 +23,7 @@ export const Route = createFileRoute("/v/$roomId")({
   component: RoomPage,
 });
 
-type Info = { preview: string; voice: { voiceId?: string | undefined; speed?: number | undefined; emotion?: string | undefined }; rules: { trigger: string; response: string }[]; push: { id: number; t: string } | null; ended: boolean };
+type Info = { preview: string; voice: { voiceId?: string | undefined; speed?: number | undefined; emotion?: string | undefined }; rules: { trigger: string; response: string }[]; product: string; identity: string; push: { id: number; t: string } | null; ended: boolean };
 
 function RoomPage() {
   const { roomId } = Route.useParams();
@@ -81,12 +82,13 @@ function RoomPage() {
     histRef.current = [...histRef.current, { who: "c" as const, t: text }].slice(-6);
     void append({ data: { id: roomId, msgs: [{ who: "c", t: text.slice(0, 600) }] } }).catch(() => {});
     const rules = infoRef.current?.rules ?? [];
+    const identity = infoRef.current?.identity ?? "";
     const n = normalize(text);
     const learned = rules.find((r) => { const t = normalize(r.trigger); return t && (n === t || (t.length > 3 && n.includes(t))); });
-    let reply = learned?.response ?? "";
+    let reply = staffAnswer(text, identity) || (learned?.response ?? "");
     if (!reply) {
       try {
-        const out = await smart({ data: { customer: text.slice(0, 1000), product: "", rules: rules.slice(0, 60), mood: "call", history: histRef.current.slice(-4).map((m) => ({ who: m.who, t: m.t.slice(0, 400) })) } });
+        const out = await smart({ data: { customer: text.slice(0, 1000), product: infoRef.current?.product ?? "", rules: rules.slice(0, 200), mood: "call", identity, history: histRef.current.slice(-8).map((m) => ({ who: m.who, t: m.t.slice(0, 400) })) } });
         reply = out.reply ?? "";
       } catch { reply = "لحظة حبيبي، ما سمعتك زين"; }
     }

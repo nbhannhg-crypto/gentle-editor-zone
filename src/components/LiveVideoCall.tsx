@@ -205,13 +205,15 @@ export function LiveVideoCall({ rules = [], storeId, reload }: { rules?: Rule[];
     if (!ready) { toast.error("جهّز الوجه أول"); return; }
     try {
       const v = loadVoice();
+      const { product } = kingdomBrain();
       const { id } = await mkRoom({ data: {
         faceId, storeId: storeId ?? null, preview: preview.length < 4000 ? preview : "",
         voice: { voiceId: getStudioVoice() || v.voiceId, speed: v.speed, emotion: v.emotion },
         rules: rules.slice(0, 200).map((r) => ({ trigger: r.trigger_text.slice(0, 500), response: r.response_text.slice(0, 2000) })),
+        product, identity: identRef.current.slice(0, 3000),
       } });
       setRoom(id); setRoomLog([]); setRoomSnap(""); setRoomEnded(false);
-      const url = `${window.location.origin}/v/${id}`;
+      const url = `${PUBLIC_ORIGIN}/v/${id}`;
       try { await navigator.clipboard.writeText(url); toast.success("🔗 انسخ الرابط — أرسله للشخص"); } catch { toast.success("الرابط جاهز تحت"); }
     } catch (e) { toast.error((e as Error).message); }
   };
@@ -226,7 +228,7 @@ export function LiveVideoCall({ rules = [], storeId, reload }: { rules?: Rule[];
     return () => { stop = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room]);
-  const roomUrl = room && typeof window !== "undefined" ? `${window.location.origin}/v/${room}` : "";
+  const roomUrl = room ? `${PUBLIC_ORIGIN}/v/${room}` : "";
 
   return (
     <div className="space-y-4 rounded-2xl border border-border bg-card p-4">
