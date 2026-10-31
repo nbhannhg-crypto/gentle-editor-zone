@@ -45,6 +45,7 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
   const [interim, setInterim] = useState("");
   const [customer, setCustomer] = useState("");
   const [typed, setTyped] = useState("");
+  const [quickSay, setQuickSay] = useState("");
   const [answer, setAnswer] = useState("");
   const [alts, setAlts] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
