@@ -519,6 +519,15 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
         </div>
       )}
 
+      {/* نطق فوري بدون حفظ كقاعدة */}
+      {live && (
+        <div className="mt-2 flex gap-2">
+          <Input value={quickSay} onChange={(e) => setQuickSay(e.target.value)} placeholder="اكتب كلمة — تنطقها فوراً (بدون حفظ كقاعدة)…"
+            onKeyDown={(e) => { if (e.key === "Enter" && quickSay.trim()) { void say(quickSay.trim()); setQuickSay(""); } }} />
+          <Button onClick={() => { if (quickSay.trim()) { void say(quickSay.trim()); setQuickSay(""); } }}>🗣️ انطقي فوراً</Button>
+        </div>
+      )}
+
       {/* رد الموظفة */}
       {live && customer && (
         <section className="mt-4 rounded-2xl bg-royal p-5 text-primary-foreground shadow-soft">
