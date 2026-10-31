@@ -45,6 +45,7 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
   const [interim, setInterim] = useState("");
   const [customer, setCustomer] = useState("");
   const [typed, setTyped] = useState("");
+  const [quickSay, setQuickSay] = useState("");
   const [answer, setAnswer] = useState("");
   const [alts, setAlts] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -516,6 +517,15 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
           <select value={emotion} onChange={(e) => setEmotion(e.target.value)} className="rounded-md border bg-background px-2 text-sm" aria-label="المشاعر">
             {EMOTIONS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
           </select>
+        </div>
+      )}
+
+      {/* نطق فوري بدون حفظ كقاعدة */}
+      {live && (
+        <div className="mt-2 flex gap-2">
+          <Input value={quickSay} onChange={(e) => setQuickSay(e.target.value)} placeholder="اكتب كلمة — تنطقها فوراً (بدون حفظ كقاعدة)…"
+            onKeyDown={(e) => { if (e.key === "Enter" && quickSay.trim()) { void say(quickSay.trim()); setQuickSay(""); } }} />
+          <Button onClick={() => { if (quickSay.trim()) { void say(quickSay.trim()); setQuickSay(""); } }}>🗣️ انطقي فوراً</Button>
         </div>
       )}
 
