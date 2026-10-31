@@ -131,13 +131,13 @@ export function LiveStudio() {
     if (e.type === "comment") {
       if (!a.comments) return; const t = (e.text ?? "").trim();
       if (t.length < f.minLen || (f.noLinks && /https?:|www\./.test(t)) || (f.onlyQ && !/[؟?]|وش|كيف|ليش|متى|وين|مين|هل/.test(t)) || f.banned.some((b) => b && t.includes(b))) return;
-      cds.current.set(cdKey, now); void ai(`💬 ${e.user}`, `${e.user} كتب في التعليقات: ${t}. ردي عليه.`); return;
+      cds.current.set(cdKey, now); void ai(`💬 ${e.user}`, `${e.user} كتب في التعليقات: ${t}. ردي عليه بكلمات قليلة ودلع.`); return;
     }
     if (e.type === "like") { if (!a.likes) return; const c = (likes.current.get(e.user) ?? 0) + (e.count ?? 1); if (c < a.likeTh) { likes.current.set(e.user, c); return; } likes.current.set(e.user, 0); }
     const on = { gift: a.gifts, follow: a.follows, like: a.likes, join: a.joins, share: a.shares }[e.type as Exclude<EvType, "comment">];
     if (!on) return; cds.current.set(cdKey, now);
     const tpl = fill(st.tpl[e.type as keyof S["tpl"]], e);
-    if (a.ai) void ai(`${ICON[e.type]} ${e.user}`, `حدث في البث: ${tpl}. علّقي برد قصير ودافئ.`); else enqueue(`${ICON[e.type]} ${e.user}`, tpl);
+    if (a.ai) void ai(`${ICON[e.type]} ${e.user}`, `حدث في البث: ${tpl}. علّقي برد قصير جداً بدلع سعودي.`); else enqueue(`${ICON[e.type]} ${e.user}`, tpl);
   };
   const handleRef = useRef(handle); handleRef.current = handle;
 
