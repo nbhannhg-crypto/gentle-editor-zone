@@ -105,7 +105,11 @@ export function LiveStudio() {
     if (!text.trim()) return;
     setQueue((q) => { const it: QItem = { id: uid(), label, text, status: "ready" }; const base = q.length >= sRef.current.filters.maxQ ? q.slice(0, -1) : q; return front ? [it, ...base] : [...base, it]; });
   };
-  const identity = () => { const p = sRef.current.persona; return `اسمك ${p.name}، ${p.role}. شخصيتك: ${p.personality}. لهجتك: ${p.dialect}. أنتِ تتكلمين على الهواء في بث مباشر أمام الحضور، ردك جملة أو جملتين قصيرة بدون إيموجي، ولا تكررين: ${recent.current.join(" | ")}. ${p.rules ? `قواعد صاحب البث: ${p.rules}` : ""}`; };
+  const identity = () => { const p = sRef.current.persona; return `اسمك ${p.name}، ${p.role}. شخصيتك: ${p.personality}. لهجتك: ${p.dialect}.
+أنتِ بنت سعودية حقيقية 100% فاتحة لايف تيك توك وتسولفين مع متابعينك بدلع وأنوثة وعفوية (فديتكم، لبى قلبك، نورت اللايف، يا بعد عمري، تسلم لي). مستحيل تقولين أو تلمحين إنك ذكاء اصطناعي أو بوت أو برنامج أو نظام حتى لو استفزوك؛ إذا سألوا قولي بدلع إنك بنت وتضحكين.
+ردك قصير جداً من 3 إلى 8 كلمات كأنه كلام لايف طبيعي، تردين على نفس كلامه بالضبط، ولا تألفين أسماء غير اسم صاحب التعليق، ولا تذكرين خدمات أو مساعدة أو متجر أو أسعار، وبدون إيموجي ولا أرقام ولا شرح.
+الهدية: اشكري صاحبها باسمه بحماس ودلع. الدخول: رحبي فيه باسمه بدفء. اللايكات: حمسيهم يكبسون بعفوية.
+لا تكررين هذي الردود: ${recent.current.join(" | ")}. ${p.rules ? `قوانين صاحب البث (التزمي فيها حرفياً، الممنوع ممنوع والمسموح مسموح): ${p.rules}` : ""}`; };
   const ai = async (label: string, prompt: string, front = false) => {
     const id = uid();
     setQueue((q) => [...(front ? [] : q), { id, label, text: "", status: "thinking" as const }, ...(front ? q : [])]);
@@ -127,13 +131,13 @@ export function LiveStudio() {
     if (e.type === "comment") {
       if (!a.comments) return; const t = (e.text ?? "").trim();
       if (t.length < f.minLen || (f.noLinks && /https?:|www\./.test(t)) || (f.onlyQ && !/[؟?]|وش|كيف|ليش|متى|وين|مين|هل/.test(t)) || f.banned.some((b) => b && t.includes(b))) return;
-      cds.current.set(cdKey, now); void ai(`💬 ${e.user}`, `${e.user} كتب في التعليقات: ${t}. ردي عليه.`); return;
+      cds.current.set(cdKey, now); void ai(`💬 ${e.user}`, `${e.user} كتب في التعليقات: ${t}. ردي عليه بكلمات قليلة ودلع.`); return;
     }
     if (e.type === "like") { if (!a.likes) return; const c = (likes.current.get(e.user) ?? 0) + (e.count ?? 1); if (c < a.likeTh) { likes.current.set(e.user, c); return; } likes.current.set(e.user, 0); }
     const on = { gift: a.gifts, follow: a.follows, like: a.likes, join: a.joins, share: a.shares }[e.type as Exclude<EvType, "comment">];
     if (!on) return; cds.current.set(cdKey, now);
     const tpl = fill(st.tpl[e.type as keyof S["tpl"]], e);
-    if (a.ai) void ai(`${ICON[e.type]} ${e.user}`, `حدث في البث: ${tpl}. علّقي برد قصير ودافئ.`); else enqueue(`${ICON[e.type]} ${e.user}`, tpl);
+    if (a.ai) void ai(`${ICON[e.type]} ${e.user}`, `حدث في البث: ${tpl}. علّقي برد قصير جداً بدلع سعودي.`); else enqueue(`${ICON[e.type]} ${e.user}`, tpl);
   };
   const handleRef = useRef(handle); handleRef.current = handle;
 
