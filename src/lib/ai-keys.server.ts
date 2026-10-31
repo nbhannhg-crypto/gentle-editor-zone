@@ -97,14 +97,18 @@ async function callOpenRouter(system: string, prompt: string): Promise<string | 
  */
 export async function getAIResponse(system: string, prompt: string, fast = false): Promise<string | null> {
   const keys = geminiKeys();
-  // Fast mode (live calls): race 3 Gemini keys + Groq together, first answer wins.
+  // Fast mode (live calls): Gemini keys race first; Groq only joins after 1.8s as a backup
+  // (Allam used to win the race and produced robotic/formal replies).
   if (fast) {
     const batch = keys.length ? Array.from({ length: Math.min(3, keys.length) }, () => keys[cursor++ % keys.length]!) : [];
     try {
-      return await Promise.any([
+      const out = await Promise.any([
         ...batch.map(async (k) => { const r = await callGemini(k, system, prompt); if (r.ok) return r.text; throw new Error("fail"); }),
-        callGroqChat(system, prompt).then((g) => { if (g) return g; throw new Error("fail"); }),
+        new Promise<string>((res, rej) => setTimeout(() => {
+          callGroqChat(system, prompt).then((g) => (g ? res(g) : rej(new Error("fail"))), rej);
+        }, batch.length ? 1800 : 0)),
       ]);
+      return cleanReply(out);
     } catch { /* fall through to normal rotation */ }
   }
   // Race 3 keys at a time: first good answer wins, so one slow/busy key never blocks the call.
@@ -121,6 +125,15 @@ export async function getAIResponse(system: string, prompt: string, fast = false
   const g = await callGroqChat(system, prompt).catch(() => null);
   if (g) return g;
   try { return await callOpenRouter(system, prompt); } catch { return null; }
+}
+
+/** Strips robotic prefixes/quotes that backup models add (e.g. "ردي:", quotes). */
+export function cleanReply(t: string): string {
+  return t
+    .replace(/<think>[\s\S]*?<\/think>/g, "")
+    .replace(/^\s*(ردي|الرد|رد الموظفة|الموظفة|الجواب|Reply|Answer)\s*[:：]\s*/i, "")
+    .replace(/^["'«“”]+|["'»“”]+$/g, "")
+    .trim();
 }
 
 /** Groq chat fallback (Allam Saudi / Qwen) using the same Groq keys. */
