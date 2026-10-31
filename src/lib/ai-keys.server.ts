@@ -37,6 +37,7 @@ async function gemFetch(key: string, init: RequestInit): Promise<Response> {
     } catch { all429 = false; continue; } // slow model → next model, never hang
     if (res.ok) return res;
     last = res;
+    if (res.status === 429 && /quota/i.test(await res.clone().text().catch(() => ""))) break; // quota-dead key: skip other models now
     if (res.status !== 429) all429 = false;
     if (res.status === 401 || res.status === 403) break; // bad key → next key
   }
@@ -97,8 +98,8 @@ async function callOpenRouter(system: string, prompt: string): Promise<string | 
 export async function getAIResponse(system: string, prompt: string, fast = false): Promise<string | null> {
   const keys = geminiKeys();
   // Fast mode (live calls): race 3 Gemini keys + Groq together, first answer wins.
-  if (fast && keys.length) {
-    const batch = Array.from({ length: Math.min(3, keys.length) }, () => keys[cursor++ % keys.length]!);
+  if (fast) {
+    const batch = keys.length ? Array.from({ length: Math.min(3, keys.length) }, () => keys[cursor++ % keys.length]!) : [];
     try {
       return await Promise.any([
         ...batch.map(async (k) => { const r = await callGemini(k, system, prompt); if (r.ok) return r.text; throw new Error("fail"); }),
