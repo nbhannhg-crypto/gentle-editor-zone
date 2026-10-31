@@ -66,6 +66,7 @@ export const smartReply = createServerFn({ method: "POST" })
       const reply = await askModel(
         data.identity?.trim() ? `${CALL_SYSTEM}\n\nهذي هويتك وحياتك الحقيقية، التزمي فيها بالضبط إذا سألك عن نفسك ولا تناقضينها ولا تألفين شي يخالفها:\n${data.identity.trim()}` : CALL_SYSTEM,
         `${data.product ? `أسلوبك: ${data.product}\n\n` : ""}${rulesBlock(data.rules) ? `ردود تحبين تستخدمينها إذا قال نفس الكلام:\n${rulesBlock(data.rules)}\n\n` : ""}قال لك: "${data.customer}"\n\nاكتبي ردك فقط.`,
+        true,
       );
       if (AI_LEAK.test(reply)) return { reply: "أنا حبيبتك يا بعد عمري، وش هالكلام" };
       return { reply };
@@ -159,7 +160,7 @@ export const queenBrain = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const convo = data.history.map((m) => `${m.role === "user" ? "التاجر" : "عقل الملكة"}: ${m.content}`).join("\n");
-    const raw = await askModel(BRAIN_SYSTEM, `المحادثة:\n${convo}\n\nأرجعي JSON فقط.`);
+    const raw = await askModel(BRAIN_SYSTEM, `المحادثة:\n${convo}\n\nأرجعي JSON فقط.`, true);
     const m = raw.match(/\{[\s\S]*\}/);
     try {
       const j = JSON.parse(m ? m[0] : raw) as { reply?: unknown; actions?: unknown[] };
