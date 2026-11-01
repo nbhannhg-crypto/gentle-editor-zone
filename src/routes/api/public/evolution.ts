@@ -8,6 +8,23 @@ import { CTRL_PREFIX, GENERAL_OR, cleanReply, ctrlPrompt, digits, listHas, parse
 
 const ok = (s = 200, t = "ok") => new Response(t, { status: s });
 
+// Manual takeover: owner typed from the phone → bot stays silent for that chat a while
+const HOLD_MS = 30 * 60 * 1000;
+const G = globalThis as any;
+const holds: Map<string, number> = (G.__waHold ??= new Map());
+const mine: Map<string, number> = (G.__waMine ??= new Map());
+const hk = (i: string, n: string) => i + ":" + n.replace(/\D/g, "");
+const setManualHold = (i: string, n: string) => holds.set(hk(i, n), Date.now());
+const manualHold = (i: string, n: string) => { const t = holds.get(hk(i, n)); return !!t && Date.now() - t < HOLD_MS; };
+/** Remember what the bot itself sent so its own echo is not mistaken for a manual reply. */
+const markBot = (i: string, n: string, text: string) => { mine.set(hk(i, n) + "|" + text.trim().slice(0, 200), Date.now()); if (mine.size > 2000) mine.clear(); };
+const botSent = (i: string, n: string, text: string) => {
+  const k = hk(i, n);
+  if (!text.trim()) { for (const [key, t] of mine) if (key.startsWith(k + "|") && Date.now() - t < 120000) return true; return false; }
+  const t = mine.get(k + "|" + text.trim().slice(0, 200));
+  return !!t && Date.now() - t < 10 * 60 * 1000;
+};
+
 // Fast search: ask the database only for rows whose question shares words with the message
 // (instead of downloading every reply on each WhatsApp message).
 const searchWords = (text: string) => {
