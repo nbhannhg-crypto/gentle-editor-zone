@@ -93,6 +93,21 @@ export const Route = createFileRoute("/api/public/evolution")({
           });
           limited = true;
         }
+        // 🔴 قفل موحّد: زر «متوقف» / إيقاف رقم / حظر في لوحة الرقم يسكّت كل المسارات
+        const stillOn = async (): Promise<boolean> => {
+          try {
+            if (manualHold(instance, number)) return false;
+            const { data: r } = await db.from("training_rules").select("response_text").eq("trigger_text", CTRL_PREFIX + instance).limit(1).maybeSingle();
+            if (!r) return true;
+            const c = parseCtrl((r as any).response_text);
+            const s = digits(number) || number;
+            if (!c.enabled) return false;
+            if (c.paused.some((p) => s === p || s.endsWith(p) || p.endsWith(s))) return false;
+            if (c.blocked && listHas(c.blocked, s)) return false;
+            return true;
+          } catch { return true; }
+        };
+        if (!(await stillOn())) return ok();
         // select("*") so optional new columns are read when present, and nothing breaks when absent
         const { data: cfgRow } = await db.from("wa_autoreply").select("*").eq("instance", instance).maybeSingle();
         const cfg = cfgRow as ({ store_id: string; enabled: boolean; voice: boolean; source: string | null } & AiOpts & { allowed_numbers?: string | null }) | null;
