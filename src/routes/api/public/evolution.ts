@@ -63,8 +63,15 @@ export const Route = createFileRoute("/api/public/evolution")({
         const d = Array.isArray(body?.data) ? body.data[0] : body?.data;
         const jid: string = d?.key?.remoteJid ?? "";
         const msgId: string = d?.key?.id ?? "";
+        // ✋ صاحب الرقم رد بيده من جواله: الموظفة تسكت عن هالزبون 30 دقيقة
+        if (d?.key?.fromMe && jid) {
+          const n = wahaChat && wahaChat.endsWith("@lid") ? wahaChat : jid.split("@")[0]!;
+          const sent = String(d.message?.conversation ?? d.message?.extendedTextMessage?.text ?? "");
+          if (!botSent(instance, n, sent)) setManualHold(instance, n);
+          return ok();
+        }
         // Accept direct chats only: @s.whatsapp.net, @c.us and @lid (groups/status ignored)
-        if (!d || d.key?.fromMe || !msgId || !/@(s\.whatsapp\.net|c\.us|lid)$/.test(jid)) return ok();
+        if (!d || !msgId || !/@(s\.whatsapp\.net|c\.us|lid)$/.test(jid)) return ok();
         // 🔒 نفس الرسالة توصل مرتين أحياناً — نرد عليها مرة وحدة بس
         const g = globalThis as any; const seen: Map<string, number> = (g.__waSeen ??= new Map());
         const dk = instance + ":" + msgId; const now = Date.now();
