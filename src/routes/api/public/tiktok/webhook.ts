@@ -11,7 +11,7 @@ const Evt = z.object({
 /** TikTok-Signature: t=<ts>,s=<hex hmac sha256 of "<ts>.<body>"> */
 function verified(header: string | null, body: string, secret: string): boolean {
   if (!header) return false;
-  const p = Object.fromEntries(header.split(",").map((x) => x.split("=") as [string, string]));
+  const p = Object.fromEntries(header.split(",").map((x) => x.split("=") as [string, string])) as { t?: string; s?: string };
   if (!p.t || !p.s) return false;
   if (Math.abs(Date.now() / 1000 - Number(p.t)) > 300) return false;
   const exp = createHmac("sha256", secret).update(`${p.t}.${body}`).digest("hex");
@@ -45,9 +45,9 @@ export const Route = createFileRoute("/api/public/tiktok/webhook")({
           const { staffContext, aiReplyWith, tidyReply, fixCut, bestRule } = await import("@/lib/autoreply.server");
           const db = await admin();
           if (acc.ctrl.source !== "ai") {
-            const { data: rules } = await db.from("training_rules").select("id, trigger_text, reply_text:response_text").eq("store_id", own.store).not("trigger_text", "like", "\\_\\_%").limit(1000);
+            const { data: rules } = await db.from("training_rules").select("id, trigger_text, response_text, use_count").eq("store_id", own.store).not("trigger_text", "like", "\\_\\_%").limit(1000);
             const hit = bestRule(text, (rules ?? []) as never);
-            if (hit) reply = String((hit.rule as { reply_text?: string }).reply_text ?? "");
+            if (hit) reply = hit.rule.response_text;
           }
           if (!reply && acc.ctrl.source !== "rules") {
             const ctx = await staffContext(db, own.store, `tt_${acc.open_id}`);
