@@ -232,6 +232,8 @@ export const Route = createFileRoute("/api/public/evolution")({
             if (reply) {
               await markSeen(instance, jid, msgId).catch(() => {});
               await typingDelay(number, ctrlRow ? ctrl.delay : 3, instance, ctrl.voice ? "recording" : "composing");
+              if (!(await stillOn())) return ok();
+              markBot(instance, number, ctrl.voice ? "" : reply);
               if (ctrl.voice) await evoSend(`/message/sendWhatsAppAudio/${encodeURIComponent(instance)}`, { number, audio: await fishTts(reply), encoding: true, ptt: true }).catch(() => evoSend(`/message/sendText/${encodeURIComponent(instance)}`, { number, text: reply }));
               else await evoSend(`/message/sendText/${encodeURIComponent(instance)}`, { number, text: reply });
             }
@@ -262,7 +264,7 @@ export const Route = createFileRoute("/api/public/evolution")({
             const { count } = await db.from("wa_inbox").select("msg_id", { count: "exact", head: true }).eq("store_id", cfg.store_id).eq("from_number", number);
             if ((count ?? 0) <= 1) {
               const w = await kingdomWelcome(db, st.owner_id, st.name ?? "متجرنا").catch(() => null);
-              if (w) await evoSend(`/message/sendText/${encodeURIComponent(instance)}`, { number, text: w }).catch((e) => console.error("welcome", e));
+              if (w) { markBot(instance, number, w); await evoSend(`/message/sendText/${encodeURIComponent(instance)}`, { number, text: w }).catch((e) => console.error("welcome", e)); }
             }
           }
           // Store rules: the database returns only rows sharing words with the message (instant, any size)
@@ -335,7 +337,12 @@ export const Route = createFileRoute("/api/public/evolution")({
           if (!reply) throw new Error("empty reply");
           await markSeen(instance, jid, msgId).catch(() => {});
           await typingDelay(number, nextVariedDelay(instance + ":" + number), instance, useVoice ? "recording" : "composing");
+          // تسكّر أثناء الكتابة؟ لا ترسل
+          if (!(await stillOn())) { await db.from("wa_inbox").update({ status: "skipped", error: "تم الإيقاف قبل الإرسال" }).eq("msg_id", msgId); return ok(); }
+          const { data: live } = await db.from("wa_autoreply").select("enabled").eq("instance", instance).maybeSingle();
+          if (live && !live.enabled) { await db.from("wa_inbox").update({ status: "skipped", error: "تم الإيقاف قبل الإرسال" }).eq("msg_id", msgId); return ok(); }
           const path = `/message/${useVoice ? "sendWhatsAppAudio" : "sendText"}/${encodeURIComponent(instance)}`;
+          markBot(instance, number, useVoice ? "" : reply);
           if (useVoice) await evoSend(path, { number, audio: libAudio ?? (await fishTts(reply)), encoding: true, ptt: true });
           else await evoSend(path, { number, text: reply });
           await db.from("wa_inbox").update({ status: "done", reply }).eq("msg_id", msgId);
