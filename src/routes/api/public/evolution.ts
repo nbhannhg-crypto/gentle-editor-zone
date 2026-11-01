@@ -8,6 +8,23 @@ import { CTRL_PREFIX, GENERAL_OR, cleanReply, ctrlPrompt, digits, listHas, parse
 
 const ok = (s = 200, t = "ok") => new Response(t, { status: s });
 
+// Manual takeover: owner typed from the phone → bot stays silent for that chat a while
+const HOLD_MS = 30 * 60 * 1000;
+const G = globalThis as any;
+const holds: Map<string, number> = (G.__waHold ??= new Map());
+const mine: Map<string, number> = (G.__waMine ??= new Map());
+const hk = (i: string, n: string) => i + ":" + n.replace(/\D/g, "");
+const setManualHold = (i: string, n: string) => holds.set(hk(i, n), Date.now());
+const manualHold = (i: string, n: string) => { const t = holds.get(hk(i, n)); return !!t && Date.now() - t < HOLD_MS; };
+/** Remember what the bot itself sent so its own echo is not mistaken for a manual reply. */
+const markBot = (i: string, n: string, text: string) => { mine.set(hk(i, n) + "|" + text.trim().slice(0, 200), Date.now()); if (mine.size > 2000) mine.clear(); };
+const botSent = (i: string, n: string, text: string) => {
+  const k = hk(i, n);
+  if (!text.trim()) { for (const [key, t] of mine) if (key.startsWith(k + "|") && Date.now() - t < 120000) return true; return false; }
+  const t = mine.get(k + "|" + text.trim().slice(0, 200));
+  return !!t && Date.now() - t < 10 * 60 * 1000;
+};
+
 // Fast search: ask the database only for rows whose question shares words with the message
 // (instead of downloading every reply on each WhatsApp message).
 const searchWords = (text: string) => {
@@ -63,8 +80,15 @@ export const Route = createFileRoute("/api/public/evolution")({
         const d = Array.isArray(body?.data) ? body.data[0] : body?.data;
         const jid: string = d?.key?.remoteJid ?? "";
         const msgId: string = d?.key?.id ?? "";
+        // ✋ صاحب الرقم رد بيده من جواله: الموظفة تسكت عن هالزبون 30 دقيقة
+        if (d?.key?.fromMe && jid) {
+          const n = wahaChat && wahaChat.endsWith("@lid") ? wahaChat : jid.split("@")[0]!;
+          const sent = String(d.message?.conversation ?? d.message?.extendedTextMessage?.text ?? "");
+          if (!botSent(instance, n, sent)) setManualHold(instance, n);
+          return ok();
+        }
         // Accept direct chats only: @s.whatsapp.net, @c.us and @lid (groups/status ignored)
-        if (!d || d.key?.fromMe || !msgId || !/@(s\.whatsapp\.net|c\.us|lid)$/.test(jid)) return ok();
+        if (!d || !msgId || !/@(s\.whatsapp\.net|c\.us|lid)$/.test(jid)) return ok();
         // 🔒 نفس الرسالة توصل مرتين أحياناً — نرد عليها مرة وحدة بس
         const g = globalThis as any; const seen: Map<string, number> = (g.__waSeen ??= new Map());
         const dk = instance + ":" + msgId; const now = Date.now();
@@ -93,6 +117,21 @@ export const Route = createFileRoute("/api/public/evolution")({
           });
           limited = true;
         }
+        // 🔴 قفل موحّد: زر «متوقف» / إيقاف رقم / حظر في لوحة الرقم يسكّت كل المسارات
+        const stillOn = async (): Promise<boolean> => {
+          try {
+            if (manualHold(instance, number)) return false;
+            const { data: r } = await db.from("training_rules").select("response_text").eq("trigger_text", CTRL_PREFIX + instance).limit(1).maybeSingle();
+            if (!r) return true;
+            const c = parseCtrl((r as any).response_text);
+            const s = digits(number) || number;
+            if (!c.enabled) return false;
+            if (c.paused.some((p) => s === p || s.endsWith(p) || p.endsWith(s))) return false;
+            if (c.blocked && listHas(c.blocked, s)) return false;
+            return true;
+          } catch { return true; }
+        };
+        if (!(await stillOn())) return ok();
         // select("*") so optional new columns are read when present, and nothing breaks when absent
         const { data: cfgRow } = await db.from("wa_autoreply").select("*").eq("instance", instance).maybeSingle();
         const cfg = cfgRow as ({ store_id: string; enabled: boolean; voice: boolean; source: string | null } & AiOpts & { allowed_numbers?: string | null }) | null;
@@ -193,6 +232,8 @@ export const Route = createFileRoute("/api/public/evolution")({
             if (reply) {
               await markSeen(instance, jid, msgId).catch(() => {});
               await typingDelay(number, ctrlRow ? ctrl.delay : 3, instance, ctrl.voice ? "recording" : "composing");
+              if (!(await stillOn())) return ok();
+              markBot(instance, number, ctrl.voice ? "" : reply);
               if (ctrl.voice) await evoSend(`/message/sendWhatsAppAudio/${encodeURIComponent(instance)}`, { number, audio: await fishTts(reply), encoding: true, ptt: true }).catch(() => evoSend(`/message/sendText/${encodeURIComponent(instance)}`, { number, text: reply }));
               else await evoSend(`/message/sendText/${encodeURIComponent(instance)}`, { number, text: reply });
             }
@@ -223,7 +264,7 @@ export const Route = createFileRoute("/api/public/evolution")({
             const { count } = await db.from("wa_inbox").select("msg_id", { count: "exact", head: true }).eq("store_id", cfg.store_id).eq("from_number", number);
             if ((count ?? 0) <= 1) {
               const w = await kingdomWelcome(db, st.owner_id, st.name ?? "متجرنا").catch(() => null);
-              if (w) await evoSend(`/message/sendText/${encodeURIComponent(instance)}`, { number, text: w }).catch((e) => console.error("welcome", e));
+              if (w) { markBot(instance, number, w); await evoSend(`/message/sendText/${encodeURIComponent(instance)}`, { number, text: w }).catch((e) => console.error("welcome", e)); }
             }
           }
           // Store rules: the database returns only rows sharing words with the message (instant, any size)
@@ -296,7 +337,12 @@ export const Route = createFileRoute("/api/public/evolution")({
           if (!reply) throw new Error("empty reply");
           await markSeen(instance, jid, msgId).catch(() => {});
           await typingDelay(number, nextVariedDelay(instance + ":" + number), instance, useVoice ? "recording" : "composing");
+          // تسكّر أثناء الكتابة؟ لا ترسل
+          if (!(await stillOn())) { await db.from("wa_inbox").update({ status: "skipped", error: "تم الإيقاف قبل الإرسال" }).eq("msg_id", msgId); return ok(); }
+          const { data: live } = await db.from("wa_autoreply").select("enabled").eq("instance", instance).maybeSingle();
+          if (live && !live.enabled) { await db.from("wa_inbox").update({ status: "skipped", error: "تم الإيقاف قبل الإرسال" }).eq("msg_id", msgId); return ok(); }
           const path = `/message/${useVoice ? "sendWhatsAppAudio" : "sendText"}/${encodeURIComponent(instance)}`;
+          markBot(instance, number, useVoice ? "" : reply);
           if (useVoice) await evoSend(path, { number, audio: libAudio ?? (await fishTts(reply)), encoding: true, ptt: true });
           else await evoSend(path, { number, text: reply });
           await db.from("wa_inbox").update({ status: "done", reply }).eq("msg_id", msgId);
