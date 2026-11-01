@@ -24,7 +24,7 @@ export const Route = createFileRoute("/api/public/tiktok/callback")({
           const tr = await fetch("https://open.tiktokapis.com/v2/oauth/token/", {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: new URLSearchParams({ client_key: key, client_secret: secret, code, grant_type: "authorization_code", redirect_uri: `${s.origin}/api/public/tiktok/callback` }),
+            body: new URLSearchParams({ client_key: key, client_secret: secret, code, grant_type: "authorization_code", redirect_uri: "https://gentle-editor-zone.lovable.app/api/public/tiktok/callback" }),
           });
           const t = (await tr.json()) as { access_token?: string; refresh_token?: string; expires_in?: number; open_id?: string };
           if (!t.access_token || !t.open_id) { console.error("tiktok token", tr.status); return back(s.origin, "failed"); }

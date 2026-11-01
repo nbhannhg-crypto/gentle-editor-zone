@@ -38,7 +38,7 @@ export const ttLoginUrl = createServerFn({ method: "POST" })
     const state = crypto.randomUUID().replace(/-/g, "");
     const db = await admin();
     await db.from("training_rules").insert({ trigger_text: ttStateKey(state), response_text: JSON.stringify({ store, origin: data.origin, at: Date.now() }), category: "settings", store_id: store });
-    const redirect = `${data.origin}/api/public/tiktok/callback`;
+    const redirect = "https://gentle-editor-zone.lovable.app/api/public/tiktok/callback";
     const q = new URLSearchParams({ client_key: key, scope: "user.info.basic", response_type: "code", redirect_uri: redirect, state });
     return { url: `https://www.tiktok.com/v2/auth/authorize/?${q}` };
   });
