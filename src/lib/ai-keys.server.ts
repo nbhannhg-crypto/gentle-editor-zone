@@ -139,7 +139,8 @@ export function cleanReply(t: string): string {
 /** Groq chat fallback (Allam Saudi / Qwen) using the same Groq keys. */
 async function callGroqChat(system: string, prompt: string): Promise<string | null> {
   const keys = [...new Set([process.env["GROQ_API_KEY"] ?? "", ...(process.env["GROQ_KEYS"] ?? "").split(/[,،;\s]+/)].map((k) => k.trim()).filter(Boolean))];
-  for (const k of keys) for (const model of ["allam-2-7b", "qwen/qwen3.8-27b"]) {
+  // allam-2-7b removed: produced robotic/formal replies in calls.
+  for (const k of keys) for (const model of ["qwen/qwen3.8-27b", "llama-3.3-70b-versatile"]) {
     try {
       const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST", headers: { Authorization: `Bearer ${k}`, "Content-Type": "application/json" },
