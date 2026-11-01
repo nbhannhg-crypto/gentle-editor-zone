@@ -35,7 +35,7 @@ export function TikTokStudio({ storeId }: { storeId?: string | undefined }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId]);
   const connect = async () => {
-    try { const r = await login({ data: { storeId, origin: window.location.origin } }); window.location.href = r.url; }
+    try { const r = await login({ data: { storeId, origin: window.location.origin } }); const w = window.open(r.url, "_blank", "noopener"); if (!w) { try { (window.top ?? window).location.href = r.url; } catch { window.location.href = r.url; } } }
     catch (e) { toast.error((e as Error).message); }
   };
   return (
