@@ -303,6 +303,9 @@ export function KingdomCall({ rules, reload, mode, product, storeId }: {
   };
 
   const stop = () => {
+    // يلغي أي رد أو صوت معلّق حتى ما يطلع كلام بعد إنهاء المكالمة
+    replySeq.current++; saySeqK.current++;
+    const p = pendingRef.current; if (p.timer) clearTimeout(p.timer); p.timer = null; p.text = "";
     evoOn.current = false; vadRef.current?.stop(); vadRef.current = null;
     liveRef.current = false; recRef.current?.stop();
     setLive(false); setInterim(""); audioRef.current?.pause(); setSpeaking(false); setRecording(false);
