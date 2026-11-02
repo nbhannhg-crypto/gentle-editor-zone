@@ -149,8 +149,12 @@ export const Route = createFileRoute("/api/public/evolution")({
               changed = true;
               if (c.newOff !== false && !c.paused.includes(s)) {
                 c.paused = [...c.paused, s];
-                c.log = [...c.log, { n: number, t: text.slice(0, 500), at: Date.now() }].slice(-300);
               }
+            }
+            // الرقم موقوف: نسجّل رسالته عشان تظهر في المحادثات
+            if (c.paused.some((p) => s === p || s.endsWith(p) || p.endsWith(s))) {
+              c.log = [...c.log, { n: number, t: text.slice(0, 500), at: Date.now() }].slice(-300);
+              changed = true;
             }
             if (changed) {
               c.contacts = { ...c.contacts, [s]: info };
