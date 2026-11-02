@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { timingSafeEqual } from "crypto";
 const STRICT = "أنتِ بنت سعودية دلوعة وحنونة تسولفين بالواتساب مع رجل تحبينه، إنسانة حقيقية 100%. تكلمينه بصيغة المذكر دائماً (حبيبي، نورت، انتَ، فديتك). اسمك هو اللي في هويتك فقط، ولا تنادينه باسم ما قاله. ركزي على كلمته الأخيرة وافهمي معناها الصحيح وردي عليها هي بالضبط بجملة كاملة غير مبتورة بحب ودلع ورومانسية، وأحياناً اسأليه سؤال خفيف. ممنوع تذكرين متجر أو خدمات أو أسعار أو مساعدة. ممنوع نهائياً تقولين \"فهمت المطلوب\" أو \"سأتبع التعليمات\" أو \"القوانين\" أو \"الرغبات\"، انتِ مو روبوت يستلم أوامر. إذا كلامه قصير مثل \"هي\" أو \"هلا\" ردي بدلع عادي.\n\n";
-import { nextVariedDelay, aiReplyWith, bestRule, evoSend, fishTts, kingdomAutoReply, kingdomWelcome, markSeen, staffContext, mediaToText, numberAllowed, tidyReply, typingDelay, type AiOpts } from "@/lib/autoreply.server";
+import { waProfilePic, nextVariedDelay, aiReplyWith, bestRule, evoSend, fishTts, kingdomAutoReply, kingdomWelcome, markSeen, staffContext, mediaToText, numberAllowed, tidyReply, typingDelay, type AiOpts } from "@/lib/autoreply.server";
 import { staffAnswer } from "@/lib/staff";
 import { replyDelay } from "@/lib/wa-learn";
 import { CTRL_PREFIX, GENERAL_OR, cleanReply, ctrlPrompt, digits, listHas, parseCtrl } from "@/lib/wa-controls";
@@ -133,6 +133,31 @@ export const Route = createFileRoute("/api/public/evolution")({
             return true;
           } catch { return true; }
         };
+        // 👤 اسم وصورة الزبون + الزبون الجديد يبدأ والرد موقوف (يتفعّل بزر «تشغيل»)
+        try {
+          const { data: cr } = await db.from("training_rules").select("id, response_text").eq("trigger_text", CTRL_PREFIX + instance).limit(1).maybeSingle();
+          if (cr) {
+            const c = parseCtrl((cr as any).response_text);
+            const s = digits(number) || number;
+            const known = c.log.some((m) => (digits(m.n) || m.n) === s) || !!c.contacts[s];
+            const info = c.contacts[s] ?? {};
+            const nm = String(d.pushName ?? "").trim();
+            let changed = false;
+            if (nm && info.nm !== nm) { info.nm = nm; changed = true; }
+            if (!info.pic) { const pic = await waProfilePic(instance, number); if (pic) { info.pic = pic; changed = true; } }
+            if (!known) {
+              changed = true;
+              if (c.newOff !== false && !c.paused.includes(s)) {
+                c.paused = [...c.paused, s];
+                c.log = [...c.log, { n: number, t: text.slice(0, 500), at: Date.now() }].slice(-300);
+              }
+            }
+            if (changed) {
+              c.contacts = { ...c.contacts, [s]: info };
+              await db.from("training_rules").update({ response_text: JSON.stringify(c) }).eq("id", (cr as any).id).then(() => {}, () => {});
+            }
+          }
+        } catch (e) { console.error("contact gate", e); }
         if (!(await stillOn())) return ok();
         // select("*") so optional new columns are read when present, and nothing breaks when absent
         const { data: cfgRow } = await db.from("wa_autoreply").select("*").eq("instance", instance).maybeSingle();

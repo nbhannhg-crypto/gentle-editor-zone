@@ -22,10 +22,15 @@ export type WaCtrl = {
   log: WaLog[];
   /** Match strictness in percent (50, 60, 80, 100). */
   match: number;
+  /** Customer display info (WhatsApp name + photo) keyed by chat number. */
+  contacts: Record<string, { nm?: string; pic?: string }>;
+  /** New first-time customers start with auto-reply OFF until the owner turns it on. */
+  newOff: boolean;
 };
 export const defaultCtrl = (): WaCtrl => ({
   enabled: true, source: "smart", allowed: "", prompt: "", delay: 3, paused: [], brains: [], misses: [],
   mode: "auto", voice: false, facts: "", banned: "", fixes: "", blocked: "", model: "", pending: [], log: [], match: 60,
+  contacts: {}, newOff: true,
 });
 export const parseCtrl = (s: string | null | undefined): WaCtrl => {
   try { return { ...defaultCtrl(), ...(JSON.parse(s || "{}") as Partial<WaCtrl>) }; } catch { return defaultCtrl(); }
