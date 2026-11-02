@@ -22,9 +22,21 @@ function verified(header: string | null, body: string, secret: string): boolean 
 export const Route = createFileRoute("/api/public/tiktok/webhook")({
   server: {
     handlers: {
+      // TikTok URL test / verification: echo the challenge back
+      GET: async ({ request }) => {
+        const c = (new URL(request.url).searchParams.get("challenge") ?? "").slice(0, 500);
+        return new Response(c || "ok", { status: 200, headers: { "Content-Type": "text/plain" } });
+      },
       POST: async ({ request }) => {
         const secret = process.env["TIKTOK_CLIENT_SECRET"];
+        const qc = new URL(request.url).searchParams.get("challenge");
+        if (qc) return new Response(qc.slice(0, 500), { status: 200, headers: { "Content-Type": "text/plain" } });
         const body = await request.text();
+        // unsigned test pings from the portal: acknowledge without processing anything
+        if (!request.headers.get("tiktok-signature")) {
+          try { const j = JSON.parse(body || "{}") as { challenge?: string }; if (j.challenge) return new Response(String(j.challenge).slice(0, 500), { status: 200, headers: { "Content-Type": "text/plain" } }); } catch { /* ignore */ }
+          return new Response("ok", { status: 200 });
+        }
         if (!secret || !verified(request.headers.get("tiktok-signature"), body, secret)) return new Response("bad signature", { status: 401 });
         const parsed = Evt.safeParse(JSON.parse(body || "{}"));
         if (!parsed.success) return new Response("ok");
