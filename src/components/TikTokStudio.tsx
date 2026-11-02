@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { guessCategory } from "@/lib/rules";
 import { STUDIO_VOICES } from "@/lib/studio-voices";
 import { studioGenerate } from "@/lib/studio.functions";
-import { ttList, ttLoginUrl, ttSaveCtrl, ttRemove, ttManualReply } from "@/lib/tiktok.functions";
+import { ttList, ttLoginUrl, ttSaveCtrl, ttRemove, ttManualReply, ttAddManual } from "@/lib/tiktok.functions";
 import { ttChannel, type TtAccount, type TtCtrl, type TtLog } from "@/lib/tiktok-types";
 import { CallIdentity, StaffSwitcher } from "@/components/CallIdentity";
 import { CallBoxes } from "@/components/CallBoxes";
@@ -19,6 +19,12 @@ const pill = (on: boolean) => `shrink-0 rounded-full border px-3 py-1.5 text-xs 
 export function TikTokStudio({ storeId }: { storeId?: string | undefined }) {
   const list = useServerFn(ttList);
   const login = useServerFn(ttLoginUrl);
+  const addManual = useServerFn(ttAddManual);
+  const [uname, setUname] = useState("");
+  const addDirect = async () => {
+    try { await addManual({ data: { storeId, username: uname } }); setUname(""); toast.success("✅ انضاف الحساب"); await load(); }
+    catch (e) { toast.error((e as Error).message); }
+  };
   const [accs, setAccs] = useState<TtAccount[]>([]);
   const [ready, setReady] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -45,6 +51,10 @@ export function TikTokStudio({ storeId }: { storeId?: string | undefined }) {
         <p className="text-sm text-muted-foreground">اربط أكثر من حساب لنفس المتجر، ولكل حساب موظفته ولوحته المستقلة.</p>
         {!ready && <p className="rounded-lg bg-muted p-2 text-xs">⚠️ الربط ينتظر مفاتيح تطبيق تيك توك من الإدارة.</p>}
         <Button onClick={connect} className="w-full">🔗 + ربط حساب تيك توك جديد</Button>
+        <div className="flex gap-2">
+          <input value={uname} onChange={(e) => setUname(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void addDirect(); }} placeholder="يوزر الحساب مثل asas055555" className="min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm" dir="ltr" />
+          <Button variant="secondary" onClick={addDirect} disabled={!uname.trim()}>➕ إضافة مباشرة</Button>
+        </div>
       </div>
       {loading && <p className="text-center text-sm text-muted-foreground">⏳ جاري التحميل…</p>}
       {!loading && !accs.length && <p className="rounded-xl bg-secondary p-6 text-center text-sm">ما فيه حسابات مربوطة للحين 🎵</p>}
