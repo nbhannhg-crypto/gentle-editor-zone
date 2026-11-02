@@ -104,3 +104,34 @@ export const ttAddManual = createServerFn({ method: "POST" })
     await saveAccounts(store, list);
     return { ok: true };
   });
+
+/** Simulate a customer DM: the assigned staff replies with the same logic as real TikTok messages. */
+export const ttTestMessage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ storeId: sid, openId: z.string().min(1).max(200), from: z.string().trim().min(1).max(60), text: z.string().trim().min(1).max(1000) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { loadAccounts, saveAccounts, pushLog, admin } = await import("./tiktok.server");
+    const { staffContext, aiReplyWith, tidyReply, fixCut, bestRule } = await import("./autoreply.server");
+    const store = await storeFor(context as Ctx, data.storeId);
+    const list = await loadAccounts(store);
+    const acc = list.find((x) => x.open_id === data.openId);
+    if (!acc) throw new Error("الحساب غير موجود");
+    const from = data.from.replace(/^@/, "");
+    pushLog(acc, { n: from, t: data.text, at: Date.now() });
+    const db = await admin();
+    let reply = "";
+    if (acc.ctrl?.source !== "ai") {
+      const { data: rules } = await db.from("training_rules").select("id, trigger_text, response_text, use_count").eq("store_id", store).not("trigger_text", "like", "\\_\\_%").limit(1000);
+      const hit = bestRule(data.text, (rules ?? []) as never);
+      if (hit) reply = hit.rule.response_text;
+    }
+    if (!reply && acc.ctrl?.source !== "rules") {
+      const ctx = await staffContext(db, store, `tt_${acc.open_id}`);
+      const hist = (acc.log ?? []).filter((m) => m.n === from).slice(-6).map((m) => (m.me ? `أنتِ: ${m.r}` : `هو: ${m.t}`)).join("\n");
+      reply = await aiReplyWith(data.text, `${ctx}\n\nآخر السالفة:\n${hist}`).catch(() => "");
+    }
+    reply = reply ? fixCut(tidyReply(reply, data.text)) : "";
+    if (reply) pushLog(acc, { n: from, t: "", r: reply, at: Date.now() + 1, me: true });
+    await saveAccounts(store, list);
+    return { reply, log: acc.log ?? [] };
+  });

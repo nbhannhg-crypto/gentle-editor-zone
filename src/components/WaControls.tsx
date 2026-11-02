@@ -333,20 +333,31 @@ export function WaControls({ instance, myNumber = "" }: { instance: string; myNu
 
       {/* 4) Inbox */}
       <div className="space-y-1.5">
-        <span className="text-xs font-semibold">💬 المحادثات</span>
+        <span className="text-xs font-semibold">💬 المحادثات ({people.length})</span>
         {people.length === 0 && <p className="text-xs text-muted-foreground">بتظهر هنا المحادثات أول ما توصل رسائل جديدة.</p>}
-        {people.map(([n, msgs]) => {
-          const last = msgs[msgs.length - 1]!;
-          return (
-            <button key={n} onClick={() => { setChat(n); setDraft(""); }} className="flex w-full items-center justify-between gap-2 rounded-lg bg-muted/50 p-2 text-right text-sm">
-              <div className="min-w-0">
-                <div dir="ltr" className="text-right text-xs text-muted-foreground">{showNum(n)} {isPaused(n) && "⏸️"}</div>
-                <div className="truncate">{last.me ? `👩‍💼 ${last.r}` : `👤 ${last.t}`}</div>
-              </div>
-              <span className="shrink-0 rounded-full bg-background px-2 text-xs">{msgs.length}</span>
-            </button>
-          );
-        })}
+        {people.length > 0 && (
+          <div className="max-h-80 divide-y overflow-y-auto overscroll-contain rounded-xl border bg-muted/30">
+            {people.map(([n, msgs]) => {
+              const last = msgs[msgs.length - 1]!;
+              const paused = isPaused(n);
+              return (
+                <div key={n} className="flex items-center gap-2 p-2">
+                  <button onClick={() => { setChat(n); setDraft(""); }} className="flex min-w-0 flex-1 items-center gap-2 text-right text-sm">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary">👤</div>
+                    <div className="min-w-0 flex-1">
+                      <div dir="ltr" className="text-right text-xs text-muted-foreground">{showNum(n)}</div>
+                      <div className="truncate">{last.me ? `👩‍💼 ${last.r}` : `👤 ${last.t}`}</div>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-background px-2 text-xs">{msgs.length}</span>
+                  </button>
+                  <button onClick={() => togglePause(n)} className={`shrink-0 rounded-full border px-2 py-1 text-[11px] ${paused ? "bg-destructive/10 text-destructive" : "bg-primary text-primary-foreground"}`}>
+                    {paused ? "⏸️ موقوف" : "🟢 شغال"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* 5) Misses */}

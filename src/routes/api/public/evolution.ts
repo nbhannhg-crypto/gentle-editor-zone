@@ -15,7 +15,8 @@ const holds: Map<string, number> = (G.__waHold ??= new Map());
 const mine: Map<string, number> = (G.__waMine ??= new Map());
 const hk = (i: string, n: string) => i + ":" + n.replace(/\D/g, "");
 const setManualHold = (i: string, n: string) => holds.set(hk(i, n), Date.now());
-const manualHold = (i: string, n: string) => { const t = holds.get(hk(i, n)); return !!t && Date.now() - t < HOLD_MS; };
+/** Owner replied by hand AFTER this customer message arrived → skip only this message; newer customer messages get answered normally. */
+const manualHold = (i: string, n: string, arrived: number) => { const t = holds.get(hk(i, n)); return !!t && t >= arrived && Date.now() - t < HOLD_MS; };
 /** Remember what the bot itself sent so its own echo is not mistaken for a manual reply. */
 const markBot = (i: string, n: string, text: string) => { mine.set(hk(i, n) + "|" + text.trim().slice(0, 200), Date.now()); if (mine.size > 2000) mine.clear(); };
 const botSent = (i: string, n: string, text: string) => {
@@ -118,9 +119,10 @@ export const Route = createFileRoute("/api/public/evolution")({
           limited = true;
         }
         // 🔴 قفل موحّد: زر «متوقف» / إيقاف رقم / حظر في لوحة الرقم يسكّت كل المسارات
+        const arrivedAt = Date.now();
         const stillOn = async (): Promise<boolean> => {
           try {
-            if (manualHold(instance, number)) return false;
+            if (manualHold(instance, number, arrivedAt)) return false;
             const { data: r } = await db.from("training_rules").select("response_text").eq("trigger_text", CTRL_PREFIX + instance).limit(1).maybeSingle();
             if (!r) return true;
             const c = parseCtrl((r as any).response_text);
