@@ -41,7 +41,9 @@ export function useSpeaker() {
   const fish = useServerFn(fishSpeak);
   return async (text: string, override?: Partial<VoiceSettings>) => {
     const v = { ...loadVoice(), ...override, provider: "fish" as const, voiceId: override?.voiceId || getStudioVoice() || BUILTIN_VOICE_ID };
-    const { audio } = await fish({ data: { text, voiceId: v.voiceId, speed: v.speed, volume: v.volume, emotion: v.emotion, model: getVoiceModel() } });
+    // الصوت المختار/المستنسخ من الاستوديو يُعتمد دائماً (custom) بدل الرجوع للصوت المدمج
+    const custom = !!v.voiceId && v.voiceId !== BUILTIN_VOICE_ID;
+    const { audio } = await fish({ data: { text, voiceId: v.voiceId, speed: v.speed, volume: v.volume, emotion: v.emotion, custom, model: getVoiceModel() } });
     return audio;
   };
 }
