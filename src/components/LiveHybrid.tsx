@@ -210,6 +210,35 @@ export function LiveHybrid(p: {
       </section>
 
       <section className={box}>
+        <h3 className="font-display mb-1 text-lg">⚡ النطق اللحظي السريع</h3>
+        <p className="text-sm text-muted-foreground">تكلّم وتشوف كلامك يطلع قدامك، والموظفة تنطقه بصوتك المختار فوراً — أو أوقفه وعدّله قبل النطق.</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Button size="sm" variant={target === "call" ? "default" : "outline"} onClick={() => setTarget("call")}>🗣️ في المكالمة</Button>
+          <Button size="sm" variant={target === "wa" ? "default" : "outline"} onClick={() => setTarget("wa")}>🚀 فويس واتساب</Button>
+          <Button size="sm" variant={autoSend ? "default" : "outline"} onClick={() => setAutoSend(true)}>⚡ نطق فوري</Button>
+          <Button size="sm" variant={!autoSend ? "default" : "outline"} onClick={() => setAutoSend(false)}>✍️ راجع قبل النطق</Button>
+        </div>
+        <div className="mt-3 flex gap-2">
+          <Button className="flex-1" variant={talk ? "destructive" : "default"} onClick={() => (talk ? stopTalk() : startTalk())}>
+            {talk ? "⏹️ وقّف الاستماع" : "🎙️ ابدأ أتكلم"}
+          </Button>
+          <Button variant="outline" onClick={() => { p.stopAll(); toast("🔇 انقطع النطق"); }}>🔇 اقطع النطق</Button>
+        </div>
+        <div className="mt-3 min-h-12 rounded-xl border bg-background p-3 text-sm">
+          {live ? <span className="text-muted-foreground">🎧 {live}…</span> : <span className="text-muted-foreground">{talk ? "أسمعك… تكلم" : "الكلام يطلع هنا وأنت تتكلم"}</span>}
+        </div>
+        <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={2} placeholder="اكتب أو عدّل الكلام هنا…"
+          className="mt-2 w-full rounded-xl border bg-background p-2 text-sm" />
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Button size="sm" disabled={!draft.trim() || busy} onClick={() => { void speakNow(draft); setDraft(""); }}>🔊 انطقها الحين</Button>
+          <Button size="sm" variant="outline" disabled={!draft} onClick={() => setDraft("")}>🗑️ امسح</Button>
+          <Button size="sm" variant="outline" disabled={!lastSaid} onClick={() => setDraft(lastSaid)}>✏️ صحّح آخر جملة</Button>
+          <Button size="sm" variant="outline" disabled={!lastSaid || busy} onClick={() => void speakNow(lastSaid)}>🔁 أعدها</Button>
+        </div>
+        {lastSaid && <p className="mt-2 rounded-xl bg-primary/10 p-2 text-sm">👩‍💼 آخر نطق: «{lastSaid}»</p>}
+      </section>
+
+      <section className={box}>
         <h3 className="font-display mb-2 text-lg">🎙️ مغيّر الصوت اللحظي المباشر</h3>
         <p className="text-sm text-muted-foreground">تكلّم بصوتك ولهجتك، والموظفة تفرّغ كلامك وتنقّيه وتصيغه بأسلوبها ولهجتها، وتنطقه بصوتها.</p>
         <div className="mt-2 flex gap-2">
