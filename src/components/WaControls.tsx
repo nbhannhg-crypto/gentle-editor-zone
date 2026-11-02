@@ -333,7 +333,12 @@ export function WaControls({ instance, myNumber = "" }: { instance: string; myNu
 
       {/* 4) Inbox */}
       <div className="space-y-1.5">
-        <span className="text-xs font-semibold">💬 المحادثات ({people.length})</span>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-semibold">💬 المحادثات ({people.length})</span>
+          <button onClick={() => update({ newOff: !c.newOff }, true)} className={`rounded-full border px-2 py-1 text-[11px] ${c.newOff ? "bg-destructive/10 text-destructive" : "bg-primary text-primary-foreground"}`}>
+            {c.newOff ? "🆕 الزبون الجديد: موقوف" : "🆕 الزبون الجديد: يرد تلقائي"}
+          </button>
+        </div>
         {people.length === 0 && <p className="text-xs text-muted-foreground">بتظهر هنا المحادثات أول ما توصل رسائل جديدة.</p>}
         {people.length > 0 && (
           <div className="max-h-80 divide-y overflow-y-auto overscroll-contain rounded-xl border bg-muted/30">
@@ -343,8 +348,11 @@ export function WaControls({ instance, myNumber = "" }: { instance: string; myNu
               return (
                 <div key={n} className="flex items-center gap-2 p-2">
                   <button onClick={() => { setChat(n); setDraft(""); }} className="flex min-w-0 flex-1 items-center gap-2 text-right text-sm">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary">👤</div>
+                    {(c.contacts?.[digits(n) || n]?.pic)
+                      ? <img src={c.contacts[digits(n) || n]!.pic} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                      : <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary">👤</div>}
                     <div className="min-w-0 flex-1">
+                      {c.contacts?.[digits(n) || n]?.nm && <div className="truncate text-xs font-semibold">{c.contacts[digits(n) || n]!.nm}</div>}
                       <div dir="ltr" className="text-right text-xs text-muted-foreground">{showNum(n)}</div>
                       <div className="truncate">{last.me ? `👩‍💼 ${last.r}` : `👤 ${last.t}`}</div>
                     </div>
