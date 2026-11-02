@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { guessCategory } from "@/lib/rules";
 import { STUDIO_VOICES } from "@/lib/studio-voices";
 import { studioGenerate } from "@/lib/studio.functions";
-import { ttList, ttLoginUrl, ttSaveCtrl, ttRemove, ttManualReply, ttAddManual } from "@/lib/tiktok.functions";
+import { ttList, ttLoginUrl, ttSaveCtrl, ttRemove, ttManualReply, ttAddManual, ttTestMessage } from "@/lib/tiktok.functions";
 import { ttChannel, type TtAccount, type TtCtrl, type TtLog } from "@/lib/tiktok-types";
 import { CallIdentity, StaffSwitcher } from "@/components/CallIdentity";
 import { CallBoxes } from "@/components/CallBoxes";
@@ -78,6 +78,19 @@ function TtPanel({ acc, storeId, reload }: { acc: TtAccount; storeId?: string | 
   const [voice, setVoice] = useState<string>(STUDIO_VOICES[0]![0]);
   const [audio, setAudio] = useState("");
   const [busy, setBusy] = useState(false);
+  const test = useServerFn(ttTestMessage);
+  const [tFrom, setTFrom] = useState("");
+  const [tText, setTText] = useState("");
+  const runTest = async () => {
+    const from = tFrom.trim().replace(/^@/, "") || "عميل_تجربة";
+    setBusy(true);
+    try {
+      const r = await test({ data: { storeId, openId: acc.open_id, from, text: tText } });
+      setLog(r.log as TtLog[]); setTText(""); setChat(from); setDraft(""); setAudio("");
+      if (!r.reply) toast.message("ما طلع رد — المفاتيح مشغولة أو الرد الآلي بالقواعد فقط");
+    } catch (e) { toast.error((e as Error).message); }
+    setBusy(false);
+  };
 
   const update = async (patch: Partial<TtCtrl>) => {
     const next = { ...c, ...patch }; setC(next);
@@ -134,6 +147,13 @@ function TtPanel({ acc, storeId, reload }: { acc: TtAccount; storeId?: string | 
         {[0, 3, 10, 25].map((s) => <button key={s} className={pill(c.delay === s)} onClick={() => update({ delay: s })}>{s ? `⏱️ ${s} ث` : "⚡ فوري"}</button>)}
       </div>
       <Button size="sm" variant="outline" className="w-full" onClick={() => setStaffOpen(true)}>👯 الموظفة المناوبة والمربعات الأربعة</Button>
+
+      <div className="space-y-2 rounded-lg border p-2">
+        <span className="text-xs font-semibold">🚀 تجربة رسالة عميل / محادثة جديدة</span>
+        <input dir="ltr" value={tFrom} onChange={(e) => setTFrom(e.target.value)} placeholder="يوزر العميل (اختياري)" className="w-full rounded-md border bg-background p-2 text-sm" />
+        <Textarea rows={2} value={tText} onChange={(e) => setTText(e.target.value)} placeholder="اكتب رسالة العميل… مثلا: هلا كيفك" />
+        <Button size="sm" className="w-full" disabled={busy || !tText.trim()} onClick={runTest}>{busy ? "⏳ الموظفة تكتب…" : "🚀 أرسل وشوف ردها"}</Button>
+      </div>
 
       <div className="space-y-1.5">
         <span className="text-xs font-semibold">💬 رسائل الخاص</span>
