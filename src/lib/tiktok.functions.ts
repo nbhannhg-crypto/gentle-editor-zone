@@ -86,3 +86,21 @@ export const ttManualReply = createServerFn({ method: "POST" })
     await saveAccounts(store, list);
     return { ok: true };
   });
+
+/** Add an account by username directly (no TikTok OAuth needed). */
+export const ttAddManual = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ storeId: sid, username: z.string().trim().min(2).max(60) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { loadAccounts, saveAccounts } = await import("./tiktok.server");
+    const { defaultTtCtrl } = await import("./tiktok-types");
+    const store = await storeFor(context as Ctx, data.storeId);
+    const u = data.username.replace(/^@/, "").replace(/[^\w.]/g, "");
+    if (!u) throw new Error("اكتب يوزر صحيح");
+    const id = `manual_${u.toLowerCase()}`;
+    const list = await loadAccounts(store);
+    if (list.some((a) => a.open_id === id)) throw new Error("الحساب مضاف من قبل");
+    list.push({ open_id: id, name: `@${u}`, avatar: "", token: "", refresh: "", expires: 0, ctrl: defaultTtCtrl(), log: [], linked_at: Date.now() } as never);
+    await saveAccounts(store, list);
+    return { ok: true };
+  });
