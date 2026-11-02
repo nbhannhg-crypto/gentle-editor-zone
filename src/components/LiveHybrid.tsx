@@ -103,6 +103,46 @@ export function LiveHybrid(p: {
     srRef.current = r; setHeard(""); setRec(true); r.start();
   };
 
+  // ⚡ النطق اللحظي السريع: يعرض كلامك وأنت تتكلم، وينطقه فوراً بدون صياغة أو تراجعه وتعدله قبل النطق
+  const [talk, setTalk] = useState(false);
+  const [autoSend, setAutoSend] = useState(true);
+  const autoRef = useRef(true);
+  autoRef.current = autoSend;
+  const [live, setLiveText] = useState("");
+  const [draft, setDraft] = useState("");
+  const [lastSaid, setLastSaid] = useState("");
+  const talkRef = useRef<SR | null>(null);
+  const talkOn = useRef(false);
+  const speakNow = async (t: string) => {
+    const text = t.trim(); if (!text) return;
+    setLastSaid(text);
+    if (target === "call") { p.say(text); return; }
+    setBusy(true);
+    try { await p.send({ text, voice: true, audio: await voiceOf(text) }); } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
+  };
+  const startTalk = () => {
+    const W = window as unknown as { SpeechRecognition?: new () => SR; webkitSpeechRecognition?: new () => SR };
+    const C = W.SpeechRecognition ?? W.webkitSpeechRecognition;
+    if (!C) { toast.error("المتصفح ما يدعم تحويل الكلام — جرّب كروم"); return; }
+    const r = new C(); r.lang = "ar-SA"; r.interimResults = true; r.continuous = true;
+    let done = 0;
+    r.onresult = (e) => {
+      let interim = "";
+      for (let i = done; i < e.results.length; i++) {
+        const res = e.results[i]; const t = res?.[0]?.transcript ?? "";
+        if (res?.isFinal) {
+          done = i + 1; setLiveText("");
+          if (autoRef.current) void speakNow(t); else setDraft((d) => (d ? d + " " : "") + t.trim());
+        } else interim += t;
+      }
+      setLiveText(interim);
+    };
+    r.onend = () => { if (talkOn.current) { try { r.start(); done = 0; } catch { /* ignore */ } } else setTalk(false); };
+    talkRef.current = r; talkOn.current = true; setTalk(true); r.start();
+  };
+  const stopTalk = () => { talkOn.current = false; talkRef.current?.stop(); setTalk(false); setLiveText(""); };
+  useEffect(() => () => { talkOn.current = false; talkRef.current?.stop(); }, []);
+
   const last = [...p.log].reverse().find((m) => m.who === "c")?.t ?? p.customer;
   const heat = HEAT(last || "");
 
