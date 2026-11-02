@@ -246,6 +246,20 @@ export async function typingDelay(number: string, seconds: number, instance = ""
   if (url) await call("stopTyping");
 }
 
+/** Best-effort customer profile photo URL (WAHA or Evolution). Never throws. */
+export async function waProfilePic(instance: string, number: string): Promise<string> {
+  try {
+    const url = "http://wa.nbhansmm.com:8085";
+    const key = (process.env["EVO_LIVE_KEY"] || process.env["EVO2_API_KEY"] || process.env["EVOLUTION_API_KEY"]) ?? "";
+    const chatId = /@(lid|c\.us)$/.test(number) ? number : `${number.replace(/\D/g, "")}@c.us`;
+    const w = await fetch(`${url}/api/contacts/profile-picture?session=default&contactId=${encodeURIComponent(chatId)}`, { headers: { "X-Api-Key": key }, signal: AbortSignal.timeout(4000) }).catch(() => null);
+    if (w?.ok) { const j: any = await w.json().catch(() => ({})); if (j?.profilePictureURL || j?.url) return String(j.profilePictureURL || j.url); }
+    const e = await fetch(`${url}/chat/fetchProfilePictureUrl/${encodeURIComponent(instance)}`, { method: "POST", headers: { apikey: key, "Content-Type": "application/json" }, body: JSON.stringify({ number: number.replace(/@.*$/, "") }), signal: AbortSignal.timeout(4000) }).catch(() => null);
+    if (e?.ok) { const j: any = await e.json().catch(() => ({})); return String(j?.profilePictureUrl || ""); }
+  } catch { /* ignore */ }
+  return "";
+}
+
 export async function evoSend(path: string, body: unknown) {
   const url = (("http://wa.nbhansmm.com:8085"))!.replace(/\/$/, "");
   const key = (process.env["EVO_LIVE_KEY"] || process.env["EVO2_API_KEY"] || process.env["EVOLUTION_API_KEY"])!;
