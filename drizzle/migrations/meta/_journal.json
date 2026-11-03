@@ -99,6 +99,13 @@
       "when": 1791419362571,
       "tag": "0013_fix_media_storage_policies",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1793728790605,
+      "tag": "0014_add_appointments_merchant_brain_tables",
+      "breakpoints": true
     }
   ]
 }
