@@ -113,12 +113,39 @@ export function LiveHybrid(p: {
   const [lastSaid, setLastSaid] = useState("");
   const talkRef = useRef<SR | null>(null);
   const talkOn = useRef(false);
+  // 🛡️ منع التكرار (اختياري — أطفئه مع السماعة لسرعة أعلى) + ⏱️ مهلة السكوت
+  const [guard, setGuard] = useState(true);
+  const guardRef = useRef(true); guardRef.current = guard;
+  const [wait, setWait] = useState(800);
+  const waitRef = useRef(800); waitRef.current = wait;
+  const speakingRef = useRef(false); speakingRef.current = p.speaking || busy;
+  const recent = useRef<{ t: string; at: number }[]>([]);
+  // 💬 شات تسلسلي مثل الواتساب
+  const [chat, setChat] = useState<{ id: number; who: "me" | "a"; t: string; audio?: string; at: number }[]>([]);
+  const chatEnd = useRef<HTMLDivElement | null>(null);
+  useEffect(() => { chatEnd.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }, [chat.length]);
+  const norm = (s: string) => s.replace(/[^\u0600-\u06FFa-zA-Z0-9]/g, "");
   const speakNow = async (t: string) => {
     const text = t.trim(); if (!text) return;
+    if (guardRef.current) {
+      const n = norm(text), now = Date.now();
+      recent.current = recent.current.filter((r) => now - r.at < 6000);
+      if (recent.current.some((r) => r.t === n || (n.length > 3 && r.t.includes(n)))) return;
+      recent.current.push({ t: n, at: now });
+    }
     setLastSaid(text);
-    if (target === "call") { p.say(text); return; }
+    const id = Date.now() + Math.random();
+    setChat((c) => [...c, { id, who: "me", t: text, at: Date.now() }]);
+    if (target === "call") { p.say(text); setChat((c) => [...c, { id: id + 1, who: "a", t: text, at: Date.now() }]); return; }
     setBusy(true);
-    try { await p.send({ text, voice: true, audio: await voiceOf(text) }); } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
+    try {
+      const audio = await voiceOf(text);
+      setChat((c) => [...c, { id: id + 1, who: "a", t: text, audio, at: Date.now() }]);
+      await p.send({ text, voice: true, audio });
+    } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
+  };
+  const replay = (m: { t: string; audio?: string }) => {
+    if (m.audio) { void new Audio(m.audio).play().catch(() => toast.error("تعذر التشغيل")); } else p.say(m.t);
   };
   const startTalk = () => {
     const W = window as unknown as { SpeechRecognition?: new () => SR; webkitSpeechRecognition?: new () => SR };
@@ -126,21 +153,43 @@ export function LiveHybrid(p: {
     if (!C) { toast.error("المتصفح ما يدعم تحويل الكلام — جرّب كروم"); return; }
     const r = new C(); r.lang = "ar-SA"; r.interimResults = true; r.continuous = true;
     let done = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let pending = "";
+    const flush = (t: string) => {
+      const x = t.trim(); if (!x) return;
+      if (autoRef.current) void speakNow(x); else setDraft((d) => (d ? d + " " : "") + x);
+    };
     r.onresult = (e) => {
+      if (guardRef.current && speakingRef.current) { done = e.results.length; setLiveText(""); return; } // المايك مقفل أثناء نطق الموظفة
       let interim = "";
       for (let i = done; i < e.results.length; i++) {
         const res = e.results[i]; const t = res?.[0]?.transcript ?? "";
-        if (res?.isFinal) {
-          done = i + 1; setLiveText("");
-          if (autoRef.current) void speakNow(t); else setDraft((d) => (d ? d + " " : "") + t.trim());
-        } else interim += t;
+        if (res?.isFinal) { done = i + 1; clearTimeout(timer); pending = ""; setLiveText(""); flush(t); }
+        else interim += t;
       }
       setLiveText(interim);
+      pending = interim;
+      clearTimeout(timer);
+      if (interim.trim()) timer = setTimeout(() => { const t = pending; pending = ""; done = Math.max(done, 0); setLiveText(""); try { r.stop(); } catch { /* ignore */ } flush(t); }, waitRef.current);
     };
-    r.onend = () => { if (talkOn.current) { try { r.start(); done = 0; } catch { /* ignore */ } } else setTalk(false); };
+    r.onend = () => { clearTimeout(timer); if (talkOn.current) { try { r.start(); done = 0; } catch { /* ignore */ } } else setTalk(false); };
     talkRef.current = r; talkOn.current = true; setTalk(true); r.start();
   };
   const stopTalk = () => { talkOn.current = false; talkRef.current?.stop(); setTalk(false); setLiveText(""); };
+  // ✋ اضغط وتكلّم: يسمع طول ما أنت ضاغط وينطق أول ما تفلت
+  const holdRef = useRef<SR | null>(null);
+  const [holding, setHolding] = useState(false);
+  const holdStart = () => {
+    const W = window as unknown as { SpeechRecognition?: new () => SR; webkitSpeechRecognition?: new () => SR };
+    const C = W.SpeechRecognition ?? W.webkitSpeechRecognition;
+    if (!C) { toast.error("المتصفح ما يدعم تحويل الكلام — جرّب كروم"); return; }
+    const r = new C(); r.lang = "ar-SA"; r.interimResults = true; r.continuous = true;
+    let text = "";
+    r.onresult = (e) => { let t = ""; for (let i = 0; i < e.results.length; i++) t += e.results[i]?.[0]?.transcript ?? ""; text = t; setLiveText(t); };
+    r.onend = () => { setHolding(false); setLiveText(""); if (text.trim()) void speakNow(text); };
+    holdRef.current = r; setHolding(true); r.start();
+  };
+  const holdEnd = () => { holdRef.current?.stop(); };
   useEffect(() => () => { talkOn.current = false; talkRef.current?.stop(); }, []);
 
   const last = [...p.log].reverse().find((m) => m.who === "c")?.t ?? p.customer;
