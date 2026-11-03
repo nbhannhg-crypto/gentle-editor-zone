@@ -110,10 +110,12 @@ export type Database = {
           id: string
           in_mother: boolean
           instructions: string
+          is_kingdom: boolean
           knowledge: string
           library_tag: string
           name: string
           scopes: string[]
+          short_desc: string
           source: string
           specialty: string
           store_id: string
@@ -126,10 +128,12 @@ export type Database = {
           id?: string
           in_mother?: boolean
           instructions?: string
+          is_kingdom?: boolean
           knowledge?: string
           library_tag?: string
           name: string
           scopes?: string[]
+          short_desc?: string
           source?: string
           specialty?: string
           store_id: string
@@ -142,10 +146,12 @@ export type Database = {
           id?: string
           in_mother?: boolean
           instructions?: string
+          is_kingdom?: boolean
           knowledge?: string
           library_tag?: string
           name?: string
           scopes?: string[]
+          short_desc?: string
           source?: string
           specialty?: string
           store_id?: string

@@ -120,6 +120,13 @@
       "when": 1793728838964,
       "tag": "0016_add_customers_rating",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793728868057,
+      "tag": "0017_add_brains_kingdom_columns",
+      "breakpoints": true
     }
   ]
 }
