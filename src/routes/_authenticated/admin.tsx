@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { isAdmin } from "@/lib/stores";
 import FactoryLab from "@/components/FactoryLab";
+import { BackupPanel } from "@/components/BackupPanel";
 import { SiteGuideEditor } from "@/components/SiteGuide";
 import { getBranding, setBranding } from "@/lib/branding.functions";
 import { adminReviewPayment } from "@/lib/payments.functions";
@@ -133,6 +134,7 @@ function AdminPage() {
             </div>
           )}
         </section>
+        <BackupPanel />
         <AdminWallet />
         <BrandNamesCard />
         <AdminBrains />
