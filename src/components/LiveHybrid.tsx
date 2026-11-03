@@ -155,11 +155,13 @@ export function LiveHybrid(p: {
     let done = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let pending = "";
+    let ignore = false;
     const flush = (t: string) => {
       const x = t.trim(); if (!x) return;
       if (autoRef.current) void speakNow(x); else setDraft((d) => (d ? d + " " : "") + x);
     };
     r.onresult = (e) => {
+      if (ignore) return;
       if (guardRef.current && speakingRef.current) { done = e.results.length; setLiveText(""); return; } // المايك مقفل أثناء نطق الموظفة
       let interim = "";
       for (let i = done; i < e.results.length; i++) {
@@ -170,9 +172,9 @@ export function LiveHybrid(p: {
       setLiveText(interim);
       pending = interim;
       clearTimeout(timer);
-      if (interim.trim()) timer = setTimeout(() => { const t = pending; pending = ""; done = Math.max(done, 0); setLiveText(""); try { r.stop(); } catch { /* ignore */ } flush(t); }, waitRef.current);
+      if (interim.trim()) timer = setTimeout(() => { const t = pending; pending = ""; ignore = true; setLiveText(""); try { r.stop(); } catch { /* ignore */ } flush(t); }, waitRef.current);
     };
-    r.onend = () => { clearTimeout(timer); if (talkOn.current) { try { r.start(); done = 0; } catch { /* ignore */ } } else setTalk(false); };
+    r.onend = () => { clearTimeout(timer); ignore = false; if (talkOn.current) { try { r.start(); done = 0; } catch { /* ignore */ } } else setTalk(false); };
     talkRef.current = r; talkOn.current = true; setTalk(true); r.start();
   };
   const stopTalk = () => { talkOn.current = false; talkRef.current?.stop(); setTalk(false); setLiveText(""); };
@@ -267,6 +269,12 @@ export function LiveHybrid(p: {
           <Button size="sm" variant={autoSend ? "default" : "outline"} onClick={() => setAutoSend(true)}>⚡ نطق فوري</Button>
           <Button size="sm" variant={!autoSend ? "default" : "outline"} onClick={() => setAutoSend(false)}>✍️ راجع قبل النطق</Button>
         </div>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Button size="sm" variant={guard ? "default" : "outline"} onClick={() => setGuard(!guard)}>{guard ? "🛡️ منع التكرار: مفعّل (سبيكر)" : "🎧 منع التكرار: متوقف (سماعة — أسرع)"}</Button>
+          {([[400, "⚡ خاطف"], [800, "🎯 متوازن"], [1500, "⏳ صبور"]] as const).map(([v, l]) => (
+            <Button key={v} size="sm" variant={wait === v ? "default" : "outline"} onClick={() => setWait(v)}>{l}</Button>
+          ))}
+        </div>
         <div className="mt-3 flex gap-2">
           <Button className="flex-1" variant={talk ? "destructive" : "default"} onClick={() => (talk ? stopTalk() : startTalk())}>
             {talk ? "⏹️ وقّف الاستماع" : "🎙️ ابدأ أتكلم"}
@@ -276,6 +284,27 @@ export function LiveHybrid(p: {
         <div className="mt-3 min-h-12 rounded-xl border bg-background p-3 text-sm">
           {live ? <span className="text-muted-foreground">🎧 {live}…</span> : <span className="text-muted-foreground">{talk ? "أسمعك… تكلم" : "الكلام يطلع هنا وأنت تتكلم"}</span>}
         </div>
+        <Button className="mt-2 w-full select-none" variant={holding ? "destructive" : "secondary"} disabled={talk}
+          onPointerDown={(e) => { e.preventDefault(); holdStart(); }} onPointerUp={holdEnd} onPointerLeave={() => holding && holdEnd()}>
+          {holding ? "🔴 أسمعك… افلت عشان تنطق" : "✋ اضغط مطوّل وتكلّم — افلت ينطق فوراً"}
+        </Button>
+        <div className="mt-3 max-h-72 space-y-2 overflow-y-auto rounded-xl border bg-secondary/40 p-3">
+          {!chat.length && <p className="text-center text-xs text-muted-foreground">💬 المحادثة تطلع هنا بالتسلسل</p>}
+          {chat.map((m) => (
+            <div key={m.id} className={`flex ${m.who === "me" ? "justify-start" : "justify-end"}`}>
+              <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm shadow-sm ${m.who === "me" ? "bg-background" : "bg-primary/15"}`}>
+                <p className="text-[10px] text-muted-foreground">{m.who === "me" ? "🎙️ أنت" : "👩‍💼 الموظفة"}</p>
+                <p>{m.t}</p>
+                <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
+                  <span>{new Date(m.at).toLocaleTimeString("ar", { hour: "2-digit", minute: "2-digit" })}</span>
+                  {m.who === "a" && <button className="rounded-full bg-background px-2 py-0.5" onClick={() => replay(m)}>▶️ شغّل</button>}
+                </div>
+              </div>
+            </div>
+          ))}
+          <div ref={chatEnd} />
+        </div>
+        {chat.length > 0 && <Button size="sm" variant="ghost" className="mt-1" onClick={() => setChat([])}>🧹 مسح المحادثة</Button>}
         <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={2} placeholder="اكتب أو عدّل الكلام هنا…"
           className="mt-2 w-full rounded-xl border bg-background p-2 text-sm" />
         <div className="mt-2 flex flex-wrap gap-2">
