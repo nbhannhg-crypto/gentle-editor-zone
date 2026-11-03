@@ -113,6 +113,13 @@
       "when": 1793728825853,
       "tag": "0015_handle_new_user_profile_and_owner_role",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1793728838964,
+      "tag": "0016_add_customers_rating",
+      "breakpoints": true
     }
   ]
 }

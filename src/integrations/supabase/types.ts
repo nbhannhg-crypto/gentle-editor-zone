@@ -317,6 +317,7 @@ export type Database = {
           notes: string
           phone: string
           purchases: string
+          rating: number
           store_id: string | null
         }
         Insert: {
@@ -329,6 +330,7 @@ export type Database = {
           notes?: string
           phone?: string
           purchases?: string
+          rating?: number
           store_id?: string | null
         }
         Update: {
@@ -341,6 +343,7 @@ export type Database = {
           notes?: string
           phone?: string
           purchases?: string
+          rating?: number
           store_id?: string | null
         }
         Relationships: [
