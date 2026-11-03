@@ -99,6 +99,34 @@
       "when": 1791419362571,
       "tag": "0013_fix_media_storage_policies",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1793728790605,
+      "tag": "0014_add_appointments_merchant_brain_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1793728825853,
+      "tag": "0015_handle_new_user_profile_and_owner_role",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1793728838964,
+      "tag": "0016_add_customers_rating",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793728868057,
+      "tag": "0017_add_brains_kingdom_columns",
+      "breakpoints": true
     }
   ]
 }

@@ -39,10 +39,10 @@ export type Database = {
           phone: string
           service: string
           status: string
-          store_id: string | null
+          store_id: string
         }
         Insert: {
-          appointment_at: string
+          appointment_at?: string
           created_at?: string
           customer_name?: string
           id?: string
@@ -50,7 +50,7 @@ export type Database = {
           phone?: string
           service?: string
           status?: string
-          store_id?: string | null
+          store_id: string
         }
         Update: {
           appointment_at?: string
@@ -61,7 +61,7 @@ export type Database = {
           phone?: string
           service?: string
           status?: string
-          store_id?: string | null
+          store_id?: string
         }
         Relationships: [
           {
@@ -556,17 +556,15 @@ export type Database = {
           created_at: string
           id: string
           merchant_id: string
-          mother_brain_id: string
-          reply_id: string | null
+          mother_brain_id: string | null
           type: string
         }
         Insert: {
-          content: string
+          content?: string
           created_at?: string
           id?: string
-          merchant_id?: string
-          mother_brain_id: string
-          reply_id?: string | null
+          merchant_id: string
+          mother_brain_id?: string | null
           type: string
         }
         Update: {
@@ -574,26 +572,10 @@ export type Database = {
           created_at?: string
           id?: string
           merchant_id?: string
-          mother_brain_id?: string
-          reply_id?: string | null
+          mother_brain_id?: string | null
           type?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "merchant_brain_overrides_mother_brain_id_fkey"
-            columns: ["mother_brain_id"]
-            isOneToOne: false
-            referencedRelation: "brains"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merchant_brain_overrides_reply_id_fkey"
-            columns: ["reply_id"]
-            isOneToOne: false
-            referencedRelation: "reply_library"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       merchant_brain_usage: {
         Row: {
@@ -613,7 +595,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean
-          merchant_id?: string
+          merchant_id: string
           platform?: string | null
           reply_id?: string | null
           toggle_key: string
@@ -632,22 +614,7 @@ export type Database = {
           usage_type?: string | null
           voice_mode?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "merchant_brain_usage_brain_id_fkey"
-            columns: ["brain_id"]
-            isOneToOne: false
-            referencedRelation: "brains"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "merchant_brain_usage_reply_id_fkey"
-            columns: ["reply_id"]
-            isOneToOne: false
-            referencedRelation: "reply_library"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       pending_payments: {
         Row: {
