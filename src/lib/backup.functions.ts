@@ -66,6 +66,12 @@ export const backupToMyDb = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await requireQueen(context);
+    return runBackup();
+  });
+
+/** Core incremental backup — shared by the Queen's button and the scheduled job. */
+export async function runBackup() {
+    const context = {};
     const secret = process.env["EXT_DB_SECRET"];
     const empty = { counts: {} as Record<string, number>, sent: 0, skipped: 0, files: 0, filesLeft: 0 };
     if (!secret) return { ok: false, error: "مفتاح قاعدتك الخاصة غير محفوظ بعد", ...empty };
@@ -142,4 +148,4 @@ export const backupToMyDb = createServerFn({ method: "POST" })
       files++;
     }
     return { ok: true, error: "", counts, sent, skipped, files, filesLeft: pending.length - files };
-  });
+}
