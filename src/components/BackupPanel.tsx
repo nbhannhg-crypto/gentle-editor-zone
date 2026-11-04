@@ -11,6 +11,10 @@ const SETUP_SQL = `create table if not exists public.kingdom_backup (
   backed_up_at timestamptz not null default now(),
   primary key (table_name, row_id)
 );
+alter table public.kingdom_backup add column if not exists store_id text;
+alter table public.kingdom_backup add column if not exists user_id text;
+alter table public.kingdom_backup add column if not exists hash text;
+create index if not exists kingdom_backup_store on public.kingdom_backup(store_id);
 alter table public.kingdom_backup enable row level security;
 grant all on public.kingdom_backup to service_role;`;
 
@@ -26,7 +30,10 @@ export function BackupPanel() {
     try {
       const r = await push();
       const total = Object.values(r.counts).reduce((a, b) => a + b, 0);
-      if (r.ok) { setLast({ at: new Date().toLocaleString("ar-SA"), total }); toast.success(`انحفظت ${total} سجل في قاعدتك ✅`); }
+      if (r.ok) {
+        setLast({ at: new Date().toLocaleString("ar-SA"), total });
+        toast.success(`✅ جديد/معدّل: ${r.sent} — موجود من قبل: ${r.skipped} — ملفات: ${r.files}${r.filesLeft > 0 ? ` (باقي ${r.filesLeft} ملف، اضغط مرة ثانية)` : ""}`, { duration: 9000 });
+      }
       else toast.error(r.error);
     } catch (e: any) { toast.error(e?.message ?? "تعذر النسخ"); }
     setBusy("");
