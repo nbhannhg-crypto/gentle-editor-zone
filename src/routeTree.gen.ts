@@ -24,6 +24,7 @@ import { Route as ApiPublicEvolutionRouteImport } from './routes/api/public/evol
 import { Route as ApiPublicFactoryDailyRouteImport } from './routes/api/public/factory-daily'
 import { Route as ApiPublicSyncRouteImport } from './routes/api/public/sync'
 import { Route as ApiPublicWhatsappRouteImport } from './routes/api/public/whatsapp'
+import { Route as ApiPublicJobsBackupRouteImport } from './routes/api/public/jobs/backup'
 import { Route as ApiPublicTiktokCallbackRouteImport } from './routes/api/public/tiktok/callback'
 import { Route as ApiPublicTiktokWebhookRouteImport } from './routes/api/public/tiktok/webhook'
 
@@ -102,6 +103,11 @@ const ApiPublicWhatsappRoute = ApiPublicWhatsappRouteImport.update({
   path: '/api/public/whatsapp',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicJobsBackupRoute = ApiPublicJobsBackupRouteImport.update({
+  id: '/api/public/jobs/backup',
+  path: '/api/public/jobs/backup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicTiktokCallbackRoute = ApiPublicTiktokCallbackRouteImport.update({
   id: '/api/public/tiktok/callback',
   path: '/api/public/tiktok/callback',
@@ -128,6 +134,7 @@ export interface FileRoutesByFullPath {
   '/api/public/factory-daily': typeof ApiPublicFactoryDailyRoute
   '/api/public/sync': typeof ApiPublicSyncRoute
   '/api/public/whatsapp': typeof ApiPublicWhatsappRoute
+  '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
   '/api/public/tiktok/callback': typeof ApiPublicTiktokCallbackRoute
   '/api/public/tiktok/webhook': typeof ApiPublicTiktokWebhookRoute
 }
@@ -146,6 +153,7 @@ export interface FileRoutesByTo {
   '/api/public/factory-daily': typeof ApiPublicFactoryDailyRoute
   '/api/public/sync': typeof ApiPublicSyncRoute
   '/api/public/whatsapp': typeof ApiPublicWhatsappRoute
+  '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
   '/api/public/tiktok/callback': typeof ApiPublicTiktokCallbackRoute
   '/api/public/tiktok/webhook': typeof ApiPublicTiktokWebhookRoute
 }
@@ -166,6 +174,7 @@ export interface FileRoutesById {
   '/api/public/factory-daily': typeof ApiPublicFactoryDailyRoute
   '/api/public/sync': typeof ApiPublicSyncRoute
   '/api/public/whatsapp': typeof ApiPublicWhatsappRoute
+  '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
   '/api/public/tiktok/callback': typeof ApiPublicTiktokCallbackRoute
   '/api/public/tiktok/webhook': typeof ApiPublicTiktokWebhookRoute
 }
@@ -186,6 +195,7 @@ export interface FileRouteTypes {
     | '/api/public/factory-daily'
     | '/api/public/sync'
     | '/api/public/whatsapp'
+    | '/api/public/jobs/backup'
     | '/api/public/tiktok/callback'
     | '/api/public/tiktok/webhook'
   fileRoutesByTo: FileRoutesByTo
@@ -204,6 +214,7 @@ export interface FileRouteTypes {
     | '/api/public/factory-daily'
     | '/api/public/sync'
     | '/api/public/whatsapp'
+    | '/api/public/jobs/backup'
     | '/api/public/tiktok/callback'
     | '/api/public/tiktok/webhook'
   id:
@@ -223,6 +234,7 @@ export interface FileRouteTypes {
     | '/api/public/factory-daily'
     | '/api/public/sync'
     | '/api/public/whatsapp'
+    | '/api/public/jobs/backup'
     | '/api/public/tiktok/callback'
     | '/api/public/tiktok/webhook'
   fileRoutesById: FileRoutesById
@@ -239,6 +251,7 @@ export interface RootRouteChildren {
   ApiPublicFactoryDailyRoute: typeof ApiPublicFactoryDailyRoute
   ApiPublicSyncRoute: typeof ApiPublicSyncRoute
   ApiPublicWhatsappRoute: typeof ApiPublicWhatsappRoute
+  ApiPublicJobsBackupRoute: typeof ApiPublicJobsBackupRoute
   ApiPublicTiktokCallbackRoute: typeof ApiPublicTiktokCallbackRoute
   ApiPublicTiktokWebhookRoute: typeof ApiPublicTiktokWebhookRoute
 }
@@ -350,6 +363,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicWhatsappRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/jobs/backup': {
+      id: '/api/public/jobs/backup'
+      path: '/api/public/jobs/backup'
+      fullPath: '/api/public/jobs/backup'
+      preLoaderRoute: typeof ApiPublicJobsBackupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/tiktok/callback': {
       id: '/api/public/tiktok/callback'
       path: '/api/public/tiktok/callback'
@@ -396,6 +416,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicFactoryDailyRoute: ApiPublicFactoryDailyRoute,
   ApiPublicSyncRoute: ApiPublicSyncRoute,
   ApiPublicWhatsappRoute: ApiPublicWhatsappRoute,
+  ApiPublicJobsBackupRoute: ApiPublicJobsBackupRoute,
   ApiPublicTiktokCallbackRoute: ApiPublicTiktokCallbackRoute,
   ApiPublicTiktokWebhookRoute: ApiPublicTiktokWebhookRoute,
 }

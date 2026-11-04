@@ -57,6 +57,7 @@ export function BackupPanel() {
     <section className="rounded-2xl border bg-card p-5 shadow-soft space-y-3">
       <h2 className="font-display text-lg text-primary">🛡️ النسخ الاحتياطي لبياناتك</h2>
       <p className="text-sm text-muted-foreground">انسخ القواعد والأصوات والمحادثات والإعدادات لقاعدتك الخاصة، أو نزّلها ملف لجوالك.</p>
+      <p className="text-xs text-primary">🔄 النسخ التلقائي شغال: كل 6 ساعات ينتقل الجديد فقط لقاعدتك بدون تكرار.</p>
       <div className="flex flex-wrap gap-2">
         <Button onClick={doPush} disabled={!!busy}>{busy === "push" ? "ينسخ…" : "☁️ نسخ فوري لقاعدتي الخاصة"}</Button>
         <Button variant="outline" onClick={doDl} disabled={!!busy}>{busy === "dl" ? "يجهز…" : "📥 تحميل نسخة لجهازي"}</Button>
