@@ -332,14 +332,20 @@ export const fishSpeak = createServerFn({ method: "POST" })
     const key = process.env['FISH_AUDIO_API_KEY'];
     if (!key) throw new Error(`${brand.voice} غير مربوط بعد`);
     const voiceId = data.custom && data.voiceId ? data.voiceId : BUILTIN_FISH_VOICE_ID;
+    // تنظيف النص: إزالة الإيموجي والرموز في البداية حتى تنطق أول كلمة بوضوح
+    const clean = data.text
+      .replace(/[\p{Extended_Pictographic}\uFE0F\u200D]/gu, "")
+      .replace(/^[\s.…\-–—_*#~"'«»()\[\]،,:;!؟?]+/u, "")
+      .replace(/\s{2,}/g, " ")
+      .trim() || data.text;
     const res = await fetch(`${FISH}/v1/tts`, {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", model: data.model },
       body: JSON.stringify({
-        text: data.emotion ? `(${data.emotion}) ${data.text}` : data.text,
+        text: data.emotion ? `(${data.emotion}) ${clean}` : clean,
         reference_id: voiceId,
-        format: "mp3",
-        latency: "balanced", mp3_bitrate: 128,
+        format: "mp3", normalize: true,
+        latency: "normal", mp3_bitrate: 192,
         prosody: { speed: data.speed, volume: data.volume },
       }),
     });
