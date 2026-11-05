@@ -556,6 +556,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
   const staffRef = useRef("");
   staffRef.current = staff.activeText;
   const [live, setLive] = useState(false);
+  const [ltab, setLtab] = useState<"call" | "voices" | "hybrid" | "wa" | "setup">("call");
   const [interim, setInterim] = useState("");
   const [customer, setCustomer] = useState("");
   const [typed, setTyped] = useState("");
@@ -955,12 +956,20 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
 
   return (
     <div className="grid gap-6 lg:grid-cols-3">
-      <section className="rounded-2xl border bg-card p-3 lg:col-span-3"><StaffSwitcher storeId={storeId} channel="live" />
+      <nav className="sticky top-0 z-20 -mx-1 flex snap-x gap-2 overflow-x-auto rounded-2xl border bg-card/95 p-2 shadow-soft backdrop-blur lg:col-span-3" aria-label="أقسام المكالمة">
+        {([["call", "📞 المكالمة والشات"], ["voices", "🎙️ الأصوات والمجلدات"], ["hybrid", "⚡ النطق اللحظي والسلك"], ["wa", "📲 الواتساب والصفقة"], ["setup", "🎛️ الإعدادات والموظفات"]] as const).map(([k, l]) => (
+          <button key={k} type="button" onClick={() => setLtab(k)}
+            className={`shrink-0 snap-start whitespace-nowrap rounded-full border px-4 py-2 text-sm font-semibold transition ${ltab === k ? "border-primary bg-primary text-primary-foreground" : "bg-secondary"}`}>{l}</button>
+        ))}
+      </nav>
+      <div className={`grid gap-6 lg:col-span-3 ${ltab === "setup" ? "" : "hidden"}`}>
+      <section className="rounded-2xl border bg-card p-3"><StaffSwitcher storeId={storeId} channel="live" />
         <details className="mt-2 rounded-xl border p-2"><summary className="cursor-pointer text-sm font-semibold">👯 إدارة طاقم الموظفات (توليد وتعديل)</summary><div className="mt-2"><CallIdentity storeId={storeId} /></div></details></section>
       <LiveCockpit cfg={cfg} setCfg={saveCfg} live={live} onToggle={() => (live ? stop() : start())} rulesCount={rules.length}
         accounts={accounts} accErr={accErr} reloadAcc={loadAccounts}
         waFrom={waFrom} setWaFrom={(v) => { setWaFrom(v); localStorage.setItem("live_wa_from", v); }} waTo={waTo} setWaTo={setWaTo} customers={custList} />
-      <section className="rounded-2xl bg-royal p-5 text-primary-foreground shadow-soft lg:col-span-3">
+      </div>
+      <section className={`rounded-2xl bg-royal p-5 text-primary-foreground shadow-soft lg:col-span-3 ${ltab === "call" ? "" : "hidden"}`}>
         <div className="flex flex-col items-center">
           <div className={`relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-full bg-gold text-5xl transition-transform ${speaking ? "scale-105 animate-pulse ring-8 ring-gold/60" : live ? "ring-4 ring-gold/30" : ""}`}>
             {avatar ? <img src={avatar} alt="صورة الموظفة" className="h-full w-full object-cover" /> : "👩‍💼"}
@@ -996,7 +1005,8 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
           )}
         </div>
       </section>
-      <div className="space-y-6 lg:col-span-2">
+      <div className="space-y-6 lg:col-span-3">
+        <div className={`space-y-6 ${ltab === "call" ? "" : "hidden"}`}>
         <Card>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
@@ -1067,6 +1077,8 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
           <Button className="mt-2" onClick={teach}>🧠 علّمها</Button>
           <p className="mt-1 text-xs text-muted-foreground">ينحفظ كقاعدة دائمة مع قواعدك ({rules.length.toLocaleString("ar")} قاعدة).</p>
         </Card>
+        </div>
+        <div className={`space-y-6 ${ltab === "wa" ? "" : "hidden"}`}>
 
 
         <Card title="👁️ عين الصفقة اللحظية">
@@ -1094,14 +1106,19 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
             <Button variant="secondary" onClick={() => dispatchWa(true)}>🎙️ أرسل كفويس</Button>
           </div>
         </Card>
+        </div>
 
+        <div className={ltab === "voices" ? "" : "hidden"}>
         <LiveCallPlus waTo={waTo} setWaTo={setWaTo} live={live} speaking={speaking} customer={customer} answer={answer} log={log}
           say={say} playAudio={playAudio} bargeIn={() => { audioRef.current?.pause(); setSpeaking(false); cancelCountdown(); }}
           send={sendPlus} setEmotion={setEmotion} customers={custList} />
+        </div>
 
+        <div className={ltab === "hybrid" ? "" : "hidden"}>
         <LiveHybrid live={live} speaking={speaking} customer={customer} log={log} say={say} send={sendPlus} persona={cfg.persona}
           onMode={(m) => { if (m === "auto") saveCfg({ ...cfg, fast: true }); if (m === "copilot") saveCfg({ ...cfg, fast: false }); if (m === "ptt") saveCfg({ ...cfg, route: "ptt" }); if (m === "line") saveCfg({ ...cfg, route: "speaker" }); }}
           stopAll={() => { audioRef.current?.pause(); setSpeaking(false); cancelCountdown(); }} />
+        </div>
       </div>
 
     </div>
