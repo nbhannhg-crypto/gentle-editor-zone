@@ -147,7 +147,7 @@ export function CallTranscript({ log, setLog, storeId, kind, live, onSay, reload
           <div className={`mt-2 ${kind === "kcall" ? "max-h-[38vh]" : "max-h-[60vh]"} space-y-2 overflow-y-auto rounded-xl bg-muted/50 p-2`}>
             {!shown.length && <p className="p-3 text-center text-sm text-muted-foreground">ما فيه كلام للحين.</p>}
             {shown.map((m, i) => (
-              <div key={i} className={`flex flex-col ${m.who === "a" ? "items-start" : "items-end"}`}>
+              <div key={i} className={`flex flex-col duration-300 animate-in fade-in slide-in-from-bottom-2 ${m.who === "a" ? "items-start" : "items-end"}`}>
                 <p className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${m.who === "a" ? "bg-royal text-primary-foreground" : "bg-background text-foreground shadow-sm"}`}>
                   {m.who === "a" ? "👩‍💼 " : "🧑 "}{m.t}
                 </p>
