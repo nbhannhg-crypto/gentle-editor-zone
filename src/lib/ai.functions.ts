@@ -336,16 +336,19 @@ export const fishSpeak = createServerFn({ method: "POST" })
     const clean = data.text
       .replace(/[\p{Extended_Pictographic}\uFE0F\u200D]/gu, "")
       .replace(/^[\s.…\-–—_*#~"'«»()\[\]،,:;!؟?]+/u, "")
+      .replace(/[.…]{2,}/g, "،")
+      .replace(/([!؟?،,])\1+/g, "$1")
       .replace(/\s{2,}/g, " ")
       .trim() || data.text;
     const res = await fetch(`${FISH}/v1/tts`, {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", model: data.model },
       body: JSON.stringify({
-        text: data.emotion ? `(${data.emotion}) ${clean}` : clean,
+        // نص عربي صافي بدون وسوم إنجليزية حتى تبدأ أول كلمة بلكنة سعودية واضحة
+        text: clean,
         reference_id: voiceId,
         format: "mp3", normalize: true,
-        latency: "normal", mp3_bitrate: 192,
+        latency: "balanced", mp3_bitrate: 128,
         prosody: { speed: data.speed, volume: data.volume },
       }),
     });
