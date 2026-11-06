@@ -18,6 +18,7 @@ import { waCtrlSend } from "@/lib/wa-ctrl.functions";
 import { waList } from "@/lib/studio.functions";
 import { getOrCreateMyStore, isAdmin, type Store } from "@/lib/stores";
 import { VoiceStudio, useSpeaker, useCallSpeaker, EMOTIONS, loadVoice } from "@/components/VoiceStudio";
+import { CallVoiceVault } from "@/components/CallVoiceVault";
 import { LiveCallPlus, loadTuning, findTriggerClip, findLinkedClip, triggerVocab } from "@/components/LiveCallPlus";
 import { LiveHybrid } from "@/components/LiveHybrid";
 import { StaffSwitcher, useStaff, CallIdentity } from "@/components/CallIdentity";
@@ -1112,6 +1113,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
         <LiveCallPlus waTo={waTo} setWaTo={setWaTo} live={live} speaking={speaking} customer={customer} answer={answer} log={log}
           say={say} playAudio={playAudio} bargeIn={() => { audioRef.current?.pause(); setSpeaking(false); cancelCountdown(); }}
           send={sendPlus} setEmotion={setEmotion} customers={custList} />
+        <div className="mt-3"><CallVoiceVault playAudio={(u) => void playAudio(u)} /></div>
         </div>
 
         <div className={ltab === "hybrid" ? "" : "hidden"}>
