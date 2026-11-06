@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { analyzeDeal, suggestReplies, smartReply } from "@/lib/ai.functions";
 import { addRule, recordUse, findMatches, type Rule } from "@/lib/rules";
 import { useReplyEngine, type Mode } from "@/routes/_authenticated/app";
-import { useSpeaker, loadVoice, EMOTIONS } from "@/components/VoiceStudio";
+import { useCallSpeaker as useSpeaker, loadVoice, EMOTIONS } from "@/components/VoiceStudio";
 import { startVadRecorder, blobToBase64, type VadHandle } from "@/lib/vad-recorder";
 import { transcribeLive } from "@/lib/listen.functions";
 import { CallIdentity, StaffSwitcher, useIdentity, identityText } from "@/components/CallIdentity";

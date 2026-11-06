@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { fishSpeak, fishStatus, fishVoices } from "@/lib/ai.functions";
 import { useBranding } from "@/lib/branding";
+import { vaultSpeak } from "@/lib/call-vault";
 import { VoiceStudioPlus } from "./VoiceStudioPlus";
 
 export type VoiceSettings = {

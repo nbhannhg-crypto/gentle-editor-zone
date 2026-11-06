@@ -17,7 +17,7 @@ import { smartReply, suggestReplies, weeklyReport, analyzeDeal } from "@/lib/ai.
 import { waCtrlSend } from "@/lib/wa-ctrl.functions";
 import { waList } from "@/lib/studio.functions";
 import { getOrCreateMyStore, isAdmin, type Store } from "@/lib/stores";
-import { VoiceStudio, useSpeaker, EMOTIONS, loadVoice } from "@/components/VoiceStudio";
+import { VoiceStudio, useSpeaker, useCallSpeaker, EMOTIONS, loadVoice } from "@/components/VoiceStudio";
 import { LiveCallPlus, loadTuning, findTriggerClip, findLinkedClip, triggerVocab } from "@/components/LiveCallPlus";
 import { LiveHybrid } from "@/components/LiveHybrid";
 import { StaffSwitcher, useStaff, CallIdentity } from "@/components/CallIdentity";
@@ -574,7 +574,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
   const vadRef = useRef<VadHandle | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const engine = useReplyEngine(rules, mode, product);
-  const tts = useSpeaker();
+  const tts = useCallSpeaker();
   const [emotion, setEmotion] = useState("");
   const [voiceName, setVoiceName] = useState("");
   useEffect(() => { const v = loadVoice(); setEmotion(v.emotion); setVoiceName(v.provider === "fish" && v.voiceId ? v.voiceTitle : "الصوت المدمج"); }, []);
