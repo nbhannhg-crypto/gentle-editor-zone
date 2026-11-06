@@ -168,6 +168,59 @@ export type Database = {
           },
         ]
       }
+      call_voice_cache: {
+        Row: {
+          created_at: string
+          emotion: string
+          id: string
+          key: string
+          model: string
+          path: string
+          pinned: boolean
+          speed: number
+          store_id: string
+          text: string
+          uses: number
+          voice_id: string
+        }
+        Insert: {
+          created_at?: string
+          emotion?: string
+          id?: string
+          key: string
+          model?: string
+          path: string
+          pinned?: boolean
+          speed?: number
+          store_id: string
+          text: string
+          uses?: number
+          voice_id?: string
+        }
+        Update: {
+          created_at?: string
+          emotion?: string
+          id?: string
+          key?: string
+          model?: string
+          path?: string
+          pinned?: boolean
+          speed?: number
+          store_id?: string
+          text?: string
+          uses?: number
+          voice_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_voice_cache_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       channel_messages: {
         Row: {
           channel: string

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { fishSpeak, fishStatus, fishVoices } from "@/lib/ai.functions";
 import { useBranding } from "@/lib/branding";
+import { vaultSpeak } from "@/lib/call-vault";
 import { VoiceStudioPlus } from "./VoiceStudioPlus";
 
 export type VoiceSettings = {
@@ -45,6 +46,18 @@ export function useSpeaker() {
     const custom = !!v.voiceId && v.voiceId !== BUILTIN_VOICE_ID;
     const { audio } = await fish({ data: { text, voiceId: v.voiceId, speed: v.speed, volume: v.volume, emotion: v.emotion, custom, model: getVoiceModel() } });
     return audio;
+  };
+}
+
+/** نفس useSpeaker لكن يمر على خزينة صوت المكالمة (مطابقة بالحرف = تشغيل فوري بدون توليد). */
+export function useCallSpeaker() {
+  const fish = useServerFn(fishSpeak);
+  return async (text: string, override?: Partial<VoiceSettings>) => {
+    const v = { ...loadVoice(), ...override, provider: "fish" as const, voiceId: override?.voiceId || getStudioVoice() || BUILTIN_VOICE_ID };
+    const custom = !!v.voiceId && v.voiceId !== BUILTIN_VOICE_ID;
+    const model = getVoiceModel();
+    const gen = async () => (await fish({ data: { text, voiceId: v.voiceId, speed: v.speed, volume: v.volume, emotion: v.emotion, custom, model } })).audio;
+    return vaultSpeak(text, { voiceId: v.voiceId, model, speed: v.speed, emotion: v.emotion || "" }, gen);
   };
 }
 
