@@ -48,6 +48,18 @@ export function useSpeaker() {
   };
 }
 
+/** نفس useSpeaker لكن يمر على خزينة صوت المكالمة (مطابقة بالحرف = تشغيل فوري بدون توليد). */
+export function useCallSpeaker() {
+  const fish = useServerFn(fishSpeak);
+  return async (text: string, override?: Partial<VoiceSettings>) => {
+    const v = { ...loadVoice(), ...override, provider: "fish" as const, voiceId: override?.voiceId || getStudioVoice() || BUILTIN_VOICE_ID };
+    const custom = !!v.voiceId && v.voiceId !== BUILTIN_VOICE_ID;
+    const model = getVoiceModel();
+    const gen = async () => (await fish({ data: { text, voiceId: v.voiceId, speed: v.speed, volume: v.volume, emotion: v.emotion, custom, model } })).audio;
+    return vaultSpeak(text, { voiceId: v.voiceId, model, speed: v.speed, emotion: v.emotion || "" }, gen);
+  };
+}
+
 export function VoiceStudio() {
   const [v, setV] = useState<VoiceSettings>(DEFAULTS);
   const [connected, setConnected] = useState<boolean | null>(null);
