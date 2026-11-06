@@ -127,6 +127,13 @@
       "when": 1793728868057,
       "tag": "0017_add_brains_kingdom_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1794008749814,
+      "tag": "0018_migration",
+      "breakpoints": true
     }
   ]
 }
