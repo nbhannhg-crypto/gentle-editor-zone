@@ -42,8 +42,13 @@ export function SoundBoard({ tts, loud = true }: { tts: (t: string) => Promise<s
   const recRef = useRef<MediaRecorder | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  useEffect(() => { void loadPads().then((p) => p && setPads(p)).catch(() => {}); }, []);
-  const persist = (p: Pad[]) => { setPads(p); void savePads(p).catch(() => toast.error("تعذر الحفظ")); };
+  useEffect(() => {
+    void loadPads().then((p) => p && setPads(p)).catch(() => {});
+    const sync = (e: Event) => setPads((e as CustomEvent<Pad[]>).detail);
+    window.addEventListener("soundboard-sync", sync);
+    return () => window.removeEventListener("soundboard-sync", sync);
+  }, []);
+  const persist = (p: Pad[]) => { window.dispatchEvent(new CustomEvent("soundboard-sync", { detail: p })); void savePads(p).catch(() => toast.error("تعذر الحفظ")); };
 
   const play = async (pad: Pad) => {
     try {
