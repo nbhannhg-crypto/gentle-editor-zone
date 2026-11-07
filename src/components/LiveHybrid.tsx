@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { SoundBoard } from "@/components/SoundBoard";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useSpeaker } from "@/components/VoiceStudio";
