@@ -332,10 +332,10 @@ export function LiveHybrid(p: {
                 </div>
               </div>
             </div>
-          ))}
+          ); })}
           <div ref={chatEnd} />
         </div>
-        {chat.length > 0 && <Button size="sm" variant="ghost" className="mt-1" onClick={() => setChat([])}>🧹 مسح المحادثة</Button>}
+        {chat.length > 0 && <Button size="sm" variant="ghost" className="mt-1" onClick={() => { if (confirm("تمسح المحادثة كلها؟")) setChat([]); }}>🧹 مسح المحادثة</Button>}
         <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={2} placeholder="اكتب أو عدّل الكلام هنا…"
           className="mt-2 w-full rounded-xl border bg-background p-2 text-sm" />
         <div className="mt-2 flex flex-wrap gap-2">
