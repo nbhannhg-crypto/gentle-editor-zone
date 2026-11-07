@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { applyCable } from "@/lib/cable-audio";
 
 // 🎛️ أزرار المؤثرات السريعة: ضحكة، تنهيدة، أي مقطع — تنحفظ في الجهاز وتشتغل بلمسة
-type Pad = { id: string; label: string; emoji: string; text?: string; audio?: string };
+type Pad = { id: string; label: string; emoji: string; text?: string | undefined; audio?: string | undefined };
 const DB = "soundboard", STORE = "pads";
 const DEFAULTS: Pad[] = [
   { id: "laugh", emoji: "🤭", label: "ضحكة", text: "ههههههه" },
