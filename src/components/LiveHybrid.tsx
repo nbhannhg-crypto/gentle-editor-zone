@@ -123,6 +123,19 @@ export function LiveHybrid(p: {
   // 💬 شات تسلسلي مثل الواتساب
   const [chat, setChat] = useState<{ id: number; who: "me" | "a"; t: string; audio?: string; at: number }[]>([]);
   const chatEnd = useRef<HTMLDivElement | null>(null);
+  // 💾 المحادثة محفوظة دائماً — ما تنمسح إلا بزر الحذف
+  const chatLoaded = useRef(false);
+  useEffect(() => {
+    try { const s = JSON.parse(localStorage.getItem("live_hybrid_chat") ?? "[]"); if (Array.isArray(s)) setChat(s); } catch { /* ignore */ }
+    chatLoaded.current = true;
+  }, []);
+  useEffect(() => {
+    if (!chatLoaded.current) return;
+    try { localStorage.setItem("live_hybrid_chat", JSON.stringify(chat.slice(-300))); }
+    catch { try { localStorage.setItem("live_hybrid_chat", JSON.stringify(chat.slice(-300).map(({ audio: _a, ...m }) => m))); } catch { /* المساحة */ } }
+  }, [chat]);
+  const [playingId, setPlayingId] = useState<number | null>(null);
+  const lastAId = [...chat].reverse().find((m) => m.who === "a")?.id;
   useEffect(() => { chatEnd.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }, [chat.length]);
   const norm = (s: string) => s.replace(/[^\u0600-\u06FFa-zA-Z0-9]/g, "");
   const speakNow = async (t: string) => {
@@ -144,8 +157,12 @@ export function LiveHybrid(p: {
       await p.send({ text, voice: true, audio });
     } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
   };
-  const replay = (m: { t: string; audio?: string }) => {
-    if (m.audio) { void new Audio(m.audio).play().catch(() => toast.error("تعذر التشغيل")); } else p.say(m.t);
+  const replay = (m: { id: number; t: string; audio?: string }) => {
+    if (m.audio) {
+      const a = new Audio(m.audio); setPlayingId(m.id);
+      a.onended = a.onerror = a.onpause = () => setPlayingId((x) => (x === m.id ? null : x));
+      void a.play().catch(() => { setPlayingId(null); toast.error("تعذر التشغيل"); });
+    } else { setPlayingId(m.id); p.say(m.t); setTimeout(() => setPlayingId((x) => (x === m.id ? null : x)), 400); }
   };
   const startTalk = () => {
     const W = window as unknown as { SpeechRecognition?: new () => SR; webkitSpeechRecognition?: new () => SR };
@@ -290,21 +307,35 @@ export function LiveHybrid(p: {
         </Button>
         <div className="mt-3 max-h-72 space-y-2 overflow-y-auto rounded-xl border bg-secondary/40 p-3">
           {!chat.length && <p className="text-center text-xs text-muted-foreground">💬 المحادثة تطلع هنا بالتسلسل</p>}
-          {chat.map((m) => (
+          {chat.map((m) => {
+            const on = m.who === "a" && (playingId === m.id || (m.id === lastAId && (p.speaking || busy)));
+            return (
             <div key={m.id} className={`flex ${m.who === "me" ? "justify-start" : "justify-end"}`}>
               <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm shadow-sm ${m.who === "me" ? "bg-background" : "bg-primary/15"}`}>
                 <p className="text-[10px] text-muted-foreground">{m.who === "me" ? "🎙️ أنت" : "👩‍💼 الموظفة"}</p>
                 <p>{m.t}</p>
+                {m.who === "a" && (
+                  <div className="mt-1 flex h-4 items-center gap-0.5" aria-label={on ? "تنطق الحين" : "ساكتة"}>
+                    {Array.from({ length: 14 }).map((_, i) => (
+                      <span key={i} className={`w-0.5 rounded-full ${on ? "animate-pulse bg-primary" : "bg-muted-foreground/30"}`}
+                        style={{ height: on ? `${30 + ((i * 37) % 70)}%` : "2px", animationDelay: `${i * 60}ms` }} />
+                    ))}
+                    <span className="ms-1 text-[10px] text-muted-foreground">{on ? "🔊 تنطق" : "⏸️ ساكتة"}</span>
+                  </div>
+                )}
                 <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
                   <span>{new Date(m.at).toLocaleTimeString("ar", { hour: "2-digit", minute: "2-digit" })}</span>
-                  {m.who === "a" && <button className="rounded-full bg-background px-2 py-0.5" onClick={() => replay(m)}>▶️ شغّل</button>}
+                  <div className="flex gap-1">
+                    {m.who === "a" && <button className="rounded-full bg-background px-2 py-0.5" onClick={() => replay(m)}>▶️ شغّل</button>}
+                    <button className="rounded-full bg-background px-2 py-0.5 text-destructive" aria-label="حذف الرسالة" onClick={() => setChat((c) => c.filter((x) => x.id !== m.id))}>🗑️</button>
+                  </div>
                 </div>
               </div>
             </div>
-          ))}
+          ); })}
           <div ref={chatEnd} />
         </div>
-        {chat.length > 0 && <Button size="sm" variant="ghost" className="mt-1" onClick={() => setChat([])}>🧹 مسح المحادثة</Button>}
+        {chat.length > 0 && <Button size="sm" variant="ghost" className="mt-1" onClick={() => { if (confirm("تمسح المحادثة كلها؟")) setChat([]); }}>🧹 مسح المحادثة</Button>}
         <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={2} placeholder="اكتب أو عدّل الكلام هنا…"
           className="mt-2 w-full rounded-xl border bg-background p-2 text-sm" />
         <div className="mt-2 flex flex-wrap gap-2">
