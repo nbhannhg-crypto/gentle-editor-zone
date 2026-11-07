@@ -301,6 +301,7 @@ export function LiveHybrid(p: {
         <div className="mt-3 min-h-12 rounded-xl border bg-background p-3 text-sm">
           {live ? <span className="text-muted-foreground">🎧 {live}…</span> : <span className="text-muted-foreground">{talk ? "أسمعك… تكلم" : "الكلام يطلع هنا وأنت تتكلم"}</span>}
         </div>
+        <SoundBoard tts={(t) => tts(t, { emotion: mood })} />
         <Button className="mt-2 w-full select-none" variant={holding ? "destructive" : "secondary"} disabled={talk}
           onPointerDown={(e) => { e.preventDefault(); holdStart(); }} onPointerUp={holdEnd} onPointerLeave={() => holding && holdEnd()}>
           {holding ? "🔴 أسمعك… افلت عشان تنطق" : "✋ اضغط مطوّل وتكلّم — افلت ينطق فوراً"}
@@ -344,6 +345,7 @@ export function LiveHybrid(p: {
           <Button size="sm" variant="outline" disabled={!lastSaid} onClick={() => setDraft(lastSaid)}>✏️ صحّح آخر جملة</Button>
           <Button size="sm" variant="outline" disabled={!lastSaid || busy} onClick={() => void speakNow(lastSaid)}>🔁 أعدها</Button>
         </div>
+        <SoundBoard tts={(t) => tts(t, { emotion: mood })} />
         {lastSaid && <p className="mt-2 rounded-xl bg-primary/10 p-2 text-sm">👩‍💼 آخر نطق: «{lastSaid}»</p>}
       </section>
 
