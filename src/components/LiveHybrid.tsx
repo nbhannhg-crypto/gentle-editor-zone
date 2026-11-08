@@ -187,7 +187,9 @@ export function LiveHybrid(p: {
       const x = t.trim(); if (!x) return;
       if (autoRef.current) void speakNow(x); else setDraft((d) => (d ? d + " " : "") + x);
     };
+    lastHeard.current = Date.now();
     r.onresult = (e) => {
+      lastHeard.current = Date.now();
       if (ignore) return;
       if (guardRef.current && speakingRef.current && Date.now() - speakSince.current < 5000) { done = e.results.length; setLiveText(""); return; } // المايك مقفل أثناء نطق الموظفة
       let interim = "";
