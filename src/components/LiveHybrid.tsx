@@ -192,6 +192,7 @@ export function LiveHybrid(p: {
     let done = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let pending = "";
+    let sentence = "";
     let ignore = false;
     const flush = (t: string) => {
       const x = t.trim(); if (!x) return;
@@ -202,19 +203,20 @@ export function LiveHybrid(p: {
       lastHeard.current = Date.now();
       if (ignore) return;
       if (guardRef.current && speakingRef.current && Date.now() - speakSince.current < 5000) { done = e.results.length; setLiveText(""); return; } // المايك مقفل أثناء نطق الموظفة
+      // 🧺 نجمع الجملة كاملة (الأجزاء النهائية + اللي لسه تنقال) وما ننطق إلا بعد ما تسكت
       let interim = "";
       for (let i = done; i < e.results.length; i++) {
         const res = e.results[i]; const t = res?.[0]?.transcript ?? "";
-        if (res?.isFinal) { done = i + 1; clearTimeout(timer); pending = ""; setLiveText(""); flush(t); }
+        if (res?.isFinal) { done = i + 1; sentence = (sentence + " " + t).trim(); }
         else interim += t;
       }
-      setLiveText(interim);
-      pending = interim;
+      pending = (sentence + " " + interim).replace(/\s+/g, " ").trim();
+      setLiveText(pending);
       clearTimeout(timer);
-      if (interim.trim()) timer = setTimeout(() => { const t = pending; pending = ""; ignore = true; setLiveText(""); try { r.stop(); } catch { /* ignore */ } flush(t); }, waitRef.current);
+      if (pending) timer = setTimeout(() => { const t = pending; pending = ""; sentence = ""; ignore = true; setLiveText(""); try { r.stop(); } catch { /* ignore */ } flush(t); }, waitRef.current);
     };
     // بعد كل جلسة ننشئ مستمع جديد (إعادة تشغيل نفس المستمع تعلّق كروم الجوال)
-    r.onend = () => { clearTimeout(timer); if (talkOn.current && talkRef.current === r) setTimeout(() => { if (talkOn.current) startTalk(); }, 250); else if (!talkOn.current) setTalk(false); };
+    r.onend = () => { clearTimeout(timer); if (!ignore && pending.trim()) { const t = pending; pending = ""; sentence = ""; flush(t); } if (talkOn.current && talkRef.current === r) setTimeout(() => { if (talkOn.current) startTalk(); }, 250); else if (!talkOn.current) setTalk(false); };
     talkRef.current = r; talkOn.current = true; setTalk(true);
     unlockAudio();
     try { r.start(); } catch { setTimeout(() => { if (talkOn.current && talkRef.current === r) { try { r.start(); } catch { talkRef.current = null; setTimeout(() => { if (talkOn.current) startTalk(); }, 600); } } }, 400); }
