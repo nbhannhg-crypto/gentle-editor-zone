@@ -5,6 +5,16 @@ export const saveCable = (v: boolean) => { try { localStorage.setItem(CABLE_KEY,
 
 let ctx: AudioContext | null = null;
 
+/** يفك قفل الصوت في متصفح الجوال عند لمسة المستخدم (عشان الصوت المتولد بعدين ما ينكتم) */
+export function unlockAudio() {
+  try {
+    const C = (window as any).AudioContext || (window as any).webkitAudioContext;
+    if (C) { ctx = ctx ?? new C(); void ctx!.resume?.(); }
+    const a = new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=");
+    a.volume = 0; void a.play().catch(() => {});
+  } catch { /* ignore */ }
+}
+
 /** يطبّق فلتر السلك على عنصر الصوت. لو فشل أي شي يكتفي بتخفيض الصوت فقط. */
 export function applyCable(a: HTMLAudioElement) {
   if (!loadCable()) return;
