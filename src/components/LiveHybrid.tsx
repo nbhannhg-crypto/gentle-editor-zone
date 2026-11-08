@@ -213,7 +213,8 @@ export function LiveHybrid(p: {
     let text = "";
     r.onresult = (e) => { let t = ""; for (let i = 0; i < e.results.length; i++) t += e.results[i]?.[0]?.transcript ?? ""; text = t; setLiveText(t); };
     r.onend = () => { setHolding(false); setLiveText(""); if (text.trim()) void speakNow(text); };
-    holdRef.current = r; setHolding(true); r.start();
+    holdRef.current = r; setHolding(true); unlockAudio();
+    try { r.start(); } catch { setHolding(false); toast.error("المايك ما اشتغل — حاول مرة ثانية"); }
   };
   const holdEnd = () => { holdRef.current?.stop(); };
   useEffect(() => () => { talkOn.current = false; talkRef.current?.stop(); }, []);
