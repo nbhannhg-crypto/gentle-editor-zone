@@ -9,7 +9,7 @@ let ctx: AudioContext | null = null;
 export function unlockAudio() {
   try {
     const C = (window as any).AudioContext || (window as any).webkitAudioContext;
-    if (C) { ctx = ctx ?? new C(); void ctx!.resume?.(); }
+    if (C && ctx && ctx.state !== "running") void ctx.resume?.().catch(() => {});
     const a = new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=");
     a.volume = 0; void a.play().catch(() => {});
   } catch { /* ignore */ }
@@ -23,7 +23,8 @@ export function applyCable(a: HTMLAudioElement) {
     const C = (window as any).AudioContext || (window as any).webkitAudioContext;
     if (!C) return;
     ctx = ctx ?? new C();
-    void ctx!.resume?.();
+    // لو مسار الصوت المتقدم معلّق، لا نوجّه الصوت عليه (كان يكتم كل الأصوات) — نشغله مباشرة
+    if (ctx!.state !== "running") { void ctx!.resume?.().catch(() => {}); return; }
     const src = ctx!.createMediaElementSource(a);
     const hp = ctx!.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 130;
     const presence = ctx!.createBiquadFilter(); presence.type = "peaking"; presence.frequency.value = 3000; presence.gain.value = 2.5; presence.Q.value = 0.9;
