@@ -164,7 +164,7 @@ export function LiveHybrid(p: {
       if (talkOn.current && !holdRef.current) {
         pausedRef.current = true; sawSpeak.current = false;
         const old = talkRef.current; talkRef.current = null; setLiveText("");
-        try { old?.abort(); } catch { /* ignore */ }
+        try { const o = old as unknown as { abort?: () => void; stop: () => void } | null; if (o?.abort) o.abort(); else o?.stop(); } catch { /* ignore */ }
         setTimeout(() => { if (pausedRef.current && !sawSpeak.current) resumeMic(); }, 6000);
         setTimeout(() => { if (pausedRef.current) resumeMic(); }, 15000);
       }
@@ -243,6 +243,7 @@ export function LiveHybrid(p: {
     if (!pausedRef.current) return;
     if (p.speaking) { sawSpeak.current = true; return; }
     if (sawSpeak.current) { const t = setTimeout(resumeMic, 250); return () => clearTimeout(t); }
+    return undefined;
   }, [p.speaking]);
   const stopTalk = () => { pausedRef.current = false; talkOn.current = false; talkRef.current?.stop(); setTalk(false); setLiveText(""); };
   // ✋ اضغط وتكلّم: يسمع طول ما أنت ضاغط وينطق أول ما تفلت
