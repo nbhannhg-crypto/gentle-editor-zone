@@ -159,7 +159,17 @@ export function LiveHybrid(p: {
     setLastSaid(text);
     const id = Date.now() + Math.random();
     setChat((c) => [...c, { id, who: "me", t: text, at: Date.now() }]);
-    if (target === "call") { p.say(text); setChat((c) => [...c, { id: id + 1, who: "a", t: text, at: Date.now() }]); return; }
+    if (target === "call") {
+      // 🔁 تناوب ذكي: نقفل المايك وقت نطقها عشان الكلمة تطلع كاملة، ويرجع يفتح لحاله بعدها
+      if (talkOn.current && !holdRef.current) {
+        pausedRef.current = true; sawSpeak.current = false;
+        const old = talkRef.current; talkRef.current = null; setLiveText("");
+        try { const o = old as unknown as { abort?: () => void; stop: () => void } | null; if (o?.abort) o.abort(); else o?.stop(); } catch { /* ignore */ }
+        setTimeout(() => { if (pausedRef.current && !sawSpeak.current) resumeMic(); }, 6000);
+        setTimeout(() => { if (pausedRef.current) resumeMic(); }, 15000);
+      }
+      p.say(text); setChat((c) => [...c, { id: id + 1, who: "a", t: text, at: Date.now() }]); return;
+    }
     setBusy(true);
     try {
       const audio = await voiceOf(text);
@@ -213,7 +223,7 @@ export function LiveHybrid(p: {
   const lastHeard = useRef(Date.now());
   useEffect(() => {
     const iv = setInterval(() => {
-      if (!talkOn.current || holding) return;
+      if (!talkOn.current || holding || pausedRef.current) return;
       if (Date.now() - lastHeard.current > 12000) {
         lastHeard.current = Date.now();
         const old = talkRef.current; talkRef.current = null;
@@ -223,7 +233,19 @@ export function LiveHybrid(p: {
     }, 3000);
     return () => clearInterval(iv);
   });
-  const stopTalk = () => { talkOn.current = false; talkRef.current?.stop(); setTalk(false); setLiveText(""); };
+  const pausedRef = useRef(false);
+  const sawSpeak = useRef(false);
+  const resumeMic = () => {
+    pausedRef.current = false; sawSpeak.current = false;
+    if (talkOn.current && !talkRef.current) startTalk();
+  };
+  useEffect(() => {
+    if (!pausedRef.current) return;
+    if (p.speaking) { sawSpeak.current = true; return; }
+    if (sawSpeak.current) { const t = setTimeout(resumeMic, 250); return () => clearTimeout(t); }
+    return undefined;
+  }, [p.speaking]);
+  const stopTalk = () => { pausedRef.current = false; talkOn.current = false; talkRef.current?.stop(); setTalk(false); setLiveText(""); };
   // ✋ اضغط وتكلّم: يسمع طول ما أنت ضاغط وينطق أول ما تفلت
   const holdRef = useRef<SR | null>(null);
   const [holding, setHolding] = useState(false);
