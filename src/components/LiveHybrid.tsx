@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useSpeaker } from "@/components/VoiceStudio";
 import { useServerFn } from "@tanstack/react-start";
 import { polishSpeech } from "@/lib/ai.functions";
+import { unlockAudio } from "@/lib/cable-audio";
 
 /* نظام الاتصال الهجين — إضافة فقط فوق لوحة المكالمة الحية */
 
@@ -42,7 +43,7 @@ export function LiveHybrid(p: {
   const [changer, setChangerS] = useState(false);
   const changerRef = useRef(false);
   const setChanger = (v: boolean) => { changerRef.current = v; setChangerS(v); };
-  const [target, setTarget] = useState<"call" | "wa">("wa");
+  const [target, setTarget] = useState<"call" | "wa">("call");
   const [polished, setPolished] = useState("");
   const tts = useSpeaker();
   const [mode, setMode] = useState<string>("copilot");
@@ -141,7 +142,9 @@ export function LiveHybrid(p: {
   const norm = (s: string) => s.replace(/[^\u0600-\u06FFa-zA-Z0-9]/g, "");
   const speakNow = async (t: string) => {
     const text = t.trim(); if (!text) return;
-    if (guardRef.current) {
+    // كلمات النداء القصيرة (ألو، هلا…) تنطق كل مرة حتى لو تكررت
+    const greet = /^(ألو|الو|آلو|هلا|اهلا|أهلا|مرحبا|تمام|نعم|اي|ايوه|وينك|مساء الخير|صباح الخير)$/.test(text.replace(/[^\u0600-\u06FF ]/g, "").trim());
+    if (guardRef.current && !greet) {
       const n = norm(text), now = Date.now();
       recent.current = recent.current.filter((r) => now - r.at < 6000);
       if (recent.current.some((r) => r.t === n || (n.length > 3 && r.t.includes(n)))) return;
@@ -192,8 +195,11 @@ export function LiveHybrid(p: {
       clearTimeout(timer);
       if (interim.trim()) timer = setTimeout(() => { const t = pending; pending = ""; ignore = true; setLiveText(""); try { r.stop(); } catch { /* ignore */ } flush(t); }, waitRef.current);
     };
-    r.onend = () => { clearTimeout(timer); ignore = false; if (talkOn.current) { try { r.start(); done = 0; } catch { /* ignore */ } } else setTalk(false); };
-    talkRef.current = r; talkOn.current = true; setTalk(true); r.start();
+    // بعد كل جلسة ننشئ مستمع جديد (إعادة تشغيل نفس المستمع تعلّق كروم الجوال)
+    r.onend = () => { clearTimeout(timer); if (talkOn.current && talkRef.current === r) setTimeout(() => { if (talkOn.current) startTalk(); }, 250); else if (!talkOn.current) setTalk(false); };
+    talkRef.current = r; talkOn.current = true; setTalk(true);
+    unlockAudio();
+    try { r.start(); } catch { setTimeout(() => { if (talkOn.current) { try { r.start(); } catch { toast.error("المايك ما اشتغل — اضغط مرة ثانية"); } } }, 400); }
   };
   const stopTalk = () => { talkOn.current = false; talkRef.current?.stop(); setTalk(false); setLiveText(""); };
   // ✋ اضغط وتكلّم: يسمع طول ما أنت ضاغط وينطق أول ما تفلت
@@ -207,7 +213,8 @@ export function LiveHybrid(p: {
     let text = "";
     r.onresult = (e) => { let t = ""; for (let i = 0; i < e.results.length; i++) t += e.results[i]?.[0]?.transcript ?? ""; text = t; setLiveText(t); };
     r.onend = () => { setHolding(false); setLiveText(""); if (text.trim()) void speakNow(text); };
-    holdRef.current = r; setHolding(true); r.start();
+    holdRef.current = r; setHolding(true); unlockAudio();
+    try { r.start(); } catch { setHolding(false); toast.error("المايك ما اشتغل — حاول مرة ثانية"); }
   };
   const holdEnd = () => { holdRef.current?.stop(); };
   useEffect(() => () => { talkOn.current = false; talkRef.current?.stop(); }, []);
