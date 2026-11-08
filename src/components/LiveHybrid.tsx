@@ -118,8 +118,8 @@ export function LiveHybrid(p: {
   // 🛡️ منع التكرار (اختياري — أطفئه مع السماعة لسرعة أعلى) + ⏱️ مهلة السكوت
   const [guard, setGuard] = useState(true);
   const guardRef = useRef(true); guardRef.current = guard;
-  const [wait, setWait] = useState(800);
-  const waitRef = useRef(800); waitRef.current = wait;
+  const [wait, setWait] = useState(1200);
+  const waitRef = useRef(1200); waitRef.current = wait;
   // 🔓 صمام أمان: إذا علق قفل «تنطق» أكثر من 5 ثواني نفكّه تلقائياً عشان المايك ما يرمي كلامك
   const speakSince = useRef(0);
   const rawSpeaking = p.speaking || busy;
@@ -342,7 +342,7 @@ export function LiveHybrid(p: {
         </div>
         <div className="mt-2 flex flex-wrap gap-2">
           <Button size="sm" variant={guard ? "default" : "outline"} onClick={() => setGuard(!guard)}>{guard ? "🛡️ منع التكرار: مفعّل (سبيكر)" : "🎧 منع التكرار: متوقف (سماعة — أسرع)"}</Button>
-          {([[400, "⚡ خاطف"], [800, "🎯 متوازن"], [1500, "⏳ صبور"]] as const).map(([v, l]) => (
+          {([[700, "⚡ خاطف"], [1200, "🎯 متوازن"], [2000, "⏳ صبور"]] as const).map(([v, l]) => (
             <Button key={v} size="sm" variant={wait === v ? "default" : "outline"} onClick={() => setWait(v)}>{l}</Button>
           ))}
         </div>
