@@ -120,7 +120,13 @@ export function LiveHybrid(p: {
   const guardRef = useRef(true); guardRef.current = guard;
   const [wait, setWait] = useState(800);
   const waitRef = useRef(800); waitRef.current = wait;
-  const speakingRef = useRef(false); speakingRef.current = p.speaking || busy;
+  // 🔓 صمام أمان: إذا علق قفل «تنطق» أكثر من 5 ثواني نفكّه تلقائياً عشان المايك ما يرمي كلامك
+  const speakSince = useRef(0);
+  const rawSpeaking = p.speaking || busy;
+  if (rawSpeaking && !speakSince.current) speakSince.current = Date.now();
+  if (!rawSpeaking) speakSince.current = 0;
+  const speakingRef = useRef(false);
+  speakingRef.current = rawSpeaking && Date.now() - speakSince.current < 5000;
   const recent = useRef<{ t: string; at: number }[]>([]);
   // 💬 شات تسلسلي مثل الواتساب
   const [chat, setChat] = useState<{ id: number; who: "me" | "a"; t: string; audio?: string; at: number }[]>([]);
@@ -183,7 +189,7 @@ export function LiveHybrid(p: {
     };
     r.onresult = (e) => {
       if (ignore) return;
-      if (guardRef.current && speakingRef.current) { done = e.results.length; setLiveText(""); return; } // المايك مقفل أثناء نطق الموظفة
+      if (guardRef.current && speakingRef.current && Date.now() - speakSince.current < 5000) { done = e.results.length; setLiveText(""); return; } // المايك مقفل أثناء نطق الموظفة
       let interim = "";
       for (let i = done; i < e.results.length; i++) {
         const res = e.results[i]; const t = res?.[0]?.transcript ?? "";
@@ -199,8 +205,22 @@ export function LiveHybrid(p: {
     r.onend = () => { clearTimeout(timer); if (talkOn.current && talkRef.current === r) setTimeout(() => { if (talkOn.current) startTalk(); }, 250); else if (!talkOn.current) setTalk(false); };
     talkRef.current = r; talkOn.current = true; setTalk(true);
     unlockAudio();
-    try { r.start(); } catch { setTimeout(() => { if (talkOn.current) { try { r.start(); } catch { toast.error("المايك ما اشتغل — اضغط مرة ثانية"); } } }, 400); }
+    try { r.start(); } catch { setTimeout(() => { if (talkOn.current && talkRef.current === r) { try { r.start(); } catch { talkRef.current = null; setTimeout(() => { if (talkOn.current) startTalk(); }, 600); } } }, 400); }
   };
+  // 🩺 حارس المايك: إذا المايك شغال بس ما وصل منه شي 12 ثانية (غيبوبة كروم) ننعشه بمستمع جديد
+  const lastHeard = useRef(Date.now());
+  useEffect(() => {
+    const iv = setInterval(() => {
+      if (!talkOn.current || holding) return;
+      if (Date.now() - lastHeard.current > 12000) {
+        lastHeard.current = Date.now();
+        const old = talkRef.current; talkRef.current = null;
+        try { old?.stop(); } catch { /* ignore */ }
+        setTimeout(() => { if (talkOn.current) startTalk(); }, 300);
+      }
+    }, 3000);
+    return () => clearInterval(iv);
+  });
   const stopTalk = () => { talkOn.current = false; talkRef.current?.stop(); setTalk(false); setLiveText(""); };
   // ✋ اضغط وتكلّم: يسمع طول ما أنت ضاغط وينطق أول ما تفلت
   const holdRef = useRef<SR | null>(null);
