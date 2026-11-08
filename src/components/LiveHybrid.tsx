@@ -31,6 +31,39 @@ const HEAT = (t: string) => {
   return { k: "🙂 يستكشف", tip: "رحّب واسأله عن احتياجه بالضبط.", v: 30 };
 };
 
+// 🧹 دمج ذكي: كروم أندرويد يرسل الجملة تراكمياً (مساء ← مساء الخير ← ...) فنستبدل بدل ما نلصق
+const norm = (s: string) => s.replace(/[\u064B-\u0652]/g, "").replace(/\s+/g, " ").trim();
+const mergeSpeech = (prev: string, next: string) => {
+  const a = norm(prev), b = norm(next);
+  if (!a) return b; if (!b) return a;
+  if (b.startsWith(a) || b.includes(a)) return b;
+  if (a.endsWith(b) || a.includes(b)) return a;
+  // تداخل: نهاية السابق = بداية الجديد
+  const aw = a.split(" "), bw = b.split(" ");
+  for (let k = Math.min(aw.length, bw.length); k > 0; k--) {
+    if (aw.slice(-k).join(" ") === bw.slice(0, k).join(" ")) return [...aw, ...bw.slice(k)].join(" ");
+  }
+  return a + " " + b;
+};
+// يحذف أي كلمة/عبارة تتكرر ورا بعض (مساء مساء الخير مساء الخير ← مساء الخير)
+const dedupeSpeech = (s: string) => {
+  let w = norm(s).split(" ").filter(Boolean);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (let n = Math.floor(w.length / 2); n >= 1 && !changed; n--) {
+      for (let i = 0; i + 2 * n <= w.length; i++) {
+        if (w.slice(i, i + n).join(" ") === w.slice(i + n, i + 2 * n).join(" ")) { w.splice(i + n, n); changed = true; break; }
+      }
+    }
+    // كلمة ناقصة قبل عبارتها الكاملة: «مساء مساء الخير»
+    for (let i = 0; i + 1 < w.length && !changed; i++) {
+      if (w[i] === w[i + 1]) { w.splice(i, 1); changed = true; }
+    }
+  }
+  return w.join(" ");
+};
+
 type SR = { lang: string; interimResults: boolean; continuous: boolean; onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void) | null; onend: (() => void) | null; start: () => void; stop: () => void };
 
 export function LiveHybrid(p: {
@@ -98,8 +131,8 @@ export function LiveHybrid(p: {
     let final = "";
     r.onresult = (e) => {
       let t = "";
-      for (let i = 0; i < e.results.length; i++) t += e.results[i]?.[0]?.transcript ?? "";
-      final = t; setHeard(t);
+      for (let i = 0; i < e.results.length; i++) t = mergeSpeech(t, e.results[i]?.[0]?.transcript ?? "");
+      t = dedupeSpeech(t); final = t; setHeard(t);
     };
     r.onend = () => { setRec(false); if (final.trim()) void (changerRef.current ? changeVoice(final.trim()) : fire(final.trim())); };
     srRef.current = r; setHeard(""); setRec(true); r.start();
@@ -207,10 +240,10 @@ export function LiveHybrid(p: {
       let interim = "";
       for (let i = done; i < e.results.length; i++) {
         const res = e.results[i]; const t = res?.[0]?.transcript ?? "";
-        if (res?.isFinal) { done = i + 1; sentence = (sentence + " " + t).trim(); }
-        else interim += t;
+        if (res?.isFinal) { done = i + 1; sentence = mergeSpeech(sentence, t); }
+        else interim = mergeSpeech(interim, t);
       }
-      pending = (sentence + " " + interim).replace(/\s+/g, " ").trim();
+      pending = dedupeSpeech(mergeSpeech(sentence, interim));
       setLiveText(pending);
       clearTimeout(timer);
       if (pending) timer = setTimeout(() => { const t = pending; pending = ""; sentence = ""; ignore = true; setLiveText(""); try { r.stop(); } catch { /* ignore */ } flush(t); }, waitRef.current);
@@ -257,7 +290,7 @@ export function LiveHybrid(p: {
     if (!C) { toast.error("المتصفح ما يدعم تحويل الكلام — جرّب كروم"); return; }
     const r = new C(); r.lang = "ar-SA"; r.interimResults = true; r.continuous = true;
     let text = "";
-    r.onresult = (e) => { let t = ""; for (let i = 0; i < e.results.length; i++) t += e.results[i]?.[0]?.transcript ?? ""; text = t; setLiveText(t); };
+    r.onresult = (e) => { let t = ""; for (let i = 0; i < e.results.length; i++) t = mergeSpeech(t, e.results[i]?.[0]?.transcript ?? ""); text = dedupeSpeech(t); setLiveText(text); };
     r.onend = () => { setHolding(false); setLiveText(""); if (text.trim()) void speakNow(text); };
     holdRef.current = r; setHolding(true); unlockAudio();
     try { r.start(); } catch { setHolding(false); toast.error("المايك ما اشتغل — حاول مرة ثانية"); }
