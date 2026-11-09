@@ -100,7 +100,9 @@ export function LiveHybrid(p: {
 
   // توليد مع خزينة مؤقتة: أي رد اتولد مرة ينرسل بعدها مجاناً
   const voiceOf = async (text: string) => {
-    const key = `${mood}|${text}`;
+    // المفتاح يشمل الصوت المختار — عشان ما يرجع تسجيل بصوت قديم بعد تغيير الصوت
+    let vid = ""; try { vid = localStorage.getItem("studio_voice_v1") ?? ""; } catch { /* ignore */ }
+    const key = `${vid}|${mood}|${text}`;
     if (cache.current[key]) return cache.current[key];
     const a = await tts(text, { emotion: mood });
     cache.current[key] = a;
