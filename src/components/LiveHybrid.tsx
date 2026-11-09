@@ -183,13 +183,14 @@ export function LiveHybrid(p: {
         await new Promise<void>((res) => {
           // 🔓 مشغّل دائم انفك قفله بلمستك — الجوال ما يرفضه مثل المشغّل الجديد
           const a = playerRef.current ?? new Audio(); playerRef.current = a; curAudio.current = a;
+          a.onended = a.onerror = a.onpause = null; a.src = src;
           let done = false; const timers: ReturnType<typeof setTimeout>[] = [];
           const end = () => { if (!done) { done = true; timers.forEach(clearTimeout); a.onended = a.onerror = a.onpause = a.onloadedmetadata = null; res(); } };
           a.onended = end; a.onerror = end; a.onpause = end;
           // صمام: مدة الصوت + نص ثانية فقط
           a.onloadedmetadata = () => { const d = isFinite(a.duration) ? a.duration : 6; timers.push(setTimeout(end, (d + 0.5) * 1000)); };
           timers.push(setTimeout(() => { if (a.paused) end(); }, 3000));
-          a.volume = 1; a.src = src;
+          a.volume = 1;
           a.play().catch(() => { const b = new Audio(src); b.volume = 1; curAudio.current = b; b.onended = b.onerror = end; void b.play().catch(end); });
         });
       } catch (e) { toast.error((e as Error).message); }
