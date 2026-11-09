@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { SoundBoard } from "@/components/SoundBoard";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { useSpeaker } from "@/components/VoiceStudio";
+import { useSpeaker, useCallSpeaker } from "@/components/VoiceStudio";
 import { useServerFn } from "@tanstack/react-start";
 import { polishSpeech } from "@/lib/ai.functions";
-import { unlockAudio } from "@/lib/cable-audio";
+import { unlockAudio, applyCable } from "@/lib/cable-audio";
 
 /* نظام الاتصال الهجين — إضافة فقط فوق لوحة المكالمة الحية */
 
@@ -157,7 +157,42 @@ export function LiveHybrid(p: {
   const waitRef = useRef(1200); waitRef.current = wait;
   // 🔓 صمام أمان: إذا علق قفل «تنطق» أكثر من 5 ثواني نفكّه تلقائياً عشان المايك ما يرمي كلامك
   const speakSince = useRef(0);
-  const rawSpeaking = p.speaking || busy;
+  // ⚡ مشغّل مباشر بطابور: يبدأ توليد كل جملة فوراً (بالتوازي) ويشغلها بالترتيب بدون انتظار شاشة المكالمة
+  const callTts = useCallSpeaker();
+  const [qPlaying, setQPlaying] = useState(false);
+  const playQ = useRef<{ id: number; t: string; audio: Promise<string> }[]>([]);
+  const qBusy = useRef(false);
+  const curAudio = useRef<HTMLAudioElement | null>(null);
+  const onQueueIdle = useRef<() => void>(() => {});
+  const pumpQ = async () => {
+    if (qBusy.current) return;
+    qBusy.current = true; setQPlaying(true);
+    while (playQ.current.length) {
+      const it = playQ.current.shift()!;
+      try {
+        const src = await Promise.race([it.audio, new Promise<string>((_, rej) => setTimeout(() => rej(new Error("تأخر التوليد")), 12000))]);
+        setChat((c) => c.map((m) => (m.id === it.id ? { ...m, audio: src } : m)));
+        await new Promise<void>((res) => {
+          const a = new Audio(src); curAudio.current = a; a.preload = "auto";
+          let done = false; const end = () => { if (!done) { done = true; res(); } };
+          a.onended = end; a.onerror = end; a.onpause = end;
+          // صمام: لو علق التشغيل نكمل بعد مدة الصوت + ثانيتين
+          a.onloadedmetadata = () => { const d = isFinite(a.duration) ? a.duration : 8; setTimeout(end, (d + 2) * 1000); };
+          setTimeout(end, 20000);
+          try { applyCable(a); } catch { /* ignore */ }
+          a.play().catch(() => { void a.play().catch(end); });
+        });
+      } catch (e) { toast.error((e as Error).message); }
+    }
+    curAudio.current = null; qBusy.current = false; setQPlaying(false);
+    onQueueIdle.current();
+  };
+  const enqueueSpeak = (id: number, t: string) => {
+    playQ.current.push({ id, t, audio: callTts(t) });
+    void pumpQ();
+  };
+  const stopQ = () => { playQ.current = []; try { curAudio.current?.pause(); } catch { /* ignore */ } };
+  const rawSpeaking = p.speaking || busy || qPlaying;
   if (rawSpeaking && !speakSince.current) speakSince.current = Date.now();
   if (!rawSpeaking) speakSince.current = 0;
   const speakingRef = useRef(false);
@@ -200,10 +235,11 @@ export function LiveHybrid(p: {
         pausedRef.current = true; sawSpeak.current = false;
         const old = talkRef.current; talkRef.current = null; setLiveText("");
         try { const o = old as unknown as { abort?: () => void; stop: () => void } | null; if (o?.abort) o.abort(); else o?.stop(); } catch { /* ignore */ }
-        setTimeout(() => { if (pausedRef.current && !sawSpeak.current) resumeMic(); }, 6000);
-        setTimeout(() => { if (pausedRef.current) resumeMic(); }, 15000);
+        setTimeout(() => { if (pausedRef.current) resumeMic(); }, 25000);
       }
-      p.say(text); setChat((c) => [...c, { id: id + 1, who: "a", t: text, at: Date.now() }]); return;
+      onQueueIdle.current = () => { if (pausedRef.current) setTimeout(() => { if (pausedRef.current && !qBusy.current) resumeMic(); }, 200); };
+      setChat((c) => [...c, { id: id + 1, who: "a", t: text, at: Date.now() }]);
+      enqueueSpeak(id + 1, text); return;
     }
     setBusy(true);
     try {
@@ -317,7 +353,7 @@ export function LiveHybrid(p: {
       <section className={box}>
         <div className="mb-3 flex items-center justify-between gap-2">
           <h3 className="font-display text-lg">🔀 أوضاع الاتصال الهجين</h3>
-          <Button variant="destructive" onClick={() => { p.stopAll(); srRef.current?.stop(); toast("⏹️ انكتم فوراً"); }}>⏹️ كتم فوري</Button>
+          <Button variant="destructive" onClick={() => { stopQ(); p.stopAll(); srRef.current?.stop(); toast("⏹️ انكتم فوراً"); }}>⏹️ كتم فوري</Button>
         </div>
         <div className="grid grid-cols-2 gap-2">
           {MODES.map(([k, l]) => <Button key={k} size="sm" variant={mode === k ? "default" : "outline"} onClick={() => { setMode(k); persist({ mode: k }); p.onMode?.(k); }}>{l}</Button>)}
@@ -385,7 +421,7 @@ export function LiveHybrid(p: {
           <Button className="flex-1" variant={talk ? "destructive" : "default"} onClick={() => (talk ? stopTalk() : startTalk())}>
             {talk ? "⏹️ وقّف الاستماع" : "🎙️ ابدأ أتكلم"}
           </Button>
-          <Button variant="outline" onClick={() => { p.stopAll(); toast("🔇 انقطع النطق"); }}>🔇 اقطع النطق</Button>
+          <Button variant="outline" onClick={() => { stopQ(); p.stopAll(); toast("🔇 انقطع النطق"); }}>🔇 اقطع النطق</Button>
         </div>
         <div className="mt-3 min-h-12 rounded-xl border bg-background p-3 text-sm">
           {live ? <span className="text-muted-foreground">🎧 {live}…</span> : <span className="text-muted-foreground">{talk ? "أسمعك… تكلم" : "الكلام يطلع هنا وأنت تتكلم"}</span>}
