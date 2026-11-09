@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useSpeaker, useCallSpeaker } from "@/components/VoiceStudio";
 import { useServerFn } from "@tanstack/react-start";
 import { polishSpeech } from "@/lib/ai.functions";
-import { unlockAudio, applyCable } from "@/lib/cable-audio";
+import { unlockAudio } from "@/lib/cable-audio";
 
 /* نظام الاتصال الهجين — إضافة فقط فوق لوحة المكالمة الحية */
 
