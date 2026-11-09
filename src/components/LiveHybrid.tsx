@@ -353,7 +353,7 @@ export function LiveHybrid(p: {
       <section className={box}>
         <div className="mb-3 flex items-center justify-between gap-2">
           <h3 className="font-display text-lg">🔀 أوضاع الاتصال الهجين</h3>
-          <Button variant="destructive" onClick={() => { p.stopAll(); srRef.current?.stop(); toast("⏹️ انكتم فوراً"); }}>⏹️ كتم فوري</Button>
+          <Button variant="destructive" onClick={() => { stopQ(); p.stopAll(); srRef.current?.stop(); toast("⏹️ انكتم فوراً"); }}>⏹️ كتم فوري</Button>
         </div>
         <div className="grid grid-cols-2 gap-2">
           {MODES.map(([k, l]) => <Button key={k} size="sm" variant={mode === k ? "default" : "outline"} onClick={() => { setMode(k); persist({ mode: k }); p.onMode?.(k); }}>{l}</Button>)}
@@ -421,7 +421,7 @@ export function LiveHybrid(p: {
           <Button className="flex-1" variant={talk ? "destructive" : "default"} onClick={() => (talk ? stopTalk() : startTalk())}>
             {talk ? "⏹️ وقّف الاستماع" : "🎙️ ابدأ أتكلم"}
           </Button>
-          <Button variant="outline" onClick={() => { p.stopAll(); toast("🔇 انقطع النطق"); }}>🔇 اقطع النطق</Button>
+          <Button variant="outline" onClick={() => { stopQ(); p.stopAll(); toast("🔇 انقطع النطق"); }}>🔇 اقطع النطق</Button>
         </div>
         <div className="mt-3 min-h-12 rounded-xl border bg-background p-3 text-sm">
           {live ? <span className="text-muted-foreground">🎧 {live}…</span> : <span className="text-muted-foreground">{talk ? "أسمعك… تكلم" : "الكلام يطلع هنا وأنت تتكلم"}</span>}
