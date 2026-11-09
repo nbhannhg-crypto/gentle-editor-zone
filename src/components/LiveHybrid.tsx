@@ -163,6 +163,14 @@ export function LiveHybrid(p: {
   const playQ = useRef<{ id: number; t: string; audio: Promise<string> }[]>([]);
   const qBusy = useRef(false);
   const curAudio = useRef<HTMLAudioElement | null>(null);
+  const playerRef = useRef<HTMLAudioElement | null>(null);
+  const unlockPlayer = () => {
+    try {
+      const a = playerRef.current ?? new Audio(); playerRef.current = a;
+      a.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+      void a.play().catch(() => {});
+    } catch { /* ignore */ }
+  };
   const onQueueIdle = useRef<() => void>(() => {});
   const pumpQ = async () => {
     if (qBusy.current) return;
@@ -173,16 +181,17 @@ export function LiveHybrid(p: {
         const src = await Promise.race([it.audio, new Promise<string>((_, rej) => setTimeout(() => rej(new Error("تأخر التوليد")), 12000))]);
         setChat((c) => c.map((m) => (m.id === it.id ? { ...m, audio: src } : m)));
         await new Promise<void>((res) => {
-          const a = new Audio(src); curAudio.current = a; a.preload = "auto";
-          let done = false; const end = () => { if (!done) { done = true; res(); } };
+          // 🔓 مشغّل دائم انفك قفله بلمستك — الجوال ما يرفضه مثل المشغّل الجديد
+          const a = playerRef.current ?? new Audio(); playerRef.current = a; curAudio.current = a;
+          a.onended = a.onerror = a.onpause = null; a.src = src;
+          let done = false; const timers: ReturnType<typeof setTimeout>[] = [];
+          const end = () => { if (!done) { done = true; timers.forEach(clearTimeout); a.onended = a.onerror = a.onpause = a.onloadedmetadata = null; res(); } };
           a.onended = end; a.onerror = end; a.onpause = end;
-          // صمام: لو علق التشغيل نكمل بعد مدة الصوت + ثانيتين
-          a.onloadedmetadata = () => { const d = isFinite(a.duration) ? a.duration : 8; setTimeout(end, (d + 2) * 1000); };
-          setTimeout(end, 20000);
-          // 🎧 تشغيل صافي مباشر بقوة كاملة (نفس زر التشغيل) — بدون فلتر الضاغط اللي كان يقطّع عند الزبون
+          // صمام: مدة الصوت + نص ثانية فقط
+          a.onloadedmetadata = () => { const d = isFinite(a.duration) ? a.duration : 6; timers.push(setTimeout(end, (d + 0.5) * 1000)); };
+          timers.push(setTimeout(() => { if (a.paused) end(); }, 3000));
           a.volume = 1;
-          // مهلة قصيرة جداً بعد قفل المايك عشان أندرويد ما يقص أول نبرة
-          setTimeout(() => { a.play().catch(() => { void a.play().catch(end); }); }, 80);
+          a.play().catch(() => { const b = new Audio(src); b.volume = 1; curAudio.current = b; b.onended = b.onerror = end; void b.play().catch(end); });
         });
       } catch (e) { toast.error((e as Error).message); }
     }
@@ -420,7 +429,7 @@ export function LiveHybrid(p: {
           ))}
         </div>
         <div className="mt-3 flex gap-2">
-          <Button className="flex-1" variant={talk ? "destructive" : "default"} onClick={() => (talk ? stopTalk() : startTalk())}>
+          <Button className="flex-1" variant={talk ? "destructive" : "default"} onClick={() => { if (talk) stopTalk(); else { unlockPlayer(); startTalk(); } }}>
             {talk ? "⏹️ وقّف الاستماع" : "🎙️ ابدأ أتكلم"}
           </Button>
           <Button variant="outline" onClick={() => { stopQ(); p.stopAll(); toast("🔇 انقطع النطق"); }}>🔇 اقطع النطق</Button>
@@ -467,7 +476,7 @@ export function LiveHybrid(p: {
         <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={2} placeholder="اكتب أو عدّل الكلام هنا…"
           className="mt-2 w-full rounded-xl border bg-background p-2 text-sm" />
         <div className="mt-2 flex flex-wrap gap-2">
-          <Button size="sm" disabled={!draft.trim() || busy} onClick={() => { void speakNow(draft); setDraft(""); }}>🔊 انطقها الحين</Button>
+          <Button size="sm" disabled={!draft.trim() || busy} onClick={() => { unlockPlayer(); void speakNow(draft); setDraft(""); }}>🔊 انطقها الحين</Button>
           <Button size="sm" variant="outline" disabled={!draft} onClick={() => setDraft("")}>🗑️ امسح</Button>
           <Button size="sm" variant="outline" disabled={!lastSaid} onClick={() => setDraft(lastSaid)}>✏️ صحّح آخر جملة</Button>
           <Button size="sm" variant="outline" disabled={!lastSaid || busy} onClick={() => void speakNow(lastSaid)}>🔁 أعدها</Button>
