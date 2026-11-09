@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useSpeaker, useCallSpeaker } from "@/components/VoiceStudio";
 import { useServerFn } from "@tanstack/react-start";
 import { polishSpeech } from "@/lib/ai.functions";
-import { unlockAudio, applyCable } from "@/lib/cable-audio";
+import { unlockAudio } from "@/lib/cable-audio";
 
 /* نظام الاتصال الهجين — إضافة فقط فوق لوحة المكالمة الحية */
 
@@ -179,8 +179,10 @@ export function LiveHybrid(p: {
           // صمام: لو علق التشغيل نكمل بعد مدة الصوت + ثانيتين
           a.onloadedmetadata = () => { const d = isFinite(a.duration) ? a.duration : 8; setTimeout(end, (d + 2) * 1000); };
           setTimeout(end, 20000);
-          try { applyCable(a); } catch { /* ignore */ }
-          a.play().catch(() => { void a.play().catch(end); });
+          // 🎧 تشغيل صافي مباشر بقوة كاملة (نفس زر التشغيل) — بدون فلتر الضاغط اللي كان يقطّع عند الزبون
+          a.volume = 1;
+          // مهلة قصيرة جداً بعد قفل المايك عشان أندرويد ما يقص أول نبرة
+          setTimeout(() => { a.play().catch(() => { void a.play().catch(end); }); }, 80);
         });
       } catch (e) { toast.error((e as Error).message); }
     }
