@@ -195,14 +195,15 @@ export function LiveHybrid(p: {
           const a = playerRef.current ?? new Audio(); playerRef.current = a; curAudio.current = a;
           a.onended = a.onerror = a.onpause = null; a.src = src;
           let done = false; const timers: ReturnType<typeof setTimeout>[] = [];
+          const stuck = () => { if (!done) { try { a.pause(); } catch { /* ignore */ } setVoiceSt("cut"); note(`🧹 تم حذف الصوت المعلق — انطق من جديد`); toast.warning("تم حذف الصوت المعلق — انطق من جديد"); end(); } };
           const end = () => { if (!done) { done = true; timers.forEach(clearTimeout); a.onended = a.onerror = a.onpause = a.onloadedmetadata = null; res(); } };
           a.onended = end; a.onerror = end; a.onpause = end;
           // صمام: مدة الصوت + نص ثانية فقط
           a.onloadedmetadata = () => { const d = isFinite(a.duration) ? a.duration : 6; timers.push(setTimeout(end, Math.min(d * 1000 + 400, 15000))); };
           timers.push(setTimeout(() => { if (a.paused) end(); }, 3000));
           // 🛡️ صمام إجباري غير مشروط: لو ما وصلت مدة الصوت خلال 6 ثوانٍ نتحرر
-          timers.push(setTimeout(() => { if (!isFinite(a.duration) || a.paused) end(); }, 6000));
-          timers.push(setTimeout(end, 20000));
+          timers.push(setTimeout(() => { if (!isFinite(a.duration) || a.paused) stuck(); }, 6000));
+          timers.push(setTimeout(stuck, 20000));
           abortRef.current = end;
           a.volume = 1;
           a.onplaying = () => { setVoiceSt("play"); note(`🔊 نطقت: «${it.t}»`); };
@@ -258,7 +259,7 @@ export function LiveHybrid(p: {
     const greet = /^(ألو|الو|آلو|هلا|اهلا|أهلا|مرحبا|تمام|نعم|اي|ايوه|وينك|مساء الخير|صباح الخير)$/.test(text.replace(/[^\u0600-\u06FF ]/g, "").trim());
     if (guardRef.current && !greet) {
       const n = norm(text), now = Date.now();
-      recent.current = recent.current.filter((r) => now - r.at < 6000);
+      recent.current = recent.current.filter((r) => now - r.at < 1500);
       if (recent.current.some((r) => r.t === n || (n.length > 3 && r.t.includes(n)))) return;
       recent.current.push({ t: n, at: now });
     }
@@ -286,9 +287,19 @@ export function LiveHybrid(p: {
   };
   const replay = (m: { id: number; t: string; audio?: string }) => {
     if (m.audio) {
-      const a = new Audio(m.audio); setPlayingId(m.id);
-      a.onended = a.onerror = a.onpause = () => setPlayingId((x) => (x === m.id ? null : x));
-      void a.play().catch(() => { setPlayingId(null); toast.error("تعذر التشغيل"); });
+      // ✂️ نقص أي صوت شغال/معلق ونعطي الأولوية لتشغيلك اليدوي
+      playQ.current = [];
+      try { abortRef.current?.(); } catch { /* ignore */ }
+      try { curAudio.current?.pause(); } catch { /* ignore */ }
+      const a = playerRef.current ?? new Audio(); playerRef.current = a;
+      a.onended = a.onerror = a.onpause = a.onloadedmetadata = null;
+      a.src = m.audio; a.volume = 1; setPlayingId(m.id);
+      let fin = false; let wd: ReturnType<typeof setTimeout> | undefined;
+      const off = () => { if (fin) return; fin = true; clearTimeout(wd); setPlayingId((x) => (x === m.id ? null : x)); };
+      a.onended = a.onerror = a.onpause = off;
+      a.onloadedmetadata = () => { clearTimeout(wd); const d = isFinite(a.duration) ? a.duration : 6; wd = setTimeout(() => { if (!fin && a.paused) { off(); toast.warning("تم حذف الصوت المعلق — اضغط مرة ثانية"); } else off(); }, Math.min(d * 1000 + 600, 20000)); };
+      wd = setTimeout(() => { if (!fin && (a.paused || !isFinite(a.duration))) { try { a.pause(); } catch { /* ignore */ } off(); toast.warning("تم حذف الصوت المعلق — اضغط مرة ثانية"); } }, 4000);
+      void a.play().catch(() => { const b = new Audio(m.audio); b.onended = b.onerror = off; void b.play().catch(() => { off(); toast.error("تعذر التشغيل — اضغط مرة ثانية"); }); });
     } else { setPlayingId(m.id); p.say(m.t); setTimeout(() => setPlayingId((x) => (x === m.id ? null : x)), 400); }
   };
   const startTalk = () => {
