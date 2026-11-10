@@ -64,7 +64,7 @@ const dedupeSpeech = (s: string) => {
   return w.join(" ");
 };
 
-type SR = { lang: string; interimResults: boolean; continuous: boolean; onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void) | null; onend: (() => void) | null; start: () => void; stop: () => void };
+type SR = { lang: string; interimResults: boolean; continuous: boolean; onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void) | null; onend: (() => void) | null; onerror?: ((e: { error: string }) => void) | null; start: () => void; stop: () => void };
 
 export function LiveHybrid(p: {
   live: boolean; speaking: boolean; customer: string; log: { who: "c" | "a"; t: string }[];
@@ -159,6 +159,12 @@ export function LiveHybrid(p: {
   const speakSince = useRef(0);
   // ⚡ مشغّل مباشر بطابور: يبدأ توليد كل جملة فوراً (بالتوازي) ويشغلها بالترتيب بدون انتظار شاشة المكالمة
   const callTts = useCallSpeaker();
+  // 📡 لوحة المؤشرات الحية
+  const [micSt, setMicSt] = useState<"off" | "listen" | "wait" | "blocked" | "error">("off");
+  const [voiceSt, setVoiceSt] = useState<"idle" | "gen" | "cache" | "play" | "cut" | "fail">("idle");
+  const [evt, setEvt] = useState("");
+  const restarts = useRef<number[]>([]);
+  const note = (t: string) => setEvt(`${new Date().toLocaleTimeString("ar", { hour: "2-digit", minute: "2-digit", second: "2-digit" })} — ${t}`);
   const [qPlaying, setQPlaying] = useState(false);
   const playQ = useRef<{ id: number; t: string; audio: Promise<string> }[]>([]);
   const qBusy = useRef(false);
@@ -180,7 +186,9 @@ export function LiveHybrid(p: {
     while (playQ.current.length) {
       const it = playQ.current.shift()!;
       try {
+        setVoiceSt("gen"); const t0 = Date.now();
         const src = await Promise.race([it.audio, new Promise<string>((_, rej) => setTimeout(() => rej(new Error("تأخر التوليد")), 12000))]);
+        const fast = Date.now() - t0 < 350; setVoiceSt(fast ? "cache" : "play"); note(fast ? `⚡ من الخزينة: «${it.t}»` : `✅ تولّد: «${it.t}»`);
         setChat((c) => c.map((m) => (m.id === it.id ? { ...m, audio: src } : m)));
         await new Promise<void>((res) => {
           // 🔓 مشغّل دائم انفك قفله بلمستك — الجوال ما يرفضه مثل المشغّل الجديد
@@ -197,13 +205,15 @@ export function LiveHybrid(p: {
           timers.push(setTimeout(end, 20000));
           abortRef.current = end;
           a.volume = 1;
+          a.onplaying = () => { setVoiceSt("play"); note(`🔊 نطقت: «${it.t}»`); };
           a.play().catch(() => { const b = new Audio(src); b.volume = 1; curAudio.current = b; b.onended = b.onerror = end; void b.play().catch(end); });
         });
-      } catch (e) { toast.error((e as Error).message); }
+      } catch (e) { setVoiceSt("fail"); note(`❌ ما نطق: ${(e as Error).message}`); toast.error((e as Error).message); }
       finally { abortRef.current = null; }
     }
     } finally {
       curAudio.current = null; qBusy.current = false; setQPlaying(false);
+      setVoiceSt((v) => (v === "fail" || v === "cut" ? v : "idle"));
       try { onQueueIdle.current(); } catch { /* ignore */ }
     }
   };
@@ -216,6 +226,7 @@ export function LiveHybrid(p: {
     try { curAudio.current?.pause(); } catch { /* ignore */ }
     try { abortRef.current?.(); } catch { /* ignore */ }
     abortRef.current = null;
+    setVoiceSt("cut"); note("🔇 انقطع النطق");
   };
   const rawSpeaking = p.speaking || busy || qPlaying;
   if (rawSpeaking && !speakSince.current) speakSince.current = Date.now();
@@ -295,8 +306,16 @@ export function LiveHybrid(p: {
       if (autoRef.current) void speakNow(x); else setDraft((d) => (d ? d + " " : "") + x);
     };
     lastHeard.current = Date.now();
+    r.onerror = (ev) => {
+      const er = ev?.error ?? "";
+      if (er === "not-allowed" || er === "service-not-allowed" || er === "audio-capture") {
+        talkOn.current = false; setMicSt("blocked");
+        note(er === "audio-capture" ? "🔴 المايك مستخدم من تطبيق ثاني أو السلك" : "🔴 إذن المايك محظور — اسمح له من القفل جنب الرابط");
+      } else if (er === "network") { setMicSt("error"); note("⚠️ انقطاع شبكة خدمة الكلام — يعيد الاتصال"); }
+      else if (er !== "no-speech" && er !== "aborted") { setMicSt("error"); note(`⚠️ خطأ المايك: ${er}`); }
+    };
     r.onresult = (e) => {
-      lastHeard.current = Date.now();
+      lastHeard.current = Date.now(); setMicSt("listen");
       if (ignore) return;
       if (guardRef.current && speakingRef.current && Date.now() - speakSince.current < 5000) { done = e.results.length; setLiveText(""); return; } // المايك مقفل أثناء نطق الموظفة
       // 🧺 نجمع الجملة كاملة (الأجزاء النهائية + اللي لسه تنقال) وما ننطق إلا بعد ما تسكت
@@ -312,8 +331,13 @@ export function LiveHybrid(p: {
       if (pending) timer = setTimeout(() => { const t = pending; pending = ""; sentence = ""; ignore = true; setLiveText(""); try { r.stop(); } catch { /* ignore */ } flush(t); }, waitRef.current);
     };
     // بعد كل جلسة ننشئ مستمع جديد (إعادة تشغيل نفس المستمع تعلّق كروم الجوال)
-    r.onend = () => { clearTimeout(timer); if (!ignore && pending.trim()) { const t = pending; pending = ""; sentence = ""; flush(t); } if (talkOn.current && talkRef.current === r) setTimeout(() => { if (talkOn.current) startTalk(); }, 250); else if (!talkOn.current) setTalk(false); };
-    talkRef.current = r; talkOn.current = true; setTalk(true);
+    r.onend = () => { clearTimeout(timer); if (!ignore && pending.trim()) { const t = pending; pending = ""; sentence = ""; flush(t); } if (talkOn.current && talkRef.current === r) {
+        // ⏳ تهدئة ذكية: لو كثرت إعادة التشغيل نبطئها عشان Google ما يحظر المايك
+        const now = Date.now(); restarts.current = restarts.current.filter((x) => now - x < 30000); restarts.current.push(now);
+        const d = restarts.current.length > 8 ? 1500 : restarts.current.length > 5 ? 700 : 250;
+        setMicSt("wait"); setTimeout(() => { if (talkOn.current) startTalk(); }, d);
+      } else if (!talkOn.current) { setTalk(false); setMicSt((m) => (m === "blocked" ? m : "off")); } };
+    talkRef.current = r; talkOn.current = true; setTalk(true); setMicSt((m) => (m === "listen" ? m : "wait"));
     unlockAudio();
     try { r.start(); } catch { setTimeout(() => { if (talkOn.current && talkRef.current === r) { try { r.start(); } catch { talkRef.current = null; setTimeout(() => { if (talkOn.current) startTalk(); }, 600); } } }, 400); }
   };
@@ -343,7 +367,23 @@ export function LiveHybrid(p: {
     if (sawSpeak.current) { const t = setTimeout(resumeMic, 250); return () => clearTimeout(t); }
     return undefined;
   }, [p.speaking]);
-  const stopTalk = () => { pausedRef.current = false; talkOn.current = false; talkRef.current?.stop(); setTalk(false); setLiveText(""); };
+  // 🔄 تصفير شامل: يحذف أي شي معلق ويرجع كأنك بديت الحين (المحادثة والأصوات تبقى)
+  const resetAll = () => {
+    const wasOn = talkOn.current || talk;
+    playQ.current = [];
+    try { abortRef.current?.(); } catch { /* ignore */ }
+    try { curAudio.current?.pause(); } catch { /* ignore */ }
+    try { p.stopAll(); } catch { /* ignore */ }
+    for (const ref of [talkRef, holdRef, srRef]) { const o = ref.current as unknown as { abort?: () => void; stop: () => void } | null; ref.current = null; try { if (o?.abort) o.abort(); else o?.stop(); } catch { /* ignore */ } }
+    abortRef.current = null; qBusy.current = false; setQPlaying(false); setBusy(false);
+    pausedRef.current = false; sawSpeak.current = false; speakSince.current = 0; recent.current = []; restarts.current = [];
+    setHolding(false); setRec(false); setLiveText(""); setVoiceSt("idle"); setMicSt("off");
+    unlockAudio(); unlockPlayer();
+    talkOn.current = false;
+    if (wasOn) setTimeout(() => { talkOn.current = true; startTalk(); }, 300); else setTalk(false);
+    note("🔄 تم التصفير — كل شي جاهز من جديد"); toast("🔄 انحل التعليق");
+  };
+  const stopTalk = () => { setMicSt("off"); pausedRef.current = false; talkOn.current = false; talkRef.current?.stop(); setTalk(false); setLiveText(""); };
   // ✋ اضغط وتكلّم: يسمع طول ما أنت ضاغط وينطق أول ما تفلت
   const holdRef = useRef<SR | null>(null);
   const [holding, setHolding] = useState(false);
@@ -447,6 +487,17 @@ export function LiveHybrid(p: {
             {talk ? "⏹️ وقّف الاستماع" : "🎙️ ابدأ أتكلم"}
           </Button>
           <Button variant="outline" onClick={() => { stopQ(); p.stopAll(); toast("🔇 انقطع النطق"); }}>🔇 اقطع النطق</Button>
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl border bg-background p-3 text-xs">
+          <div className={`rounded-lg p-2 font-bold ${micSt === "listen" ? "bg-primary/20" : micSt === "blocked" || micSt === "error" ? "bg-destructive/20 text-destructive" : "bg-secondary"}`}>
+            🎙️ المايك: {({ off: "⚪ متوقف", listen: "🟢 يسمعك الحين", wait: "🟡 جاهز ينتظر كلامك", blocked: "🔴 محظور/مقفول", error: "⚠️ خطأ — يعيد" } as const)[micSt]}
+          </div>
+          <div className={`rounded-lg p-2 font-bold ${voiceSt === "play" || voiceSt === "cache" ? "bg-primary/20" : voiceSt === "fail" ? "bg-destructive/20 text-destructive" : "bg-secondary"}`}>
+            🔊 الصوت: {({ idle: "⏸️ ساكتة", gen: "⏳ يولّد…", cache: "⚡ من الخزينة", play: "🔊 تنطق الحين", cut: "🔇 انقطع", fail: "❌ ما نطق" } as const)[voiceSt]}
+          </div>
+          <p className="col-span-2 text-muted-foreground">{evt || "📡 الأحداث تطلع هنا لحظة بلحظة"}{playQ.current.length ? ` · بالطابور: ${playQ.current.length}` : ""}</p>
+          <Button size="sm" className="col-span-1" onClick={resetAll}>🔄 حل التعليق</Button>
+          <Button size="sm" variant="outline" className="col-span-1" onClick={() => window.location.reload()}>♻️ تحديث الصفحة</Button>
         </div>
         <div className="mt-3 min-h-12 rounded-xl border bg-background p-3 text-sm">
           {live ? <span className="text-muted-foreground">🎧 {live}…</span> : <span className="text-muted-foreground">{talk ? "أسمعك… تكلم" : "الكلام يطلع هنا وأنت تتكلم"}</span>}
