@@ -172,9 +172,11 @@ export function LiveHybrid(p: {
     } catch { /* ignore */ }
   };
   const onQueueIdle = useRef<() => void>(() => {});
+  const abortRef = useRef<(() => void) | null>(null);
   const pumpQ = async () => {
     if (qBusy.current) return;
     qBusy.current = true; setQPlaying(true);
+    try {
     while (playQ.current.length) {
       const it = playQ.current.shift()!;
       try {
@@ -188,21 +190,33 @@ export function LiveHybrid(p: {
           const end = () => { if (!done) { done = true; timers.forEach(clearTimeout); a.onended = a.onerror = a.onpause = a.onloadedmetadata = null; res(); } };
           a.onended = end; a.onerror = end; a.onpause = end;
           // صمام: مدة الصوت + نص ثانية فقط
-          a.onloadedmetadata = () => { const d = isFinite(a.duration) ? a.duration : 6; timers.push(setTimeout(end, (d + 0.5) * 1000)); };
+          a.onloadedmetadata = () => { const d = isFinite(a.duration) ? a.duration : 6; timers.push(setTimeout(end, Math.min(d * 1000 + 400, 15000))); };
           timers.push(setTimeout(() => { if (a.paused) end(); }, 3000));
+          // 🛡️ صمام إجباري غير مشروط: لو ما وصلت مدة الصوت خلال 6 ثوانٍ نتحرر
+          timers.push(setTimeout(() => { if (!isFinite(a.duration) || a.paused) end(); }, 6000));
+          timers.push(setTimeout(end, 20000));
+          abortRef.current = end;
           a.volume = 1;
           a.play().catch(() => { const b = new Audio(src); b.volume = 1; curAudio.current = b; b.onended = b.onerror = end; void b.play().catch(end); });
         });
       } catch (e) { toast.error((e as Error).message); }
+      finally { abortRef.current = null; }
     }
-    curAudio.current = null; qBusy.current = false; setQPlaying(false);
-    onQueueIdle.current();
+    } finally {
+      curAudio.current = null; qBusy.current = false; setQPlaying(false);
+      try { onQueueIdle.current(); } catch { /* ignore */ }
+    }
   };
   const enqueueSpeak = (id: number, t: string) => {
     playQ.current.push({ id, t, audio: callTts(t) });
     void pumpQ();
   };
-  const stopQ = () => { playQ.current = []; try { curAudio.current?.pause(); } catch { /* ignore */ } };
+  const stopQ = () => {
+    playQ.current = [];
+    try { curAudio.current?.pause(); } catch { /* ignore */ }
+    try { abortRef.current?.(); } catch { /* ignore */ }
+    abortRef.current = null;
+  };
   const rawSpeaking = p.speaking || busy || qPlaying;
   if (rawSpeaking && !speakSince.current) speakSince.current = Date.now();
   if (!rawSpeaking) speakSince.current = 0;
@@ -246,7 +260,7 @@ export function LiveHybrid(p: {
         pausedRef.current = true; sawSpeak.current = false;
         const old = talkRef.current; talkRef.current = null; setLiveText("");
         try { const o = old as unknown as { abort?: () => void; stop: () => void } | null; if (o?.abort) o.abort(); else o?.stop(); } catch { /* ignore */ }
-        setTimeout(() => { if (pausedRef.current) resumeMic(); }, 25000);
+        setTimeout(() => { if (pausedRef.current) resumeMic(); }, 4000);
       }
       onQueueIdle.current = () => { if (pausedRef.current) setTimeout(() => { if (pausedRef.current && !qBusy.current) resumeMic(); }, 200); };
       setChat((c) => [...c, { id: id + 1, who: "a", t: text, at: Date.now() }]);

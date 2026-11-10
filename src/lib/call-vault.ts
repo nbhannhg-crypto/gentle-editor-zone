@@ -33,17 +33,18 @@ export async function vaultSpeak(text: string, v: VaultVoice, gen: () => Promise
   const { storeId } = await vaultStore();
   if (hit) { void bump(storeId, key); return hit; }
   if (storeId) {
-    try {
+    // ⏱️ صمام ثانيتين: إذا تأخرت الخزينة نولّد مباشرة بدون تعليق
+    const lookup = (async () => {
       const { data } = await supabase.from("call_voice_cache").select("id, path, uses").eq("store_id", storeId).eq("key", key).maybeSingle();
-      if (data) {
-        const { data: f } = await supabase.storage.from(BUCKET).download(data.path);
-        if (f) {
-          const url = URL.createObjectURL(f); mem.set(key, url);
-          void supabase.from("call_voice_cache").update({ uses: data.uses + 1 }).eq("id", data.id);
-          return url;
-        }
-      }
-    } catch { /* نكمل بالتوليد */ }
+      if (!data) return null;
+      const { data: f } = await supabase.storage.from(BUCKET).download(data.path);
+      if (!f) return null;
+      const url = URL.createObjectURL(f); mem.set(key, url);
+      void supabase.from("call_voice_cache").update({ uses: data.uses + 1 }).eq("id", data.id);
+      return url;
+    })().catch(() => null);
+    const url = await Promise.race([lookup, new Promise<null>((r) => setTimeout(() => r(null), 2000))]);
+    if (url) return url;
   }
   const audio = await gen();
   mem.set(key, audio);
