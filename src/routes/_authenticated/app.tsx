@@ -557,7 +557,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
   const staffRef = useRef("");
   staffRef.current = staff.activeText;
   const [live, setLive] = useState(false);
-  const [ltab, setLtab] = useState<"call" | "voices" | "hybrid" | "wa" | "setup">("call");
+  const [ltab, setLtab] = useState<"call" | "voices" | "hybrid" | "wa" | "setup">("hybrid");
   const [interim, setInterim] = useState("");
   const [customer, setCustomer] = useState("");
   const [typed, setTyped] = useState("");
@@ -958,7 +958,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
   return (
     <div className="grid gap-6 lg:grid-cols-3">
       <nav className="sticky top-0 z-20 -mx-1 flex snap-x gap-2 overflow-x-auto rounded-2xl border bg-card/95 p-2 shadow-soft backdrop-blur lg:col-span-3" aria-label="أقسام المكالمة">
-        {([["call", "📞 المكالمة والشات"], ["voices", "🎙️ الأصوات والمجلدات"], ["hybrid", "⚡ النطق اللحظي والسلك"], ["wa", "📲 الواتساب والصفقة"], ["setup", "🎛️ الإعدادات والموظفات"]] as const).map(([k, l]) => (
+        {([["hybrid", "⚡ النطق اللحظي والسلك"], ["call", "📞 المكالمة والشات"], ["voices", "🎙️ الأصوات والمجلدات"], ["wa", "📲 الواتساب والصفقة"], ["setup", "🎛️ الإعدادات والموظفات"]] as const).map(([k, l]) => (
           <button key={k} type="button" onClick={() => setLtab(k)}
             className={`shrink-0 snap-start whitespace-nowrap rounded-full border px-4 py-2 text-sm font-semibold transition ${ltab === k ? "border-primary bg-primary text-primary-foreground" : "bg-secondary"}`}>{l}</button>
         ))}
@@ -1120,6 +1120,10 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
         <LiveHybrid live={live} speaking={speaking} customer={customer} log={log} say={say} send={sendPlus} persona={cfg.persona}
           onMode={(m) => { if (m === "auto") saveCfg({ ...cfg, fast: true }); if (m === "copilot") saveCfg({ ...cfg, fast: false }); if (m === "ptt") saveCfg({ ...cfg, route: "ptt" }); if (m === "line") saveCfg({ ...cfg, route: "speaker" }); }}
           stopAll={() => { audioRef.current?.pause(); setSpeaking(false); cancelCountdown(); }} />
+        <details className="group mt-4 rounded-2xl border bg-card shadow-soft">
+          <summary className="flex cursor-pointer list-none items-center justify-between p-4 font-bold">💾 خزينة صوت المكالمة <span className="text-xs text-muted-foreground transition group-open:rotate-180">▼ اضغط للفتح</span></summary>
+          <div className="animate-in slide-in-from-bottom-4 fade-in duration-300 p-2 pt-0"><CallVoiceVault playAudio={(u) => void playAudio(u)} /></div>
+        </details>
         </div>
       </div>
 

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -22,6 +23,17 @@ export function CallVoiceVault({ playAudio }: { playAudio?: (src: string) => voi
   const [loading, setLoading] = useState(true);
   const audio = useRef<HTMLAudioElement | null>(null);
 
+  const [listening, setListening] = useState(false);
+  const voiceSearch = () => {
+    const W = window as unknown as { SpeechRecognition?: new () => any; webkitSpeechRecognition?: new () => any };
+    const SR = W.SpeechRecognition || W.webkitSpeechRecognition;
+    if (!SR) { toast.error("البحث الصوتي يحتاج متصفح Chrome"); return; }
+    const r = new SR(); r.lang = "ar-SA"; r.interimResults = false; r.maxAlternatives = 1;
+    r.onresult = (e: any) => { const t = String(e.results?.[0]?.[0]?.transcript || "").trim(); if (t) { setQ(t); toast.success(`🔎 ${t}`); } };
+    r.onerror = () => toast.error("ما سمعت الكلمة، جرب مرة ثانية");
+    r.onend = () => setListening(false);
+    try { setListening(true); r.start(); } catch { setListening(false); }
+  };
   const load = async () => { setLoading(true); try { setList(await listClips()); } catch { /* ignore */ } setLoading(false); };
   useEffect(() => {
     setOn(vaultOn()); void load();
@@ -82,6 +94,7 @@ export function CallVoiceVault({ playAudio }: { playAudio?: (src: string) => voi
 
       <div className="flex gap-2">
         <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔎 ابحث بالجملة…" />
+        <Button type="button" size="icon" variant={listening ? "default" : "outline"} title="بحث صوتي" onClick={voiceSearch} className={listening ? "animate-pulse" : ""}>🎙️</Button>
         <select value={sort} onChange={(e) => setSort(e.target.value as "new" | "uses")} className="rounded-md border border-input bg-background px-2 text-sm">
           <option value="new">الأحدث</option><option value="uses">الأكثر استخدام</option>
         </select>
