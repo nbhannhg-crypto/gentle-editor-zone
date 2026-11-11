@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { SoundBoard } from "@/components/SoundBoard";
+import { LiveVoiceDeck } from "@/components/LiveVoiceDeck";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useSpeaker, useCallSpeaker } from "@/components/VoiceStudio";
@@ -480,6 +481,7 @@ export function LiveHybrid(p: {
 
       <section className={box}>
         <h3 className="font-display mb-1 text-lg">⚡ النطق اللحظي السريع</h3>
+        <LiveVoiceDeck moods={MOODS} mood={mood} setMood={(k) => { setMood(k); persist({ mood: k }); }} test={() => { unlockPlayer(); void speakNow("يا هلا والله، معك الموظفة، تفضل"); }} />
         <p className="text-sm text-muted-foreground">تكلّم وتشوف كلامك يطلع قدامك، والموظفة تنطقه بصوتك المختار فوراً — أو أوقفه وعدّله قبل النطق.</p>
         <div className="mt-2 flex flex-wrap gap-2">
           <Button size="sm" variant={target === "call" ? "default" : "outline"} onClick={() => setTarget("call")}>🗣️ في المكالمة</Button>
