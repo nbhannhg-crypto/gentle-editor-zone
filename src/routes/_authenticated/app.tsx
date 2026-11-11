@@ -167,7 +167,7 @@ function App() {
           )}
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-3 py-4 sm:px-4 sm:py-6">
+      <main className="mx-auto w-full min-w-0 max-w-6xl px-3 py-4 sm:px-4 sm:py-6">
         <p className="mb-4 rounded-xl bg-secondary px-3 py-2 text-xs sm:px-4 sm:text-sm text-secondary-foreground">
           {mode === "learn" ? "📘 الموظفة ترد فقط من اللي علمتها إياه (100% من قواعدك)." : "✨ الموظفة ترد من تعليمك، وتستخدم ذكاءها للأسئلة الجديدة."}
         </p>
@@ -956,7 +956,7 @@ function LiveCall({ rules, reload, mode, product, storeId }: { rules: Rule[]; re
   };
 
   return (
-    <div className="grid gap-6 lg:grid-cols-3">
+    <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-3">
       <nav className="sticky top-0 z-20 -mx-1 flex snap-x gap-2 overflow-x-auto rounded-2xl border bg-card/95 p-2 shadow-soft backdrop-blur lg:col-span-3" aria-label="أقسام المكالمة">
         {([["hybrid", "⚡ النطق اللحظي والسلك"], ["call", "📞 المكالمة والشات"], ["voices", "🎙️ الأصوات والمجلدات"], ["wa", "📲 الواتساب والصفقة"], ["setup", "🎛️ الإعدادات والموظفات"]] as const).map(([k, l]) => (
           <button key={k} type="button" onClick={() => setLtab(k)}

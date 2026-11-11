@@ -107,6 +107,8 @@
     border-color: var(--color-border);
   }
 
+  html, body { max-width: 100%; overflow-x: hidden; }
+  img, video, canvas, iframe { max-width: 100%; }
   body {
     font-family: "IBM Plex Sans Arabic", "Tajawal", sans-serif;
     background-color: var(--color-background);

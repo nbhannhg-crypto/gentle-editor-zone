@@ -423,16 +423,16 @@ export function LiveHybrid(p: {
     w.document.close(); w.print();
   };
 
-  const box = "rounded-2xl border bg-card p-5 shadow-soft";
+  const box = "min-w-0 rounded-2xl border bg-card p-3 shadow-soft sm:p-5";
   return (
     <div className="space-y-6">
       <section className={box}>
-        <div className="mb-3 flex items-center justify-between gap-2">
-          <h3 className="font-display text-lg">🔀 أوضاع الاتصال الهجين</h3>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-display min-w-0 text-lg">🔀 أوضاع الاتصال الهجين</h3>
           <Button variant="destructive" onClick={() => { stopQ(); p.stopAll(); srRef.current?.stop(); toast("⏹️ انكتم فوراً"); }}>⏹️ كتم فوري</Button>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          {MODES.map(([k, l]) => <Button key={k} size="sm" variant={mode === k ? "default" : "outline"} onClick={() => { setMode(k); persist({ mode: k }); p.onMode?.(k); }}>{l}</Button>)}
+          {MODES.map(([k, l]) => <Button key={k} size="sm" className="h-auto min-h-8 min-w-0 whitespace-normal py-1.5 leading-tight" variant={mode === k ? "default" : "outline"} onClick={() => { setMode(k); persist({ mode: k }); p.onMode?.(k); }}>{l}</Button>)}
         </div>
 
         {mode === "line" && (
@@ -493,7 +493,7 @@ export function LiveHybrid(p: {
             <Button key={v} size="sm" variant={wait === v ? "default" : "outline"} onClick={() => setWait(v)}>{l}</Button>
           ))}
         </div>
-        <div className="mt-3 flex gap-2">
+        <div className="mt-3 flex flex-wrap gap-2">
           <Button className="flex-1" variant={talk ? "destructive" : "default"} onClick={() => { if (talk) stopTalk(); else { unlockPlayer(); startTalk(); } }}>
             {talk ? "⏹️ وقّف الاستماع" : "🎙️ ابدأ أتكلم"}
           </Button>
@@ -564,7 +564,7 @@ export function LiveHybrid(p: {
       <section className={box}>
         <h3 className="font-display mb-2 text-lg">🎙️ مغيّر الصوت اللحظي المباشر</h3>
         <p className="text-sm text-muted-foreground">تكلّم بصوتك ولهجتك، والموظفة تفرّغ كلامك وتنقّيه وتصيغه بأسلوبها ولهجتها، وتنطقه بصوتها.</p>
-        <div className="mt-2 flex gap-2">
+        <div className="mt-2 flex flex-wrap gap-2">
           <Button size="sm" variant={target === "call" ? "default" : "outline"} onClick={() => setTarget("call")}>🗣️ ابثّه في المكالمة</Button>
           <Button size="sm" variant={target === "wa" ? "default" : "outline"} onClick={() => setTarget("wa")}>🚀 أرسله فويس واتساب</Button>
         </div>
