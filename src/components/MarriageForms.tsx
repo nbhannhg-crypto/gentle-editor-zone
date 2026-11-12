@@ -46,7 +46,7 @@ export function MarriageForms({ storeId, admin }: { storeId?: string; admin?: bo
     if (a.type && b.type === a.type) s += 20;
     if (a.pMarital && b.marital?.includes(a.pMarital.slice(0, 3))) s += 15;
     const ar = (a.pAge ?? "").match(/\d+/g)?.map(Number); const age = Number(b.age);
-    if (ar && age) s += (ar.length > 1 ? age >= ar[0] && age <= ar[1] : Math.abs(age - ar[0]) <= 3) ? 15 : 0;
+    if (ar && age) s += (ar.length > 1 ? age >= (ar[0] ?? 0) && age <= (ar[1] ?? 99) : Math.abs(age - (ar[0] ?? 0)) <= 3) ? 15 : 0;
     return { x, s };
   }).filter((m) => m.s > 0).sort((p, q2) => q2.s - p.s).slice(0, 5);
 

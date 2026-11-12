@@ -33,7 +33,7 @@ export const M_STATUS: [string, string][] = [["new", "🆕 جديد"], ["review"
 /** Public card text with private fields hidden. */
 export function publicCardText(code: string, gender: string, d: Record<string, string>) {
   const lines = [`💍 ${gender === "female" ? "عروس" : "عريس"} — كود الطلب #${code}`];
-  for (const f of M_ALL) if (!f.private && d[f.k]?.trim()) lines.push(`• ${f.l}: ${d[f.k].trim()}`);
+  for (const f of M_ALL) { const v = d[f.k]?.trim(); if (!f.private && v) lines.push(`• ${f.l}: ${v}`); }
   lines.push("للتواصل والاستفسار أرسل كود الطلب على الواتساب 🤍");
   return lines.join("\n");
 }

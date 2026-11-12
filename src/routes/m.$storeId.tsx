@@ -23,14 +23,14 @@ function FormPage() {
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [code, setCode] = useState("");
-  const sec = M_SECTIONS[step];
+  const sec = M_SECTIONS[step] ?? M_SECTIONS[0]!;
   const last = step === M_SECTIONS.length - 1;
   const set = (k: string, v: string) => setD((p) => ({ ...p, [k]: v.slice(0, 600) }));
 
   const next = async () => {
     const miss = sec.fields.find((f) => f.req && !d[f.k]?.trim());
     if (miss) { setErr(`فضلاً عبّ: ${miss.l}`); return; }
-    if (sec.fields.some((f) => f.k === "phone") && !/^\+?\d{8,15}$/.test((d.phone ?? "").replace(/\s/g, ""))) { setErr("رقم التواصل غير صحيح"); return; }
+    if (sec.fields.some((f) => f.k === "phone") && !/^\+?\d{8,15}$/.test((d["phone"] ?? "").replace(/\s/g, ""))) { setErr("رقم التواصل غير صحيح"); return; }
     setErr("");
     if (!last) { setStep(step + 1); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
     setBusy(true);
