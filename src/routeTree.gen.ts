@@ -16,6 +16,7 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedStudioRouteImport } from './routes/_authenticated/studio'
+import { Route as MStoreIdRouteImport } from './routes/m.$storeId'
 import { Route as SStoreIdRouteImport } from './routes/s.$storeId'
 import { Route as VRoomIdRouteImport } from './routes/v.$roomId'
 import { Route as AuthenticatedAdminKingdomRouteImport } from './routes/_authenticated/admin_.kingdom'
@@ -61,6 +62,11 @@ const AuthenticatedStudioRoute = AuthenticatedStudioRouteImport.update({
   id: '/studio',
   path: '/studio',
   getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const MStoreIdRoute = MStoreIdRouteImport.update({
+  id: '/m/$storeId',
+  path: '/m/$storeId',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const SStoreIdRoute = SStoreIdRouteImport.update({
   id: '/s/$storeId',
@@ -126,6 +132,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AuthenticatedAdminRoute
   '/app': typeof AuthenticatedAppRoute
   '/studio': typeof AuthenticatedStudioRoute
+  '/m/$storeId': typeof MStoreIdRoute
   '/s/$storeId': typeof SStoreIdRoute
   '/v/$roomId': typeof VRoomIdRoute
   '/admin/kingdom': typeof AuthenticatedAdminKingdomRoute
@@ -145,6 +152,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AuthenticatedAdminRoute
   '/app': typeof AuthenticatedAppRoute
   '/studio': typeof AuthenticatedStudioRoute
+  '/m/$storeId': typeof MStoreIdRoute
   '/s/$storeId': typeof SStoreIdRoute
   '/v/$roomId': typeof VRoomIdRoute
   '/admin/kingdom': typeof AuthenticatedAdminKingdomRoute
@@ -166,6 +174,7 @@ export interface FileRoutesById {
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/app': typeof AuthenticatedAppRoute
   '/_authenticated/studio': typeof AuthenticatedStudioRoute
+  '/m/$storeId': typeof MStoreIdRoute
   '/s/$storeId': typeof SStoreIdRoute
   '/v/$roomId': typeof VRoomIdRoute
   '/_authenticated/admin_/kingdom': typeof AuthenticatedAdminKingdomRoute
@@ -187,6 +196,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/app'
     | '/studio'
+    | '/m/$storeId'
     | '/s/$storeId'
     | '/v/$roomId'
     | '/admin/kingdom'
@@ -206,6 +216,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/app'
     | '/studio'
+    | '/m/$storeId'
     | '/s/$storeId'
     | '/v/$roomId'
     | '/admin/kingdom'
@@ -226,6 +237,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin'
     | '/_authenticated/app'
     | '/_authenticated/studio'
+    | '/m/$storeId'
     | '/s/$storeId'
     | '/v/$roomId'
     | '/_authenticated/admin_/kingdom'
@@ -244,6 +256,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  MStoreIdRoute: typeof MStoreIdRoute
   SStoreIdRoute: typeof SStoreIdRoute
   VRoomIdRoute: typeof VRoomIdRoute
   ApiPublicApproveRoute: typeof ApiPublicApproveRoute
@@ -306,6 +319,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/studio'
       preLoaderRoute: typeof AuthenticatedStudioRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/m/$storeId': {
+      id: '/m/$storeId'
+      path: '/m/$storeId'
+      fullPath: '/m/$storeId'
+      preLoaderRoute: typeof MStoreIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/s/$storeId': {
       id: '/s/$storeId'
@@ -409,6 +429,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  MStoreIdRoute: MStoreIdRoute,
   SStoreIdRoute: SStoreIdRoute,
   VRoomIdRoute: VRoomIdRoute,
   ApiPublicApproveRoute: ApiPublicApproveRoute,
