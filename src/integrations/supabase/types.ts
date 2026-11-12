@@ -559,6 +559,47 @@ export type Database = {
         }
         Relationships: []
       }
+      marriage_forms: {
+        Row: {
+          code: string
+          created_at: string
+          data: Json
+          gender: string
+          id: string
+          notes: string
+          status: string
+          store_id: string
+        }
+        Insert: {
+          code?: string
+          created_at?: string
+          data?: Json
+          gender?: string
+          id?: string
+          notes?: string
+          status?: string
+          store_id: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          data?: Json
+          gender?: string
+          id?: string
+          notes?: string
+          status?: string
+          store_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marriage_forms_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       media_library: {
         Row: {
           code: string
@@ -1255,6 +1296,10 @@ export type Database = {
       spend_service: {
         Args: { _service: string; _store: string }
         Returns: number
+      }
+      submit_marriage_form: {
+        Args: { _data: Json; _gender: string; _store: string }
+        Returns: string
       }
     }
     Enums: {
