@@ -6,7 +6,7 @@ import { M_ALL, M_SECTIONS, M_STATUS, publicCardText } from "@/lib/marriage";
 type KD = { name?: string; age?: string; city?: string; pCity?: string; nationality?: string; pNationality?: string; type?: string; marital?: string; pMarital?: string; pAge?: string; phone?: string };
 type Row = { id: string; code: string; gender: string; data: Record<string, string> & KD; status: string; notes: string; created_at: string };
 
-export function MarriageForms({ storeId, admin }: { storeId?: string; admin?: boolean }) {
+export function MarriageForms({ storeId, admin }: { storeId?: string | undefined; admin?: boolean }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [q, setQ] = useState("");
   const [g, setG] = useState("all");
