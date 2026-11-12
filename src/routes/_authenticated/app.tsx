@@ -37,6 +37,7 @@ import { DealEye } from "@/components/DealEye";
 import { MagicBrains } from "@/components/MagicBrains";
 import { Campaigns } from "@/components/Campaigns";
 import { Appointments } from "@/components/Appointments";
+import { MarriageForms } from "@/components/MarriageForms";
 import { BrainFactory } from "@/components/BrainFactory";
 import { MotherBrain } from "@/components/MotherBrain";
 import { KingdomBrains } from "@/components/KingdomBrains";
@@ -65,15 +66,15 @@ export const Route = createFileRoute("/_authenticated/app")({
 });
 
 export type Mode = "learn" | "smart";
-type Tab = "home" | "train" | "call" | "kcall" | "voice" | "channels" | "customers" | "products" | "wallet" | "dash" | "bots" | "profile" | "deals" | "campaigns" | "appointments" | "brains" | "magic" | "mother" | "library" | "inbox" | "complaints" | "design";
+type Tab = "home" | "train" | "call" | "kcall" | "voice" | "channels" | "customers" | "products" | "wallet" | "dash" | "bots" | "profile" | "deals" | "campaigns" | "appointments" | "brains" | "magic" | "mother" | "library" | "inbox" | "complaints" | "design" | "marriage";
 
-const NAV: [Tab, string][] = [["home", "🏠 الرئيسية"], ["mother", "👑 العقل المدبر"], ["brains", "🏭 مصنع العقول"], ["magic", "✨ بنك الإلهام"], ["bots", "🤖 كتيبة البوتات"], ["profile", "🏪 هوية المتجر"], ["train", "🎯 علّم الموظفة"], ["call", "📞 المكالمة المباشرة"], ["kcall", "📱 مكالمة المملكة"], ["voice", "🎙️ النبرة والصوتيات"], ["channels", "📡 رادار القنوات"], ["inbox", "💬 صندوق المحادثات"], ["library", "📚 خزينة الوسائط"], ["design", "🎨 استوديو التصاميم"], ["complaints", "📮 العناية بالعملاء"], ["customers", "👥 كبار العملاء"], ["campaigns", "📣 صانع الحملات"], ["deals", "👁️ رادار الصفقات"], ["appointments", "📅 المواعيد"], ["products", "🛍️ كتالوج المنتجات"], ["wallet", "💰 المحفظة"], ["dash", "📊 مؤشرات الأداء"]];
+const NAV: [Tab, string][] = [["home", "🏠 الرئيسية"], ["mother", "👑 العقل المدبر"], ["brains", "🏭 مصنع العقول"], ["magic", "✨ بنك الإلهام"], ["bots", "🤖 كتيبة البوتات"], ["profile", "🏪 هوية المتجر"], ["train", "🎯 علّم الموظفة"], ["call", "📞 المكالمة المباشرة"], ["kcall", "📱 مكالمة المملكة"], ["voice", "🎙️ النبرة والصوتيات"], ["channels", "📡 رادار القنوات"], ["inbox", "💬 صندوق المحادثات"], ["library", "📚 خزينة الوسائط"], ["design", "🎨 استوديو التصاميم"], ["complaints", "📮 العناية بالعملاء"], ["customers", "👥 كبار العملاء"], ["campaigns", "📣 صانع الحملات"], ["deals", "👁️ رادار الصفقات"], ["appointments", "📅 المواعيد"], ["marriage", "💍 استمارات الزواج"], ["products", "🛍️ كتالوج المنتجات"], ["wallet", "💰 المحفظة"], ["dash", "📊 مؤشرات الأداء"]];
 
 const HOME: [string, [string, string, string, string][]][] = [
   ["🎙️ المكالمات والأصوات", [["kcall", "📱", "مكالمة المملكة", "سوالف حية وسلك الجوال"], ["call", "📞", "المكالمة المباشرة", "لوحة تحكم المكالمات"], ["studio", "🎤", "استوديو الأصوات", "استنساخ وتوليد النبرة"], ["voice", "🎙️", "النبرة والصوتيات", "موازين الصوت والمشاعر"]]],
   ["💬 الواتساب والمحادثات", [["channels", "📲", "لوحة الواتسابات", "ربط الأرقام والتحكم بكل رقم"], ["inbox", "💬", "صندوق المحادثات", "رسائل الزبائن الحية"], ["deals", "👁️", "رادار الصفقات", "متابعة المهتمين"], ["complaints", "📮", "العناية بالعملاء", "الشكاوى والردود"]]],
   ["🧠 العقول والتعليم", [["train", "🎯", "علّم الموظفة", "سؤال وجواب تحفظه للأبد"], ["brains", "🏭", "مصنع العقول", "أنشئ عقل بكلامك"], ["mother", "👑", "العقل المدبر", "إشراف وتحكم كامل"], ["magic", "✨", "بنك الإلهام", "ردود وسوالف جاهزة"], ["bots", "🤖", "كتيبة البوتات", "رفيقات السوالف"], ["library", "📚", "خزينة الوسائط", "صور وفويسات ومقاطع"]]],
-  ["🎨 التصميم والمتجر", [["design", "🎨", "استوديو التصاميم", "صور وتصاميم بناتية"], ["campaigns", "📣", "صانع الحملات", "رسائل جماعية"], ["products", "🛍️", "كتالوج المنتجات", "المنتجات والأسعار"], ["customers", "👥", "كبار العملاء", "قائمة الزبائن"], ["appointments", "📅", "المواعيد", "الحجوزات"], ["wallet", "💰", "المحفظة", "الرصيد والشحن"], ["profile", "🏪", "هوية المتجر", "الاسم والنبذة"], ["dash", "📊", "مؤشرات الأداء", "الأرقام والتقارير"]]],
+  ["🎨 التصميم والمتجر", [["design", "🎨", "استوديو التصاميم", "صور وتصاميم بناتية"], ["campaigns", "📣", "صانع الحملات", "رسائل جماعية"], ["products", "🛍️", "كتالوج المنتجات", "المنتجات والأسعار"], ["customers", "👥", "كبار العملاء", "قائمة الزبائن"], ["appointments", "📅", "المواعيد", "الحجوزات"], ["marriage", "💍", "استمارات الزواج", "طلبات الخطابة والمطابقة"], ["wallet", "💰", "المحفظة", "الرصيد والشحن"], ["profile", "🏪", "هوية المتجر", "الاسم والنبذة"], ["dash", "📊", "مؤشرات الأداء", "الأرقام والتقارير"]]],
 ];
 
 function Home({ go }: { go: (k: string) => void }) {
@@ -187,6 +188,7 @@ function App() {
         {tab === "deals" && <DealEye storeId={store?.id} />}
         {tab === "campaigns" && <Campaigns storeId={store?.id} />}
         {tab === "appointments" && <Appointments storeId={store?.id} />}
+        {tab === "marriage" && <MarriageForms storeId={store?.id} admin={admin} />}
         {tab === "magic" && <MagicBrains />}
         {tab === "mother" && <div className="space-y-6"><KingdomBrains admin={admin} storeId={store?.id} /><MotherBrain storeId={store?.id} /></div>}
         {tab === "library" && <MediaLibrary storeId={store?.id} />}
