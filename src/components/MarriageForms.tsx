@@ -3,7 +3,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { M_ALL, M_SECTIONS, M_STATUS, publicCardText } from "@/lib/marriage";
 
-type Row = { id: string; code: string; gender: string; data: Record<string, string>; status: string; notes: string; created_at: string };
+type KD = { name?: string; age?: string; city?: string; pCity?: string; nationality?: string; pNationality?: string; type?: string; marital?: string; pMarital?: string; pAge?: string; phone?: string };
+type Row = { id: string; code: string; gender: string; data: Record<string, string> & KD; status: string; notes: string; created_at: string };
 
 export function MarriageForms({ storeId, admin }: { storeId?: string; admin?: boolean }) {
   const [rows, setRows] = useState<Row[]>([]);
@@ -28,14 +29,14 @@ export function MarriageForms({ storeId, admin }: { storeId?: string; admin?: bo
 
   const upd = async (r: Row, patch: Partial<Row>) => {
     const { error } = await supabase.from("marriage_forms").update(patch).eq("id", r.id);
-    if (error) return toast.error("ما انحفظ");
+    if (error) { toast.error("ما انحفظ"); return; }
     setRows((p) => p.map((x) => (x.id === r.id ? { ...x, ...patch } : x)));
     if (open?.id === r.id) setOpen({ ...r, ...patch });
   };
   const del = async (r: Row) => {
     if (!confirm(`حذف الطلب ${r.code}؟`)) return;
     const { error } = await supabase.from("marriage_forms").delete().eq("id", r.id);
-    if (error) return toast.error("ما انحذف");
+    if (error) { toast.error("ما انحذف"); return; }
     setRows((p) => p.filter((x) => x.id !== r.id)); setOpen(null);
   };
   const matches = (r: Row) => rows.filter((x) => x.gender !== r.gender && x.status !== "archived").map((x) => {
