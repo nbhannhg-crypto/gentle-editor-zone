@@ -48,7 +48,7 @@ function FormPage() {
   };
 
   return (
-    <div dir="rtl" className="min-h-screen bg-gradient-to-b from-secondary to-background px-3 py-6">
+    <div dir="rtl" className="theme-sapphire min-h-screen bg-gradient-to-b from-secondary to-background px-3 py-6">
       <div className="mx-auto max-w-xl">
         <header className="relative overflow-hidden rounded-3xl border-2 border-gold bg-royal p-6 text-center text-primary-foreground shadow-soft">
           <div className="absolute right-3 top-3 rounded-full bg-gold px-2 py-0.5 text-[10px] font-bold text-accent-foreground">💎 خدمتنا لكم بكل ثقة</div>
