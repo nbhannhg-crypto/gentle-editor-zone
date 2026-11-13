@@ -23,6 +23,7 @@ function FormPage() {
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [code, setCode] = useState("");
+  const [agree, setAgree] = useState(false);
   const sec = M_SECTIONS[step] ?? M_SECTIONS[0]!;
   const last = step === M_SECTIONS.length - 1;
   const set = (k: string, v: string) => setD((p) => ({ ...p, [k]: v.slice(0, 600) }));
@@ -31,6 +32,12 @@ function FormPage() {
     const miss = sec.fields.find((f) => f.req && !d[f.k]?.trim());
     if (miss) { setErr(`فضلاً عبّ: ${miss.l}`); return; }
     if (sec.fields.some((f) => f.k === "phone") && !/^\+?\d{8,15}$/.test((d["phone"] ?? "").replace(/\s/g, ""))) { setErr("رقم التواصل غير صحيح"); return; }
+    if (sec.fields.some((f) => f.k === "handle")) {
+      const h = (d["handle"] ?? "").trim();
+      if (!/^@?[A-Za-z0-9._]{2,30}$/.test(h)) { setErr("اليوزر غير صحيح — حروف إنجليزية وأرقام و . _ فقط"); return; }
+      if ((d["phone"] ?? "").replace(/\s/g, "") !== (d["phone2"] ?? "").replace(/\s/g, "")) { setErr("رقم الجوال وتأكيده غير متطابقين"); return; }
+      if (!agree) { setErr("فضلاً أكّد صحة بياناتك والموافقة على الشروط"); return; }
+    }
     setErr("");
     if (!last) { setStep(step + 1); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
     setBusy(true);
@@ -43,10 +50,13 @@ function FormPage() {
   return (
     <div dir="rtl" className="min-h-screen bg-gradient-to-b from-secondary to-background px-3 py-6">
       <div className="mx-auto max-w-xl">
-        <header className="rounded-3xl bg-royal p-6 text-center text-primary-foreground shadow-soft">
-          <div className="text-4xl">👑💍</div>
-          <h1 className="mt-2 font-display text-2xl">استمارة طلب زواج</h1>
-          <p className="mt-1 text-sm opacity-90">سرية تامة • ثقة وأمان • مصداقية عالية</p>
+        <header className="relative overflow-hidden rounded-3xl border-2 border-gold bg-royal p-6 text-center text-primary-foreground shadow-soft">
+          <div className="absolute right-3 top-3 rounded-full bg-gold px-2 py-0.5 text-[10px] font-bold text-accent-foreground">💎 خدمتنا لكم بكل ثقة</div>
+          <div className="absolute left-3 top-3 rounded-full border border-gold/60 px-2 py-0.5 text-[10px]">كل شيء بالحلال 🤍</div>
+          <div className="mt-5 text-5xl drop-shadow">👑</div>
+          <h1 className="mt-1 font-display text-3xl">خطابة أم ندى</h1>
+          <div className="mx-auto mt-2 w-fit rounded-full bg-gold px-4 py-1 text-sm font-bold text-accent-foreground">♥ ثقة وأمان ♥</div>
+          <p className="mt-3 text-sm opacity-90">استمارة طلب زواج شاملة — سرية تامة ومصداقية عالية</p>
         </header>
 
         {code ? (
@@ -84,6 +94,15 @@ function FormPage() {
                 </label>
               ))}
             </div>
+            {sec.fields.some((f) => f.k === "handle") && (
+              <div className="mt-4 space-y-2 rounded-2xl border border-gold bg-secondary p-3 text-xs leading-6">
+                <p className="font-bold text-primary">🛡️ توثيق الطلب وحمايتك</p>
+                <p>• اليوزر ورقم الجوال سريّة ولا تنشر أبداً، تستخدم فقط للتحقق والتواصل معك.</p>
+                <p>• بيتم التواصل معك من الرقم الرسمي فقط، ولن نطلب منك أي مبالغ أو رموز تحقق (OTP).</p>
+                <p>• البيانات غير الصحيحة أو المكررة تُلغى تلقائياً.</p>
+                <label className="flex items-start gap-2 pt-1 font-semibold"><input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="mt-1 h-4 w-4 accent-primary" />أقرّ بأن عمري 18 فأكثر، وأن جميع بياناتي صحيحة، وأوافق على التواصل للتحقق.</label>
+              </div>
+            )}
             {err && <p className="mt-3 text-sm text-destructive">{err}</p>}
             <div className="mt-5 flex gap-2">
               {step > 0 && <button onClick={() => setStep(step - 1)} className="rounded-xl border px-4 py-3">السابق</button>}
@@ -94,7 +113,8 @@ function FormPage() {
         <div className="mt-5 grid grid-cols-2 gap-2 text-center text-[11px] text-muted-foreground sm:grid-cols-4">
           {["🔒 خصوصيتك أمانة", "⚖️ سرية البيانات", "✅ التحقق قدر الإمكان", "🤝 تعامل بجدية واحترام"].map((t) => <div key={t} className="rounded-xl border bg-card p-2">{t}</div>)}
         </div>
-        <p className="mt-3 text-center text-[11px] text-muted-foreground">الخدمة مخصصة للبالغين بعمر 18 فأكثر</p>
+        <a href="https://wa.me/966580158578" target="_blank" rel="noreferrer" className="mt-4 flex items-center justify-center gap-2 rounded-2xl border-2 border-gold bg-royal p-3 text-primary-foreground shadow-soft"><span className="text-2xl">💬</span><span><span className="block text-[11px] opacity-90">للتواصل والاستفسار عبر الواتساب</span><span className="font-display text-lg" dir="ltr">966580158578</span></span></a>
+        <p className="mt-3 text-center text-[11px] text-muted-foreground">الخدمة مخصصة للبالغين بعمر 18 فأكثر • حساباتنا الرسمية: a14141000@</p>
       </div>
     </div>
   );

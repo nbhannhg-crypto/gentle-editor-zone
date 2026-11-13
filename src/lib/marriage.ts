@@ -26,7 +26,10 @@ export const M_SECTIONS: { t: string; fields: MField[] }[] = [
     { k: "after", l: "السكن بعد الزواج", opts: ["مستقل", "مع العائلة", "حسب الاتفاق"] },
     { k: "when", l: "الوقت المتوقع لإتمام الزواج" }, { k: "extra", l: "معلومات إضافية", long: true } ] },
   { t: "سادساً: بيانات التواصل", fields: [
-    { k: "phone", l: "رقم التواصل (واتساب)", private: true, req: true }, { k: "callTime", l: "الوقت المناسب للتواصل" } ] },
+    { k: "platform", l: "من أي منصة وصلت للرابط؟", opts: ["تيك توك", "سناب شات", "إنستقرام", "إكس (تويتر)", "واتساب", "أخرى"], req: true },
+    { k: "handle", l: "يوزر حسابك في المنصة (مثال: @name)", private: true, req: true },
+    { k: "phone", l: "رقم الجوال (واتساب) مع مفتاح الدولة", private: true, req: true },
+    { k: "phone2", l: "أعد كتابة رقم الجوال للتأكيد", private: true, req: true }, { k: "callTime", l: "الوقت المناسب للتواصل" } ] },
 ];
 export const M_ALL = M_SECTIONS.flatMap((s) => s.fields);
 export const M_STATUS: [string, string][] = [["new", "🆕 جديد"], ["review", "🔎 قيد المراجعة"], ["match", "💞 مرشح للمطابقة"], ["done", "✅ تم"], ["archived", "🗄️ مؤرشف"]];
