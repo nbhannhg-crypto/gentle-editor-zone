@@ -62,10 +62,11 @@ function FormPage() {
         {code ? (
           <div className="mt-6 rounded-3xl border bg-card p-6 text-center shadow-soft">
             <div className="text-5xl">🤍</div>
-            <h2 className="mt-3 font-display text-xl">وصلنا طلبك بنجاح</h2>
+            <h2 className="mt-3 font-display text-xl">✅ تم استلام وقبول طلبك بنجاح</h2>
             <p className="mt-2 text-sm text-muted-foreground">احتفظ بكود طلبك للمتابعة:</p>
             <div className="mx-auto mt-3 w-fit rounded-2xl bg-gold px-6 py-3 font-display text-2xl text-accent-foreground">{code}</div>
-            <p className="mt-4 text-xs text-muted-foreground">بنتواصل معك قريب بإذن الله. بياناتك الخاصة ما تنشر أبداً.</p>
+            <p className="mt-4 text-sm leading-7">سوف يتم التواصل معك قريباً بإذن الله عبر <b>الواتساب</b> أو عن طريق <b>حساب المنصة</b> التي سجلت منها.</p>
+            <p className="mt-2 text-xs text-muted-foreground">لا حاجة لإرسال الطلب مرة ثانية • بياناتك الخاصة ما تنشر أبداً 🤍</p>
           </div>
         ) : (
           <div className="mt-5 rounded-3xl border bg-card p-4 shadow-soft sm:p-6">
@@ -77,7 +78,8 @@ function FormPage() {
                 ))}
               </div>
             )}
-            <h2 className="mb-3 font-display text-lg text-primary">{sec.t}</h2>
+            <h2 className="mb-1 font-display text-lg text-primary">{sec.t}</h2>
+            <p className="mb-3 text-[11px] text-muted-foreground">💡 الكلام الباهت داخل كل مربع مثال يوضح لك وش تكتب، والمربعات المعلّمة بـ * مطلوبة.</p>
             <div className="space-y-3">
               {sec.fields.map((f) => (
                 <label key={f.k} className="block">
@@ -87,9 +89,9 @@ function FormPage() {
                       <button type="button" key={o} onClick={() => set(f.k, o)} className={`rounded-full border px-3 py-1.5 text-sm ${d[f.k] === o ? "border-primary bg-primary text-primary-foreground" : "bg-background"}`}>{o}</button>
                     ))}</div>
                   ) : f.long ? (
-                    <textarea value={d[f.k] ?? ""} onChange={(e) => set(f.k, e.target.value)} rows={3} className="w-full rounded-xl border bg-background p-3 text-sm" />
+                    <textarea value={d[f.k] ?? ""} onChange={(e) => set(f.k, e.target.value)} rows={3} placeholder={f.ph} className="w-full rounded-xl border bg-background p-3 text-sm" />
                   ) : (
-                    <input value={d[f.k] ?? ""} onChange={(e) => set(f.k, e.target.value)} inputMode={f.k === "phone" || f.k === "age" ? "tel" : undefined} className="w-full rounded-xl border bg-background p-3 text-sm" />
+                    <input value={d[f.k] ?? ""} onChange={(e) => set(f.k, e.target.value)} placeholder={f.ph} inputMode={f.k === "phone" || f.k === "age" ? "tel" : undefined} className="w-full rounded-xl border bg-background p-3 text-sm" />
                   )}
                 </label>
               ))}
