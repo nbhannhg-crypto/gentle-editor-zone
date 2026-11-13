@@ -2,15 +2,23 @@ import { useState } from "react";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { M_SECTIONS } from "@/lib/marriage";
+import shareImg from "@/assets/marriage-share.jpg.asset.json";
 
 export const Route = createFileRoute("/m/$storeId")({
   loader: ({ params }) => { if (!/^[0-9a-f-]{36}$/i.test(params.storeId)) throw notFound(); return null; },
-  head: () => ({ meta: [
-    { title: "استمارة طلب زواج — سرية تامة وثقة وأمان" },
-    { name: "description", content: "استمارة طلب زواج شاملة بسرية تامة ومصداقية عالية، بياناتك الخاصة محمية ولا تُنشر." },
-    { property: "og:title", content: "استمارة طلب زواج — سرية تامة" },
-    { property: "og:description", content: "عبّ الاستمارة بخطوات بسيطة، وبياناتك الخاصة محمية." },
-    { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" } ] }),
+  head: ({ params }) => {
+    const img = `https://gentle-editor-zone.lovable.app${shareImg.url}`;
+    const url = `https://gentle-editor-zone.lovable.app/m/${params.storeId}`;
+    return { meta: [
+    { title: "💍 استمارة زواج رسمية — خطابة أم ندى 👑" },
+    { name: "description", content: "سرية تامة وأمان — التقديم متاح للسعوديين والمقيمين بخطوات ميسرة 🤍" },
+    { property: "og:title", content: "💍 استمارة زواج رسمية — خطابة أم ندى 👑" },
+    { property: "og:description", content: "سرية تامة وأمان — التقديم متاح للسعوديين والمقيمين بخطوات ميسرة 🤍" },
+    { property: "og:url", content: url },
+    { property: "og:image", content: img }, { property: "og:image:width", content: "1200" }, { property: "og:image:height", content: "630" },
+    { name: "twitter:image", content: img },
+    { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" } ] };
+  },
   notFoundComponent: () => <div dir="rtl" className="p-10 text-center">الرابط غير صحيح. <Link to="/" className="underline">الرئيسية</Link></div>,
   component: FormPage,
 });
