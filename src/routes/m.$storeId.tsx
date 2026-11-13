@@ -52,7 +52,7 @@ function FormPage() {
       <div className="mx-auto max-w-xl">
         <header className="relative overflow-hidden rounded-3xl border-2 border-gold bg-royal p-6 text-center text-primary-foreground shadow-soft">
           <div className="absolute right-3 top-3 rounded-full bg-gold px-2 py-0.5 text-[10px] font-bold text-accent-foreground">💎 خدمتنا لكم بكل ثقة</div>
-          <div className="absolute left-3 top-3 rounded-full border border-gold/60 px-2 py-0.5 text-[10px]">كل شيء بالحلال 🤍</div>
+          <div className="absolute left-3 top-3 rounded-full border border-gold px-2 py-0.5 text-[10px]">كل شيء بالحلال 🤍</div>
           <div className="mt-5 text-5xl drop-shadow">👑</div>
           <h1 className="mt-1 font-display text-3xl">خطابة أم ندى</h1>
           <div className="mx-auto mt-2 w-fit rounded-full bg-gold px-4 py-1 text-sm font-bold text-accent-foreground">♥ ثقة وأمان ♥</div>
