@@ -188,7 +188,8 @@ export function LiveHybrid(p: {
       const it = playQ.current.shift()!;
       try {
         setVoiceSt("gen"); const t0 = Date.now();
-        const src = await Promise.race([it.audio, new Promise<string>((_, rej) => setTimeout(() => rej(new Error("تأخر التوليد")), 12000))]);
+        const src0 = await Promise.race([it.audio, new Promise<string>((_, rej) => setTimeout(() => rej(new Error("تأخر التوليد")), 45000))]);
+        let src = src0; if (src0.startsWith("data:")) { try { src = URL.createObjectURL(await (await fetch(src0)).blob()); } catch { src = src0; } }
         const fast = Date.now() - t0 < 350; setVoiceSt(fast ? "cache" : "play"); note(fast ? `⚡ من الخزينة: «${it.t}»` : `✅ تولّد: «${it.t}»`);
         setChat((c) => c.map((m) => (m.id === it.id ? { ...m, audio: src } : m)));
         await new Promise<void>((res) => {
@@ -200,11 +201,9 @@ export function LiveHybrid(p: {
           const end = () => { if (!done) { done = true; timers.forEach(clearTimeout); a.onended = a.onerror = a.onpause = a.onloadedmetadata = null; res(); } };
           a.onended = end; a.onerror = end; a.onpause = end;
           // صمام: مدة الصوت + نص ثانية فقط
-          a.onloadedmetadata = () => { const d = isFinite(a.duration) ? a.duration : 6; timers.push(setTimeout(end, Math.min(d * 1000 + 400, 15000))); };
-          timers.push(setTimeout(() => { if (a.paused) end(); }, 3000));
-          // 🛡️ صمام إجباري غير مشروط: لو ما وصلت مدة الصوت خلال 6 ثوانٍ نتحرر
-          timers.push(setTimeout(() => { if (!isFinite(a.duration) || a.paused) stuck(); }, 6000));
-          timers.push(setTimeout(stuck, 20000));
+          a.onloadedmetadata = () => { const d = isFinite(a.duration) ? a.duration : 6; timers.push(setTimeout(end, d * 1000 + 1500)); };
+                    // 🛡️ صمام إجباري غير مشروط: لو ما وصلت مدة الصوت خلال 6 ثوانٍ نتحرر
+          timers.push(setTimeout(() => { if (!isFinite(a.duration) && a.paused) stuck(); }, 15000));
           abortRef.current = end;
           a.volume = 1;
           a.onplaying = () => { setVoiceSt("play"); note(`🔊 نطقت: «${it.t}»`); };
@@ -234,7 +233,7 @@ export function LiveHybrid(p: {
   if (rawSpeaking && !speakSince.current) speakSince.current = Date.now();
   if (!rawSpeaking) speakSince.current = 0;
   const speakingRef = useRef(false);
-  speakingRef.current = rawSpeaking && Date.now() - speakSince.current < 5000;
+  speakingRef.current = rawSpeaking && Date.now() - speakSince.current < 90000;
   const recent = useRef<{ t: string; at: number }[]>([]);
   // 💬 شات تسلسلي مثل الواتساب
   const [chat, setChat] = useState<{ id: number; who: "me" | "a"; t: string; audio?: string; at: number }[]>([]);
@@ -273,9 +272,9 @@ export function LiveHybrid(p: {
         pausedRef.current = true; sawSpeak.current = false;
         const old = talkRef.current; talkRef.current = null; setLiveText("");
         try { const o = old as unknown as { abort?: () => void; stop: () => void } | null; if (o?.abort) o.abort(); else o?.stop(); } catch { /* ignore */ }
-        setTimeout(() => { if (pausedRef.current) resumeMic(); }, 4000);
+        const chk = () => { if (!pausedRef.current) return; if (qBusy.current) { setTimeout(chk, 1500); return; } resumeMic(); }; setTimeout(chk, 4000);
       }
-      onQueueIdle.current = () => { if (pausedRef.current) setTimeout(() => { if (pausedRef.current && !qBusy.current) resumeMic(); }, 200); };
+      onQueueIdle.current = () => { if (pausedRef.current) setTimeout(() => { if (pausedRef.current && !qBusy.current) resumeMic(); }, 900); };
       setChat((c) => [...c, { id: id + 1, who: "a", t: text, at: Date.now() }]);
       enqueueSpeak(id + 1, text); return;
     }
@@ -329,7 +328,7 @@ export function LiveHybrid(p: {
     r.onresult = (e) => {
       lastHeard.current = Date.now(); setMicSt("listen");
       if (ignore) return;
-      if (guardRef.current && speakingRef.current && Date.now() - speakSince.current < 5000) { done = e.results.length; setLiveText(""); return; } // المايك مقفل أثناء نطق الموظفة
+      if (guardRef.current && speakingRef.current && Date.now() - speakSince.current < 90000) { done = e.results.length; setLiveText(""); return; } // المايك مقفل أثناء نطق الموظفة
       // 🧺 نجمع الجملة كاملة (الأجزاء النهائية + اللي لسه تنقال) وما ننطق إلا بعد ما تسكت
       let interim = "";
       for (let i = done; i < e.results.length; i++) {
@@ -526,12 +525,13 @@ export function LiveHybrid(p: {
         <div className="mt-3 max-h-72 space-y-2 overflow-y-auto rounded-xl border bg-secondary/40 p-3">
           {!chat.length && <p className="text-center text-xs text-muted-foreground">💬 المحادثة تطلع هنا بالتسلسل</p>}
           {chat.map((m) => {
-            const on = m.who === "a" && (playingId === m.id || (m.id === lastAId && (p.speaking || busy)));
+            const on = m.who === "a" && (playingId === m.id || (m.id === lastAId && (p.speaking || busy || qPlaying)));
             return (
             <div key={m.id} className={`flex ${m.who === "me" ? "justify-start" : "justify-end"}`}>
               <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm shadow-sm ${m.who === "me" ? "bg-background" : "bg-primary/15"}`}>
                 <p className="text-[10px] text-muted-foreground">{m.who === "me" ? "🎙️ أنت" : "👩‍💼 الموظفة"}</p>
                 <p>{m.t}</p>
+                {on && <button type="button" onClick={() => { stopQ(); try { p.stopAll(); } catch { /* ignore */ } setPlayingId(null); try { curAudio.current?.pause(); playerRef.current?.pause(); } catch { /* ignore */ } }} className="mt-1 rounded-full bg-destructive px-3 py-1 text-xs font-bold text-destructive-foreground">⏹️ أوقف النطق فوراً</button>}
                 {m.who === "a" && (
                   <div className="mt-1 flex h-4 items-center gap-0.5" aria-label={on ? "تنطق الحين" : "ساكتة"}>
                     {Array.from({ length: 14 }).map((_, i) => (
