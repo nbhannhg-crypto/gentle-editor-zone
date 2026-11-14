@@ -350,15 +350,17 @@ export function LiveHybrid(p: {
         setMicSt("wait"); setTimeout(() => { if (talkOn.current) startTalk(); }, d);
       } else if (!talkOn.current) { setTalk(false); setMicSt((m) => (m === "blocked" ? m : "off")); } };
     talkRef.current = r; talkOn.current = true; setTalk(true); setMicSt((m) => (m === "listen" ? m : "wait"));
-    unlockAudio();
+    // 🔇 فك قفل الصوت مرة وحدة فقط — تكراره مع كل إعادة استماع يطلع «نفخة» في السلك وقت السكوت
+    if (!unlockedOnce.current) { unlockedOnce.current = true; unlockAudio(); }
     try { r.start(); } catch { setTimeout(() => { if (talkOn.current && talkRef.current === r) { try { r.start(); } catch { talkRef.current = null; setTimeout(() => { if (talkOn.current) startTalk(); }, 600); } } }, 400); }
   };
   // 🩺 حارس المايك: إذا المايك شغال بس ما وصل منه شي 12 ثانية (غيبوبة كروم) ننعشه بمستمع جديد
   const lastHeard = useRef(Date.now());
+  const unlockedOnce = useRef(false);
   useEffect(() => {
     const iv = setInterval(() => {
       if (!talkOn.current || holding || pausedRef.current) return;
-      if (Date.now() - lastHeard.current > 12000) {
+      if (Date.now() - lastHeard.current > 30000) {
         lastHeard.current = Date.now();
         const old = talkRef.current; talkRef.current = null;
         try { old?.stop(); } catch { /* ignore */ }
@@ -432,6 +434,7 @@ export function LiveHybrid(p: {
           <h3 className="font-display min-w-0 text-lg">🔀 أوضاع الاتصال الهجين</h3>
           <Button variant="destructive" onClick={() => { stopQ(); p.stopAll(); srRef.current?.stop(); toast("⏹️ انكتم فوراً"); }}>⏹️ كتم فوري</Button>
         </div>
+        <Button className="mb-3 h-12 w-full text-base font-bold" onClick={() => { unlockedOnce.current = false; resetAll(); toast.success("⚡ اشتغل كل شي من جديد بأقصى سرعة"); }}>⚡ تشغيل / إصلاح فوري بضغطة</Button>
         <div className="grid grid-cols-2 gap-2">
           {MODES.map(([k, l]) => <Button key={k} size="sm" className="h-auto min-h-8 min-w-0 whitespace-normal py-1.5 leading-tight" variant={mode === k ? "default" : "outline"} onClick={() => { setMode(k); persist({ mode: k }); p.onMode?.(k); }}>{l}</Button>)}
         </div>
