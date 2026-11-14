@@ -16,6 +16,7 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedStudioRouteImport } from './routes/_authenticated/studio'
+import { Route as MIndexRouteImport } from './routes/m.index'
 import { Route as MStoreIdRouteImport } from './routes/m.$storeId'
 import { Route as SStoreIdRouteImport } from './routes/s.$storeId'
 import { Route as VRoomIdRouteImport } from './routes/v.$roomId'
@@ -62,6 +63,11 @@ const AuthenticatedStudioRoute = AuthenticatedStudioRouteImport.update({
   id: '/studio',
   path: '/studio',
   getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const MIndexRoute = MIndexRouteImport.update({
+  id: '/m/',
+  path: '/m/',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const MStoreIdRoute = MStoreIdRouteImport.update({
   id: '/m/$storeId',
@@ -135,6 +141,7 @@ export interface FileRoutesByFullPath {
   '/m/$storeId': typeof MStoreIdRoute
   '/s/$storeId': typeof SStoreIdRoute
   '/v/$roomId': typeof VRoomIdRoute
+  '/m/': typeof MIndexRoute
   '/admin/kingdom': typeof AuthenticatedAdminKingdomRoute
   '/api/public/approve': typeof ApiPublicApproveRoute
   '/api/public/evolution': typeof ApiPublicEvolutionRoute
@@ -155,6 +162,7 @@ export interface FileRoutesByTo {
   '/m/$storeId': typeof MStoreIdRoute
   '/s/$storeId': typeof SStoreIdRoute
   '/v/$roomId': typeof VRoomIdRoute
+  '/m': typeof MIndexRoute
   '/admin/kingdom': typeof AuthenticatedAdminKingdomRoute
   '/api/public/approve': typeof ApiPublicApproveRoute
   '/api/public/evolution': typeof ApiPublicEvolutionRoute
@@ -177,6 +185,7 @@ export interface FileRoutesById {
   '/m/$storeId': typeof MStoreIdRoute
   '/s/$storeId': typeof SStoreIdRoute
   '/v/$roomId': typeof VRoomIdRoute
+  '/m/': typeof MIndexRoute
   '/_authenticated/admin_/kingdom': typeof AuthenticatedAdminKingdomRoute
   '/api/public/approve': typeof ApiPublicApproveRoute
   '/api/public/evolution': typeof ApiPublicEvolutionRoute
@@ -199,6 +208,7 @@ export interface FileRouteTypes {
     | '/m/$storeId'
     | '/s/$storeId'
     | '/v/$roomId'
+    | '/m/'
     | '/admin/kingdom'
     | '/api/public/approve'
     | '/api/public/evolution'
@@ -219,6 +229,7 @@ export interface FileRouteTypes {
     | '/m/$storeId'
     | '/s/$storeId'
     | '/v/$roomId'
+    | '/m'
     | '/admin/kingdom'
     | '/api/public/approve'
     | '/api/public/evolution'
@@ -240,6 +251,7 @@ export interface FileRouteTypes {
     | '/m/$storeId'
     | '/s/$storeId'
     | '/v/$roomId'
+    | '/m/'
     | '/_authenticated/admin_/kingdom'
     | '/api/public/approve'
     | '/api/public/evolution'
@@ -259,6 +271,7 @@ export interface RootRouteChildren {
   MStoreIdRoute: typeof MStoreIdRoute
   SStoreIdRoute: typeof SStoreIdRoute
   VRoomIdRoute: typeof VRoomIdRoute
+  MIndexRoute: typeof MIndexRoute
   ApiPublicApproveRoute: typeof ApiPublicApproveRoute
   ApiPublicEvolutionRoute: typeof ApiPublicEvolutionRoute
   ApiPublicFactoryDailyRoute: typeof ApiPublicFactoryDailyRoute
@@ -319,6 +332,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/studio'
       preLoaderRoute: typeof AuthenticatedStudioRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/m/': {
+      id: '/m/'
+      path: '/m'
+      fullPath: '/m/'
+      preLoaderRoute: typeof MIndexRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/m/$storeId': {
       id: '/m/$storeId'
@@ -432,6 +452,7 @@ const rootRouteChildren: RootRouteChildren = {
   MStoreIdRoute: MStoreIdRoute,
   SStoreIdRoute: SStoreIdRoute,
   VRoomIdRoute: VRoomIdRoute,
+  MIndexRoute: MIndexRoute,
   ApiPublicApproveRoute: ApiPublicApproveRoute,
   ApiPublicEvolutionRoute: ApiPublicEvolutionRoute,
   ApiPublicFactoryDailyRoute: ApiPublicFactoryDailyRoute,
