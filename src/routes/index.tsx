@@ -4,7 +4,7 @@ import { getRequestHost } from "@tanstack/react-start/server";
 
 // On the custom domain, "/" opens the Om Nada marriage form directly; landing stays on other hosts.
 const getHost = createIsomorphicFn()
-  .server(() => getRequestHost())
+  .server(() => getRequestHost({ xForwardedHost: true }))
   .client(() => window.location.host);
 
 
