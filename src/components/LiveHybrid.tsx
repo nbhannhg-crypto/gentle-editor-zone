@@ -525,7 +525,7 @@ export function LiveHybrid(p: {
         <div className="mt-3 max-h-72 space-y-2 overflow-y-auto rounded-xl border bg-secondary/40 p-3">
           {!chat.length && <p className="text-center text-xs text-muted-foreground">💬 المحادثة تطلع هنا بالتسلسل</p>}
           {chat.map((m) => {
-            const on = m.who === "a" && (playingId === m.id || (m.id === lastAId && (p.speaking || busy)));
+            const on = m.who === "a" && (playingId === m.id || (m.id === lastAId && (p.speaking || busy || qPlaying)));
             return (
             <div key={m.id} className={`flex ${m.who === "me" ? "justify-start" : "justify-end"}`}>
               <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm shadow-sm ${m.who === "me" ? "bg-background" : "bg-primary/15"}`}>
