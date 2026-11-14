@@ -1,4 +1,12 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { createIsomorphicFn } from "@tanstack/react-start";
+import { getRequestHost } from "@tanstack/react-start/server";
+
+// On the custom domain, "/" opens the Om Nada marriage form directly; landing stays on other hosts.
+const getHost = createIsomorphicFn()
+  .server(() => getRequestHost())
+  .client(() => window.location.host);
+
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -11,6 +19,11 @@ export const Route = createFileRoute("/")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
+  beforeLoad: () => {
+    if (/(^|\.)am-nada\.tech$/i.test((getHost() || "").split(":")[0])) {
+      throw redirect({ to: "/m/$storeId", params: { storeId: "f81949ec-23dc-4920-801a-5362f8599b05" }, replace: true });
+    }
+  },
   component: Landing,
 });
 
