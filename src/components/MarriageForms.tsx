@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { M_ALL, M_CORE, M_SECTIONS, M_SOURCE, M_STATUS, publicCardText } from "@/lib/marriage";
 import { parseMarriageText } from "@/lib/marriage.functions";
 
-type KD = { name?: string; age?: string; city?: string; pCity?: string; nationality?: string; pNationality?: string; type?: string; marital?: string; pMarital?: string; pAge?: string; phone?: string };
+type KD = { name?: string; age?: string; city?: string; pCity?: string; nationality?: string; pNationality?: string; type?: string; marital?: string; pMarital?: string; pAge?: string; phone?: string; broker?: string; brokerHandle?: string; brokerPlatform?: string };
 type Row = { id: string; code: string; gender: string; data: Record<string, string> & KD; status: string; notes: string; created_at: string };
 
 export function MarriageForms({ storeId, admin }: { storeId?: string | undefined; admin?: boolean }) {
