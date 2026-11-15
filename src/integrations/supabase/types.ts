@@ -600,6 +600,45 @@ export type Database = {
           },
         ]
       }
+      marriage_wa_sessions: {
+        Row: {
+          created_at: string
+          data: Json
+          done: boolean
+          gender: string
+          id: string
+          instance: string
+          phone: string
+          step: number
+          store_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          data?: Json
+          done?: boolean
+          gender?: string
+          id?: string
+          instance: string
+          phone: string
+          step?: number
+          store_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          data?: Json
+          done?: boolean
+          gender?: string
+          id?: string
+          instance?: string
+          phone?: string
+          step?: number
+          store_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       media_library: {
         Row: {
           code: string
