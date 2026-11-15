@@ -19,6 +19,7 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
   const [paste, setPaste] = useState("");
   const [parsed, setParsed] = useState<{ gender: string; fields: Record<string, string> } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [edit, setEdit] = useState(false);
   const runParse = async () => {
     if (paste.trim().length < 5) { toast.error("الصق رسالة العميل أول"); return; }
     setBusy(true);
@@ -154,12 +155,15 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
             <div className="mt-3 flex flex-wrap gap-2">
               <button onClick={() => wa(open)} className="rounded-xl bg-primary px-3 py-2 text-sm text-primary-foreground">💬 واتساب</button>
               <a href={`tel:${open.data.phone ?? ""}`} className="rounded-xl border px-3 py-2 text-sm">📞 اتصال</a>
+              <button onClick={() => setEdit(!edit)} className={`rounded-xl px-3 py-2 text-sm ${edit ? "bg-primary text-primary-foreground" : "border border-primary text-primary"}`}>{edit ? "✅ إنهاء التعديل" : "✏️ تعديل"}</button>
               <button onClick={() => setCard(open)} className="rounded-xl bg-gold px-3 py-2 text-sm text-accent-foreground">🪪 كرت للنشر</button>
               <button onClick={() => void del(open)} className="rounded-xl border border-destructive px-3 py-2 text-sm text-destructive">🗑️ حذف</button>
             </div>
             {M_SECTIONS.map((s) => (
               <div key={s.t} className="mt-3 rounded-2xl border p-3"><b className="text-sm text-primary">{s.t}</b>
-                {s.fields.filter((f) => open.data[f.k]).map((f) => <div key={f.k} className="mt-1 text-sm"><span className="text-muted-foreground">{f.private ? "🔒 " : ""}{f.l}:</span> {open.data[f.k]}</div>)}
+                {edit ? s.fields.filter((f) => f.k !== "phone2").map((f) => <label key={f.k} className="mt-1 block text-xs"><span className={open.data[f.k] ? "text-muted-foreground" : "text-destructive"}>{f.l}{open.data[f.k] ? "" : " (ناقص)"}</span>
+                  <input key={open.id + f.k} defaultValue={open.data[f.k] ?? ""} placeholder={f.ph ?? f.opts?.join(" / ")} onBlur={(e) => e.target.value !== (open.data[f.k] ?? "") && void upd(open, { data: { ...open.data, [f.k]: e.target.value } })} className={`mt-0.5 w-full rounded-lg border bg-background p-1.5 text-sm ${open.data[f.k] ? "" : "border-destructive/50"}`} /></label>)
+                : s.fields.filter((f) => open.data[f.k]).map((f) => <div key={f.k} className="mt-1 text-sm"><span className="text-muted-foreground">{f.private ? "🔒 " : ""}{f.l}:</span> {open.data[f.k]}</div>)}
               </div>
             ))}
             <div className="mt-3 rounded-2xl border border-gold p-3"><b className="text-sm text-primary">🧭 الخطابة والمصدر (داخلي)</b>

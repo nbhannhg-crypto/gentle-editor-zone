@@ -207,6 +207,9 @@ export async function handleMarriageWa(db: any, instance: string, number: string
     gender = genderOf(t);
     if (!gender && cfg.smart && t.length > 12) { const ex = await smartExtract(t, ""); gender = ex.gender; for (const [k, v] of Object.entries(ex.fields)) if (!(k in data)) data[k] = v; }
     if (!gender) return askText(step, cfg, false, 0);
+  } else if (step.k === "phone" && t.replace(/\D/g, "").length < 8) {
+    // «رقمي هذا / واتسابي هذا / نفس الرقم» → use the WhatsApp number he is messaging from
+    data["phone"] = phone;
   } else if (SKIP.test(t)) {
     data[step.k] = "";
   } else {
@@ -238,7 +241,7 @@ export async function handleMarriageWa(db: any, instance: string, number: string
 
   const next = nextIdx(s.step + 1, data, gender);
   if (next >= WA_STEPS.length) {
-    if (!data["platform"]) data["platform"] = "واتساب"; if (!data["phone"]) data["phone"] = phone; data["waPhone"] = phone; data["source"] = "تسجيل واتساب تفاعلي";
+    if (!data["platform"]) data["platform"] = "واتساب"; if (!data["phone"] || data["phone"].replace(/\D/g, "").length < 8) data["phone"] = phone; data["waPhone"] = phone; data["source"] = "تسجيل واتساب تفاعلي";
     for (const k of Object.keys(data)) if (data[k] === "" || k.startsWith("_x_")) delete data[k];
     if (sim) {
       await save(next, { done: true });
