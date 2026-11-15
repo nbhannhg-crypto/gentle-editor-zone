@@ -31,9 +31,9 @@ export const WA_STEPS: WaStep[] = [
   { k: "pTraits", q: "الصفات والمواصفات اللي تبحث عنها؟", hint: "اشرح وصف شريكة/شريك حياتك: الشكل (الطول، البشرة، الجسم)، الأخلاق، الالتزام، الطباع. مثال: متوسطة الطول، بيضاء، ملتزمة، هادية وحنونة، تحب الاستقرار", why: "عشان نبحث لك عن المواصفات اللي تبيها بالضبط" },
   { k: "pTerms", q: "شروطك الأساسية؟", hint: "مثال: سكن مستقل، تكمل دراستها — أو: لا يوجد", why: "الشروط نوضحها للطرف الثاني من البداية" },
   { k: "platform", q: "من أي منصة وصلت لنا؟ 📱", opts: ["تيك توك", "سناب شات", "إنستقرام", "إكس (تويتر)", "واتساب", "تلجرام", "فيسبوك", "يوتيوب", "أخرى"], hint: "اكتب رقم المنصة، مثال: 1 = تيك توك", why: "عشان نعرف من وين تواصلت معنا ونتابعك منها" },
-  { k: "handle", q: "يوزر حسابك في المنصة اللي جيت منها؟", hint: "مثال: @abu_fahad — اكتبه بالضبط زي ما هو بحسابك", why: "عشان نتأكد إنك شخص حقيقي ونتواصل معك" },
+  { k: "handle", q: "اسم حسابك في البرنامج اللي جيت منه؟ 🤍", hint: "مثل: محمد، أبو فهد، ندى — أي اسم مكتوب في صفحتك. إذا ما تعرف اكتب: ما أعرف", why: "بس عشان نعرف نتابعك من نفس البرنامج اللي شفتنا فيه، ما نطلب أي دخول لحسابك" },
   { k: "via", q: "كيف عرفتنا؟ شفت إعلان أو بث أو جيت عن طريق خطابة؟", opts: ["شفت إعلان", "بث مباشر", "عن طريق خطابة", "صديق أو قريب", "بحث بنفسي"], hint: "اكتب الرقم، مثال: 3 = عن طريق خطابة", why: "عشان نعرف المصدر ونخدمك أفضل" },
-  { k: "brokerHandle", q: "اسم أو يوزر الخطابة/الحساب اللي تواصلت معه في المنصة؟", hint: "مثال: @om_fahad أو اسم الحساب — إذا ما فيه اكتب: لا يوجد", why: "عشان نعرف عن طريق أي خطابة أو حساب وصلت" },
+  { k: "brokerHandle", q: "اسم الخطابة اللي شفت إعلانها أو كلمتها؟ 🌸", hint: "مثل: أم ندى، أم فهد — أو اكتب: ما أذكر", why: "عشان نعرف عن طريق أي خطابة أو حساب وصلت" },
   { k: "phone", q: "رقم جوالك للاتصال (واتساب) مع مفتاح الدولة 📞", hint: "مثال: 9665XXXXXXXX — اكتب رقم صحيح لأننا بنتواصل عليه", why: "رقمك يبقى سري، وللتواصل معك فقط عند وجود توافق" },
   { k: "callTime", q: "آخر سؤال: الوقت المناسب للتواصل معك؟", opts: ["الصباح", "الظهر", "المساء", "أي وقت"], hint: "اكتب الرقم، مثال: 3 = المساء", why: "عشان نتواصل معك بوقت يناسبك" },
 ];
@@ -215,7 +215,12 @@ export async function handleMarriageWa(db: any, instance: string, number: string
         for (const [k, v] of Object.entries(ex.fields)) if (!(k in data) || !data[k]) data[k] = v;
       }
       if (!data[step.k]) {
+        const xk = `_x_${step.k}`;
+        if (DUNNO.test(norm(t))) { data[step.k] = ""; delete data[xk]; const nx = nextIdx(s.step + 1, data, gender); if (nx < WA_STEPS.length) { await save(nx); return `ولا يهمك يا بعد راسي ما هي مشكلة 🤍\n\n${askText(WA_STEPS[nx]!, cfg, false, answered())}`; } }
         const it = await understand(step, t, !!cfg?.smart);
+        const confused = it.kind === "explain" || it.kind === "question" || (it.kind === "answer" && INQ.test(norm(it.value || t)) && (it.value || t).length < 30);
+        if (confused && data[xk]) { data[step.k] = ""; delete data[xk]; const nx = nextIdx(s.step + 1, data, gender); if (nx < WA_STEPS.length) { await save(nx); return `ولا يهمك، نتخطاه ونكمل 🤍\n\n${askText(WA_STEPS[nx]!, cfg, false, answered())}`; } }
+        if (confused) { data[xk] = "1"; await save(s.step); }
         const again = askText(step, cfg, false, answered());
         if (it.kind === "answer" && INQ.test(norm(it.value || t)) && (it.value || t).length < 30) return `يا بعد راسي 🤍 ${step.why ?? "هالمعلومة تساعدنا نوفق لك صح"}.\n\n↩️ ${again}`;
         if (it.kind === "explain") return `${it.reply?.trim() || `يا بعد راسي 🤍 ${step.why ?? "هالمعلومة تساعدنا نوفق لك صح"}.`}\n\n↩️ ${again}`;
@@ -230,7 +235,7 @@ export async function handleMarriageWa(db: any, instance: string, number: string
   const next = nextIdx(s.step + 1, data, gender);
   if (next >= WA_STEPS.length) {
     if (!data["platform"]) data["platform"] = "واتساب"; if (!data["phone"]) data["phone"] = phone; data["waPhone"] = phone; data["source"] = "تسجيل واتساب تفاعلي";
-    for (const k of Object.keys(data)) if (data[k] === "") delete data[k];
+    for (const k of Object.keys(data)) if (data[k] === "" || k.startsWith("_x_")) delete data[k];
     if (sim) {
       await save(next, { done: true });
       const lines = WA_STEPS.filter((x) => x.k !== "gender" && data[x.k]).map((x) => `• ${(x.q.split("\n")[0] ?? "").replace(/[؟?✍️🤍]/g, "").trim()}: ${data[x.k]}`);
@@ -245,6 +250,8 @@ export async function handleMarriageWa(db: any, instance: string, number: string
   const note = skipped > 0 ? `تمام، سجلت ${skipped + 1} معلومات من رسالتك 👌\n\n` : "";
   return note + askText(WA_STEPS[next]!, cfg, false, answered());
 }
+
+const DUNNO = /^(ما ?اعرف|ماعرف|مااعرف|ما ?ادري|مادري|مدري|ما ?اذكر|ماذكر|ناسي|نسيت|ما ?عندي|ماعندي|وش دراني|عادي|لا يوجد|مافي|ما فيه)$/;
 
 async function findStore(db: any, instance: string): Promise<string | null> {
   const { data: c } = await db.from("wa_autoreply").select("store_id").eq("instance", instance).maybeSingle();
