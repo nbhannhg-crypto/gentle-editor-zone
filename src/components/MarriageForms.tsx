@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { M_ALL, M_SECTIONS, M_STATUS, publicCardText } from "@/lib/marriage";
+import { parseMarriageText } from "@/lib/marriage.functions";
 
 type KD = { name?: string; age?: string; city?: string; pCity?: string; nationality?: string; pNationality?: string; type?: string; marital?: string; pMarital?: string; pAge?: string; phone?: string };
 type Row = { id: string; code: string; gender: string; data: Record<string, string> & KD; status: string; notes: string; created_at: string };
@@ -14,6 +15,23 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
   const [open, setOpen] = useState<Row | null>(null);
   const [card, setCard] = useState<Row | null>(null);
   const [all, setAll] = useState(false);
+  const [paste, setPaste] = useState("");
+  const [parsed, setParsed] = useState<{ gender: string; fields: Record<string, string> } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const runParse = async () => {
+    if (paste.trim().length < 5) { toast.error("الصق رسالة العميل أول"); return; }
+    setBusy(true);
+    try {
+      const r = await parseMarriageText({ data: { text: paste } });
+      if (r.error) toast.error(r.error); else { setParsed({ gender: r.gender, fields: r.fields }); toast.success("تم الفرز، راجع البيانات واحفظ"); }
+    } catch { toast.error("تعذر الفرز"); } finally { setBusy(false); }
+  };
+  const saveParsed = async () => {
+    if (!parsed || !storeId) return;
+    const { data: code, error } = await supabase.rpc("submit_marriage_form", { _store: storeId, _gender: parsed.gender, _data: { ...parsed.fields, source: "لصق من محادثة" } });
+    if (error) { toast.error("ما انحفظ"); return; }
+    toast.success(`انحفظ الطلب ${code ?? ""} 💍`); setParsed(null); setPaste(""); void load();
+  };
   const link = typeof window !== "undefined" && storeId ? `${window.location.origin}/m/${storeId}` : "";
 
   const load = async () => {
@@ -69,6 +87,28 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
         {[["كل الطلبات", rows.length], ["عرسان", rows.filter((r) => r.gender === "male").length], ["عرائس", rows.filter((r) => r.gender === "female").length], ["جديد", rows.filter((r) => r.status === "new").length]].map(([l, n]) => (
           <div key={l as string} className="rounded-2xl border bg-card p-3 text-center"><b className="text-2xl text-primary">{n}</b><div className="text-xs text-muted-foreground">{l}</div></div>
         ))}
+      </div>
+
+      <details className="rounded-2xl border bg-card p-3">
+        <summary className="cursor-pointer font-semibold">📥 لصق وفرز رسالة عميل (للي يخافون من الروابط)</summary>
+        <p className="mt-1 text-xs text-muted-foreground">الصق كلام العميل كامل مثل ما أرسله بالواتساب أو تيك توك، والنظام يرتبه في الاستمارة.</p>
+        <textarea value={paste} onChange={(e) => setPaste(e.target.value)} rows={5} placeholder="مثال: السلام عليكم انا عريس عمري 30 من الرياض موظف أبي زوجة من 22 إلى 28..." className="mt-2 w-full rounded-xl border bg-background p-2 text-sm" />
+        <button disabled={busy} onClick={() => void runParse()} className="mt-2 rounded-xl bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-60">{busy ? "⏳ جاري الفرز..." : "✨ فرز تلقائي"}</button>
+        {parsed && <div className="mt-3 space-y-2 rounded-xl border p-2">
+          <select value={parsed.gender} onChange={(e) => setParsed({ ...parsed, gender: e.target.value })} className="rounded-lg border bg-background p-2 text-sm"><option value="male">🤵 عريس</option><option value="female">👰 عروس</option></select>
+          {M_ALL.filter((f) => f.k !== "phone2").map((f) => (
+            <label key={f.k} className="block text-xs"><span className="text-muted-foreground">{f.l}</span>
+              <input value={parsed.fields[f.k] ?? ""} onChange={(e) => setParsed({ ...parsed, fields: { ...parsed.fields, [f.k]: e.target.value } })} className="mt-0.5 w-full rounded-lg border bg-background p-1.5 text-sm" />
+            </label>
+          ))}
+          <div className="flex gap-2"><button onClick={() => void saveParsed()} className="flex-1 rounded-xl bg-gold py-2 text-sm font-semibold text-accent-foreground">💾 حفظ كطلب جديد</button><button onClick={() => setParsed(null)} className="rounded-xl border px-3 text-sm">إلغاء</button></div>
+        </div>}
+      </details>
+
+      <div className="rounded-2xl border bg-card p-3 text-sm">
+        <b>💬 التسجيل بالواتساب بدون رابط</b>
+        <p className="mt-1 text-xs text-muted-foreground">إذا كتب العميل لرقم الواتساب المربوط كلمة «تسجيل» أو «خطابة» أو «استمارة»، يسأله النظام سؤال سؤال، وأول ما يخلص ينحفظ طلبه هنا تلقائي ويوصله رقم طلبه. يكتب «تخطي» لأي سؤال أو «الغاء» للإيقاف.</p>
+        <button onClick={() => copy("للتسجيل بسرية وبدون روابط، اكتب لنا بالواتساب كلمة: تسجيل 🤍")} className="mt-2 rounded-xl border px-3 py-1.5 text-xs">📋 نسخ رسالة دعوة العميل</button>
       </div>
 
       <div className="flex flex-wrap gap-2">
