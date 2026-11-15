@@ -3,7 +3,7 @@ import { MarriageWaPanel } from "@/components/MarriageWaPanel";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { M_ALL, M_CORE, M_SECTIONS, M_SOURCE, M_STATUS, publicCardText } from "@/lib/marriage";
-import { parseMarriageText } from "@/lib/marriage.functions";
+import { parseMarriageText, sendMarriageApproved } from "@/lib/marriage.functions";
 
 type KD = { name?: string; age?: string; city?: string; pCity?: string; nationality?: string; pNationality?: string; type?: string; marital?: string; pMarital?: string; pAge?: string; phone?: string; broker?: string; brokerHandle?: string; brokerPlatform?: string };
 type Row = { id: string; code: string; gender: string; data: Record<string, string> & KD; status: string; notes: string; created_at: string };
@@ -71,7 +71,16 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
   }).filter((m) => m.s > 0).sort((p, q2) => q2.s - p.s).slice(0, 5);
 
   const copy = (t: string) => { void navigator.clipboard.writeText(t); toast.success("تم النسخ"); };
-  const wa = (r: Row) => { const p = (r.data.phone ?? "").replace(/\D/g, ""); if (p) window.open(`https://wa.me/${p}?text=${encodeURIComponent(`هلا والله، معك خطابة بخصوص طلبك رقم ${r.code} 🤍`)}`, "_blank"); };
+  const wa = async (r: Row) => {
+    const t = toast.loading("⏳ جاري إرسال رسالة الاعتماد...");
+    try {
+      const res = await sendMarriageApproved({ data: { id: r.id } });
+      toast.dismiss(t);
+      if (res.ok) toast.success("✅ وصلت رسالة اعتماد الطلب للعميل على الواتساب");
+      else if (res.phone) { window.open(`https://wa.me/${res.phone}?text=${encodeURIComponent(res.text)}`, "_blank"); toast.info("الرقم المربوط غير متصل، فتحت لك الواتساب والرسالة جاهزة"); }
+      else toast.error("ما فيه رقم جوال في الطلب، أضفه من ✏️ تعديل");
+    } catch (e) { toast.dismiss(t); toast.error(e instanceof Error ? e.message : "تعذر الإرسال"); }
+  };
 
   return (
     <div className="space-y-4">
@@ -153,7 +162,7 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
             <div className="flex items-center justify-between"><h3 className="font-display text-lg">{open.gender === "female" ? "👰" : "🤵"} طلب {open.code}</h3><button onClick={() => setOpen(null)} className="text-xl">✕</button></div>
             <div className="mt-2 flex flex-wrap gap-1.5">{M_STATUS.map(([k, l]) => <button key={k} onClick={() => void upd(open, { status: k })} className={`rounded-full border px-2.5 py-1 text-xs ${open.status === k ? "border-primary bg-primary text-primary-foreground" : ""}`}>{l}</button>)}</div>
             <div className="mt-3 flex flex-wrap gap-2">
-              <button onClick={() => wa(open)} className="rounded-xl bg-primary px-3 py-2 text-sm text-primary-foreground">💬 واتساب</button>
+              <button onClick={() => void wa(open)} className="rounded-xl bg-primary px-3 py-2 text-sm text-primary-foreground">💬 واتساب</button>
               <a href={`tel:${open.data.phone ?? ""}`} className="rounded-xl border px-3 py-2 text-sm">📞 اتصال</a>
               <button onClick={() => setEdit(!edit)} className={`rounded-xl px-3 py-2 text-sm ${edit ? "bg-primary text-primary-foreground" : "border border-primary text-primary"}`}>{edit ? "✅ إنهاء التعديل" : "✏️ تعديل"}</button>
               <button onClick={() => setCard(open)} className="rounded-xl bg-gold px-3 py-2 text-sm text-accent-foreground">🪪 كرت للنشر</button>
