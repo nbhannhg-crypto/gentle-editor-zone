@@ -34,6 +34,16 @@ export const M_SECTIONS: { t: string; fields: MField[] }[] = [
     { k: "phone2", l: "أعد كتابة رقم الجوال للتأكيد", ph: "أعد كتابة نفس الرقم", private: true, req: true }, { k: "callTime", l: "الوقت المناسب للتواصل", ph: "مثال: مساءً بعد 8" } ] },
 ];
 export const M_ALL = M_SECTIONS.flatMap((s) => s.fields);
+/** Internal-only source tracking (not shown on the public form). */
+export const M_SOURCE: MField[] = [
+  { k: "broker", l: "اسم الخطابة / الوسيطة", ph: "مثال: أم فهد", private: true },
+  { k: "brokerHandle", l: "يوزر الخطابة أو الحساب", ph: "مثال: @om_fahad", private: true },
+  { k: "brokerPlatform", l: "المنصة اللي تواصل منها", opts: ["تيك توك", "سناب شات", "إنستقرام", "إكس (تويتر)", "واتساب", "تلجرام", "بث مباشر", "أخرى"], private: true },
+  { k: "brokerPhone", l: "رقم واتساب الخطابة / الحساب", ph: "مثال: 9665XXXXXXXX", private: true },
+  { k: "via", l: "طريقة الوصول / كود الإحالة", ph: "مثال: بث الخميس / إعلان سناب", private: true },
+];
+/** Core fields used to flag what is still missing in a pasted request. */
+export const M_CORE = ["name", "age", "nationality", "city", "marital", "kids", "type", "job", "height", "about", "pAge", "pCity", "pTraits", "phone"];
 export const M_STATUS: [string, string][] = [["new", "🆕 جديد"], ["review", "🔎 قيد المراجعة"], ["match", "💞 مرشح للمطابقة"], ["done", "✅ تم"], ["archived", "🗄️ مؤرشف"]];
 /** Public card text with private fields hidden. */
 export function publicCardText(code: string, gender: string, d: Record<string, string>) {

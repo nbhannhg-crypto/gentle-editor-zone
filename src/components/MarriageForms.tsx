@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { M_ALL, M_SECTIONS, M_STATUS, publicCardText } from "@/lib/marriage";
+import { M_ALL, M_CORE, M_SECTIONS, M_SOURCE, M_STATUS, publicCardText } from "@/lib/marriage";
 import { parseMarriageText } from "@/lib/marriage.functions";
 
-type KD = { name?: string; age?: string; city?: string; pCity?: string; nationality?: string; pNationality?: string; type?: string; marital?: string; pMarital?: string; pAge?: string; phone?: string };
+type KD = { name?: string; age?: string; city?: string; pCity?: string; nationality?: string; pNationality?: string; type?: string; marital?: string; pMarital?: string; pAge?: string; phone?: string; broker?: string; brokerHandle?: string; brokerPlatform?: string };
 type Row = { id: string; code: string; gender: string; data: Record<string, string> & KD; status: string; notes: string; created_at: string };
 
 export function MarriageForms({ storeId, admin }: { storeId?: string | undefined; admin?: boolean }) {
@@ -96,6 +96,25 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
         <button disabled={busy} onClick={() => void runParse()} className="mt-2 rounded-xl bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-60">{busy ? "⏳ جاري الفرز..." : "✨ فرز تلقائي"}</button>
         {parsed && <div className="mt-3 space-y-2 rounded-xl border p-2">
           <select value={parsed.gender} onChange={(e) => setParsed({ ...parsed, gender: e.target.value })} className="rounded-lg border bg-background p-2 text-sm"><option value="male">🤵 عريس</option><option value="female">👰 عروس</option></select>
+          {(() => {
+            const has = M_CORE.filter((k) => parsed.fields[k]?.trim());
+            const miss = M_CORE.filter((k) => !parsed.fields[k]?.trim());
+            const lbl = (k: string) => M_ALL.find((f) => f.k === k)?.l ?? k;
+            const ask = `هلا والله 🤍 وصلتني بياناتك وشكراً لك، باقي نكمل هذي المعلومات عشان نخدمك صح:\n${miss.map((k, i) => `${i + 1}- ${lbl(k)}`).join("\n")}\nوبياناتك بسرية تامة 🔒`;
+            return <div className="space-y-2 rounded-xl bg-secondary p-2 text-xs">
+              <div><b className="text-primary">🟢 الموجود ({has.length}/{M_CORE.length}):</b> <span className="flex flex-wrap gap-1 pt-1">{has.map((k) => <span key={k} className="rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5">{lbl(k)}</span>)}{!has.length && "ولا شي"}</span></div>
+              <div><b className="text-destructive">🟡 الناقص ({miss.length}):</b> <span className="flex flex-wrap gap-1 pt-1">{miss.map((k) => <span key={k} className="rounded-full border border-destructive/40 bg-destructive/10 px-2 py-0.5">{lbl(k)}</span>)}{!miss.length && "مكتمل ✅"}</span></div>
+              {miss.length > 0 && <button onClick={() => copy(ask)} className="rounded-lg bg-primary px-3 py-1.5 text-primary-foreground">📋 نسخ رسالة النواقص للعميل</button>}
+            </div>;
+          })()}
+          <div className="rounded-xl border border-gold p-2"><b className="text-xs">🧭 الخطابة والمصدر (داخلي — ما يظهر للعميل)</b>
+            {M_SOURCE.map((f) => (
+              <label key={f.k} className="mt-1 block text-xs"><span className="text-muted-foreground">{f.l}</span>
+                {f.opts ? <select value={parsed.fields[f.k] ?? ""} onChange={(e) => setParsed({ ...parsed, fields: { ...parsed.fields, [f.k]: e.target.value } })} className="mt-0.5 w-full rounded-lg border bg-background p-1.5 text-sm"><option value="">—</option>{f.opts.map((o) => <option key={o}>{o}</option>)}</select>
+                : <input value={parsed.fields[f.k] ?? ""} placeholder={f.ph} onChange={(e) => setParsed({ ...parsed, fields: { ...parsed.fields, [f.k]: e.target.value } })} className="mt-0.5 w-full rounded-lg border bg-background p-1.5 text-sm" />}
+              </label>
+            ))}
+          </div>
           {M_ALL.filter((f) => f.k !== "phone2").map((f) => (
             <label key={f.k} className="block text-xs"><span className="text-muted-foreground">{f.l}</span>
               <input value={parsed.fields[f.k] ?? ""} onChange={(e) => setParsed({ ...parsed, fields: { ...parsed.fields, [f.k]: e.target.value } })} className="mt-0.5 w-full rounded-lg border bg-background p-1.5 text-sm" />
@@ -124,6 +143,7 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
             <div className="flex items-center justify-between gap-2"><b>{r.gender === "female" ? "👰" : "🤵"} {r.code}</b><span className="text-[11px] text-muted-foreground">{M_STATUS.find((s) => s[0] === r.status)?.[1]}</span></div>
             <div className="mt-1 text-sm">{r.data.name} • {r.data.age} سنة • {r.data.city}</div>
             <div className="text-xs text-muted-foreground">{r.data.marital} {r.data.type && `• ${r.data.type}`} • {new Date(r.created_at).toLocaleDateString("ar")}</div>
+            {(r.data.broker || r.data.brokerHandle || r.data.brokerPlatform) && <div className="mt-1 inline-block rounded-full bg-gold/20 px-2 py-0.5 text-[11px]">🧭 {[r.data.broker, r.data.brokerHandle, r.data.brokerPlatform].filter(Boolean).join(" • ")}</div>}
           </button>
         ))}
         {!list.length && <p className="col-span-full rounded-2xl border bg-card p-6 text-center text-sm text-muted-foreground">ما فيه طلبات للحين. انسخ الرابط وحطه في حساباتك.</p>}
@@ -145,6 +165,10 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
                 {s.fields.filter((f) => open.data[f.k]).map((f) => <div key={f.k} className="mt-1 text-sm"><span className="text-muted-foreground">{f.private ? "🔒 " : ""}{f.l}:</span> {open.data[f.k]}</div>)}
               </div>
             ))}
+            <div className="mt-3 rounded-2xl border border-gold p-3"><b className="text-sm text-primary">🧭 الخطابة والمصدر (داخلي)</b>
+              {M_SOURCE.map((f) => <label key={f.k} className="mt-1 block text-xs"><span className="text-muted-foreground">{f.l}</span>
+                <input key={open.id + f.k} defaultValue={open.data[f.k] ?? ""} placeholder={f.ph ?? f.opts?.join(" / ")} onBlur={(e) => e.target.value !== (open.data[f.k] ?? "") && void upd(open, { data: { ...open.data, [f.k]: e.target.value } })} className="mt-0.5 w-full rounded-lg border bg-background p-1.5 text-sm" /></label>)}
+            </div>
             <textarea defaultValue={open.notes} onBlur={(e) => e.target.value !== open.notes && void upd(open, { notes: e.target.value })} placeholder="📝 ملاحظاتك الخاصة (تنحفظ تلقائي)" rows={2} className="mt-3 w-full rounded-xl border bg-background p-2 text-sm" />
             <div className="mt-3 rounded-2xl border p-3"><b className="text-sm">💞 مطابقات مقترحة</b>
               {matches(open).map(({ x, s }) => <button key={x.id} onClick={() => setOpen(x)} className="mt-1 flex w-full justify-between rounded-xl bg-secondary p-2 text-sm"><span>{x.code} • {x.data.age} • {x.data.city}</span><b className="text-primary">{s}%</b></button>)}
