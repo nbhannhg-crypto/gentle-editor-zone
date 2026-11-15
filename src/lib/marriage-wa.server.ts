@@ -171,7 +171,7 @@ export async function handleMarriageWa(db: any, instance: string, number: string
     for (const k of Object.keys(data)) if (data[k] === "") delete data[k];
     if (sim) {
       await save(next, { done: true });
-      const lines = WA_STEPS.filter((x) => x.k !== "gender" && data[x.k]).map((x) => `• ${x.q.split("\n")[0].replace(/[؟?✍️🤍]/g, "").trim()}: ${data[x.k]}`);
+      const lines = WA_STEPS.filter((x) => x.k !== "gender" && data[x.k]).map((x) => `• ${(x.q.split("\n")[0] ?? "").replace(/[؟?✍️🤍]/g, "").trim()}: ${data[x.k]}`);
       return `🧪 (تجربة — ما انحفظ طلب حقيقي)\n✅ اكتمل التسجيل:\n• الجنس: ${gender === "female" ? "عروس" : "عريس"}\n${lines.join("\n")}`;
     }
     const { data: code } = await db.rpc("submit_marriage_form", { _store: s.store_id, _gender: gender || "male", _data: data });

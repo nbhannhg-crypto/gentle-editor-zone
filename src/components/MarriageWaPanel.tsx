@@ -108,7 +108,7 @@ export function MarriageWaPanel({ storeId, copy }: { storeId?: string | undefine
       {view === "sess" && <div className="mt-2 space-y-1.5">
         {!sess.length && <p className="text-xs text-muted-foreground">ما فيه أحد سجّل بالواتساب للحين.</p>}
         {sess.map((s) => <div key={s.id} className="flex items-center justify-between gap-2 rounded-xl border p-2 text-xs">
-          <div><b dir="ltr">+{s.phone}</b> {s.gender === "female" ? "👰" : s.gender === "male" ? "🤵" : ""} {s.data?.name ?? ""}
+          <div><b dir="ltr">+{s.phone}</b> {s.gender === "female" ? "👰" : s.gender === "male" ? "🤵" : ""} {s.data?.["name"] ?? ""}
             <div className="text-muted-foreground">{s.done ? "✅ اكتمل" : `⏳ واقف عند سؤال ${Math.min(s.step + 1, total)}/${total}: ${steps[s.step]?.q.split("\n").pop() ?? ""}`} • {new Date(s.updated_at).toLocaleString("ar")}</div></div>
           <div className="flex gap-1">
             <a href={`https://wa.me/${s.phone}`} target="_blank" rel="noreferrer" className="rounded-lg border px-2 py-1">💬</a>
