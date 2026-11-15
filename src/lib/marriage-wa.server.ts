@@ -7,25 +7,25 @@ const CANCEL = /^(الغاء|إلغاء|وقف|cancel)$/i;
 const SKIP = /^(تخطي|تخطى|سكب|-)$/;
 const BACK = /^(رجوع|ارجع|السابق)$/;
 
-export type WaStep = { k: string; q: string; opts?: string[] };
+export type WaStep = { k: string; q: string; opts?: string[]; hint?: string; why?: string };
 export const WA_STEPS: WaStep[] = [
-  { k: "gender", q: "يا هلا ومسهلا فيك مع خطابة أم ندى 🤍\nبياناتك في سرية وأمان تام، وما نطلب منك أي فلوس أو رموز.\n\nأول سؤال: أنت عريس ولا عروس؟", opts: ["عريس", "عروس"] },
-  { k: "name", q: "الاسم (يبقى سري ولا ينشر) ✍️" },
-  { k: "age", q: "كم العمر؟" },
-  { k: "nationality", q: "الجنسية؟" },
-  { k: "city", q: "بلد الإقامة والمدينة؟" },
-  { k: "marital", q: "الحالة الاجتماعية؟", opts: ["أعزب / عزباء", "مطلق / مطلقة", "أرمل / أرملة", "متزوج"] },
-  { k: "kids", q: "عدد الأطفال إن وجد؟", opts: ["لا يوجد", "1", "2", "3 أو أكثر"] },
-  { k: "type", q: "نوع الزواج المطلوب؟ (أو اكتب اللي تبيه)", opts: ["زواج دائم معلن", "تعدد معلن", "تعدد سري", "مسيار معلن", "مسيار سري", "حسب الاتفاق"] },
-  { k: "job", q: "الوظيفة / المهنة؟" },
-  { k: "edu", q: "المؤهل التعليمي؟", opts: ["ثانوي", "دبلوم", "بكالوريوس", "ماجستير أو أعلى"] },
-  { k: "height", q: "الطول والوزن تقريباً؟" },
-  { k: "about", q: "نبذة مختصرة عنك وعن أسلوب حياتك 🤍" },
-  { k: "pAge", q: "العمر المناسب للطرف الثاني؟" },
-  { k: "pCity", q: "المدينة أو البلد المفضل للطرف الثاني؟" },
-  { k: "pTraits", q: "الصفات والمواصفات اللي تبحث عنها؟" },
-  { k: "pTerms", q: "شروطك الأساسية؟" },
-  { k: "callTime", q: "آخر سؤال: الوقت المناسب للتواصل معك؟", opts: ["الصباح", "الظهر", "المساء", "أي وقت"] },
+  { k: "gender", q: "يا هلا ومسهلا فيك مع خطابة أم ندى 🤍\nهنا نسجل بياناتك عشان نبحث لك عن الشريك المناسب بإذن الله 💍\n🔒 كل معلوماتك سرية ومحفوظة عندنا، ما تنشر ولا تنعطى لأحد إلا بموافقتك.\n✅ خطابة موثوقة ونتعامل بوضوح وأمانة.\n\nأول سؤال: أنت عريس ولا عروس؟", opts: ["عريس", "عروس"], hint: "اكتب 1 أو 2، أو اكتب: عريس / عروس", why: "عشان نعرف نبحث لك عن الطرف المناسب" },
+  { k: "name", q: "الاسم (يبقى سري ولا ينشر) ✍️", hint: "مثال: أبو فهد أو سارة — يكفي الاسم الأول أو الكنية", why: "الاسم للتعامل معك فقط وما ينشر أبد" },
+  { k: "age", q: "كم العمر؟", hint: "اكتب عمرك بالأرقام، مثال: 29", why: "العمر مهم عشان نوفق بينك وبين شريك قريب من سنك" },
+  { k: "nationality", q: "الجنسية؟", hint: "مثال: سعودي / سعودية / يمني", why: "بعض الطرف الثاني يشترط جنسية معينة" },
+  { k: "city", q: "بلد الإقامة والمدينة؟", hint: "مثال: السعودية - الرياض", why: "عشان نقربك من شريك في مدينتك أو قريب منها" },
+  { k: "marital", q: "الحالة الاجتماعية؟", opts: ["أعزب / عزباء", "مطلق / مطلقة", "أرمل / أرملة", "متزوج"], hint: "اكتب الرقم، مثال: 1", why: "الحالة تفرق في التوافق بين الطرفين" },
+  { k: "kids", q: "عدد الأطفال إن وجد؟", opts: ["لا يوجد", "1", "2", "3 أو أكثر"], hint: "اكتب الرقم، مثال: 1 = لا يوجد", why: "بعض الأطراف تسأل عن الأطفال قبل القبول" },
+  { k: "type", q: "نوع الزواج المطلوب؟ (أو اكتب اللي تبيه)", opts: ["زواج دائم معلن", "تعدد معلن", "تعدد سري", "مسيار معلن", "مسيار سري", "حسب الاتفاق"], hint: "اكتب الرقم أو اكتب نوعك، مثال: مسيار معلن", why: "عشان ما نعرض عليك إلا اللي يناسب نوع الزواج اللي تبيه" },
+  { k: "job", q: "الوظيفة / المهنة؟", hint: "مثال: موظف حكومي / معلمة / أعمال حرة", why: "الوظيفة تعطي الطرف الثاني صورة عن استقرارك" },
+  { k: "edu", q: "المؤهل التعليمي؟", opts: ["ثانوي", "دبلوم", "بكالوريوس", "ماجستير أو أعلى"], hint: "اكتب الرقم، مثال: 3 = بكالوريوس", why: "بعض الأطراف تهتم بالمستوى التعليمي" },
+  { k: "height", q: "الطول والوزن تقريباً؟", hint: "مثال: 175 سم - 80 كيلو (تقريبي يكفي)", why: "للمواصفات الشكلية اللي يسأل عنها الطرف الثاني" },
+  { k: "about", q: "نبذة مختصرة عنك وعن أسلوب حياتك 🤍", hint: "مثال: هادي، أحب السفر، ملتزم، اجتماعي", why: "نبذتك تخلي الطرف الثاني يعرف شخصيتك" },
+  { k: "pAge", q: "العمر المناسب للطرف الثاني؟", hint: "مثال: من 25 إلى 35 — أو اكتب: ما يهم", why: "عشان نختار لك أعمار مناسبة" },
+  { k: "pCity", q: "المدينة أو البلد المفضل للطرف الثاني؟", hint: "مثال: الرياض أو أي مدينة بالسعودية — أو: ما يهم", why: "عشان نحدد مكان البحث" },
+  { k: "pTraits", q: "الصفات والمواصفات اللي تبحث عنها؟", hint: "مثال: متدينة، هادية، بيضاء، طويلة", why: "عشان نبحث لك عن المواصفات اللي تبيها بالضبط" },
+  { k: "pTerms", q: "شروطك الأساسية؟", hint: "مثال: سكن مستقل، تكمل دراستها — أو: لا يوجد", why: "الشروط نوضحها للطرف الثاني من البداية" },
+  { k: "callTime", q: "آخر سؤال: الوقت المناسب للتواصل معك؟", opts: ["الصباح", "الظهر", "المساء", "أي وقت"], hint: "اكتب الرقم، مثال: 3 = المساء", why: "عشان نتواصل معك بوقت يناسبك" },
 ];
 
 type Learned = { q: string; a: string };
@@ -39,9 +39,10 @@ function askText(st: WaStep, cfg: Settings | null, first: boolean, done: number)
   let q = (cfg?.questions?.[st.k] || "").trim() || st.q;
   if (first && cfg?.welcome?.trim() && st.k === "gender") q = `${cfg.welcome.trim()}\n\n${q.replace(/^[\s\S]*?\n\n/, "")}`;
   const progress = done > 0 ? `(${done}/${WA_STEPS.length}) ` : "";
-  const opts = st.opts?.length ? "\n\n" + st.opts.map((o, i) => `${i + 1}️⃣ ${o}`).join("\n") + "\n\nاكتب الرقم أو الكلمة 👆" : "";
-  const help = first ? "\n\n(«تخطي» لأي سؤال • «رجوع» للسابق • «الغاء» للإيقاف)" : "";
-  return `${progress}${q}${opts}${help}`;
+  const opts = st.opts?.length ? "\n\n" + st.opts.map((o, i) => `${i + 1}️⃣ ${o}`).join("\n") : "";
+  const hint = st.hint ? `\n\n💡 ${st.hint}` : "";
+  const help = first ? "\n\n(تقدر تكتب «تخطي» لأي سؤال، «رجوع» للسابق، «فهمني» للشرح، أو «الغاء» للإيقاف)" : "";
+  return `${progress}${q}${opts}${hint}${help}`;
 }
 
 function pickOpt(st: WaStep, t: string): string | null {
@@ -82,6 +83,36 @@ async function smartExtract(t: string, gender: string): Promise<{ gender: string
     for (const [k, v] of Object.entries(j.fields ?? {})) if (allowed.has(k) && k !== "gender" && v != null && String(v).trim()) fields[k] = String(v).trim().slice(0, 600);
     return { gender: j.gender === "female" || j.gender === "male" ? j.gender : "", fields };
   } catch { return { gender: "", fields: {} }; }
+}
+
+const EXPLAIN = /(فهم(ني|يني|ني)|ما فهمت|مافهمت|كيف يعني|وش تقصد|وش قصدك|ايش تقصد|يعني ايش|يعني وش|ليش تسأل|ليش تسالون|ليش|لماذا|وضح|اشرح|\?|؟)/;
+const ANY = /^(اي|أي|اي شي|أي شيء|ما يهم|مايهم|ماتفرق|ما تفرق|عادي|كله واحد|اي عمر|أي عمر|اي مدينه|أي مدينة|حسب|حسب النصيب|اللي يجي)/;
+const REFUSE = /^(مابي|ما ابي|ما أبي|ماابي|مابغى|ما ابغى|سري|خاص|ما اقول|ما أقول|مااقول|بعدين|لاحقا|لاحقاً)/;
+
+type Intent = { kind: "answer" | "explain" | "any" | "refuse" | "question"; value?: string; reply?: string };
+async function understand(step: WaStep, t: string, smart: boolean): Promise<Intent> {
+  const nt = norm(t);
+  if (smart) {
+    try {
+      const { aiText } = await import("@/lib/autoreply.server");
+      const sys = `أنت خطابة سعودية ذكية تسجل بيانات عميل بالواتساب. السؤال الحالي: "${step.q.split("\n").pop()}" (${step.why ?? ""}). ${step.opts ? "الخيارات: " + step.opts.join(" | ") : ""}
+صنّف رد العميل وأرجع JSON فقط: {"kind":"answer|explain|any|refuse|question","value":"","reply":""}
+- answer: جاوب فعلا على السؤال → value = الجواب منظف ومختصر (للعمر رقم فقط، للخيارات اكتب الخيار المطابق نصاً).
+- explain: ما فهم أو يسأل ليش/كيف/فهميني → reply = شرح قصير لطيف بلهجة سعودية لماذا نسأل وكيف يجاوب مع مثال، بدون إعادة السؤال.
+- any: ما عنده تفضيل (اي/ما يهم/عادي).
+- refuse: ما يبي يقول أو يأجل.
+- question: سأل سؤال جانبي ثاني (سعر، موقع، طريقة...) → reply = جواب قصير صادق بلا اختلاق أرقام أو أسماء؛ إذا ما تعرف قل بنوضح لك الخطابة شخصياً.
+ممنوع تخترع معلومة.`;
+      const out = await aiText(sys, t, 400);
+      const j = JSON.parse(out.slice(out.indexOf("{"), out.lastIndexOf("}") + 1)) as Intent;
+      if (["answer", "explain", "any", "refuse", "question"].includes(j.kind)) return j;
+    } catch { /* fall back to rules */ }
+  }
+  if (REFUSE.test(nt)) return { kind: "refuse" };
+  if (ANY.test(nt)) return { kind: "any" };
+  if (EXPLAIN.test(t) && t.length < 40) return { kind: "explain" };
+  if (step.k === "age") { const n = toEn(t).match(/\d{2}/); return n ? { kind: "answer", value: n[0] } : { kind: "explain" }; }
+  return { kind: "answer", value: t };
 }
 
 const nextIdx = (from: number, data: Record<string, string>, gender: string) => {
@@ -161,7 +192,15 @@ export async function handleMarriageWa(db: any, instance: string, number: string
         if (!gender && ex.gender) gender = ex.gender;
         for (const [k, v] of Object.entries(ex.fields)) if (!(k in data) || !data[k]) data[k] = v;
       }
-      if (!data[step.k]) data[step.k] = t.slice(0, 600);
+      if (!data[step.k]) {
+        const it = await understand(step, t, !!cfg?.smart);
+        const again = askText(step, cfg, false, answered());
+        if (it.kind === "explain") return `${it.reply?.trim() || `يا بعد راسي 🤍 ${step.why ?? "هالمعلومة تساعدنا نوفق لك صح"}.`}\n\n↩️ ${again}`;
+        if (it.kind === "question") return `${it.reply?.trim() || "سؤالك في محله 🤍 بتوضحه لك الخطابة شخصياً بعد التسجيل."}\n\n↩️ نكمل: ${again}`;
+        if (it.kind === "any") data[step.k] = "غير محدد / حسب التوافق";
+        else if (it.kind === "refuse") data[step.k] = "";
+        else data[step.k] = (pickOpt(step, it.value || t) ?? (it.value || t)).slice(0, 600);
+      }
     }
   }
 
