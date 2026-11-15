@@ -2,6 +2,7 @@ import { useState } from "react";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { M_SECTIONS } from "@/lib/marriage";
+import { sendMarriageConfirm } from "@/lib/marriage.functions";
 import shareImg from "@/assets/marriage-share.jpg.asset.json";
 
 export const Route = createFileRoute("/m/$storeId")({
@@ -53,6 +54,7 @@ function FormPage() {
     setBusy(false);
     if (error) { setErr("ما قدرنا نرسل الطلب، حاول مرة ثانية"); return; }
     setCode(String(data));
+    void sendMarriageConfirm({ data: { storeId, code: String(data) } }).catch(() => {});
   };
 
   return (

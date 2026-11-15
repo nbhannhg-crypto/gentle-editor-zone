@@ -67,3 +67,22 @@ export const startMarriageWaManual = createServerFn({ method: "POST" })
     await evoSend(`/message/sendText/${encodeURIComponent(data.instance)}`, { number: phone, text });
     return { ok: true, phone };
   });
+
+/** 📩 Public: after the web form is submitted, send the order number to the client's WhatsApp. */
+export const sendMarriageConfirm = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ storeId: z.string().uuid(), code: z.string().trim().min(1).max(40) }).parse(d))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: f } = await supabaseAdmin.from("marriage_forms").select("data, created_at").eq("store_id", data.storeId).eq("code", data.code).maybeSingle();
+    if (!f || Date.now() - new Date(f.created_at as string).getTime() > 10 * 60 * 1000) return { ok: false };
+    let phone = String((f.data as Record<string, string>)?.["phone"] ?? "").replace(/\D/g, "");
+    if (phone.startsWith("00")) phone = phone.slice(2);
+    if (phone.startsWith("05")) phone = "966" + phone.slice(1); else if (phone.startsWith("5") && phone.length === 9) phone = "966" + phone;
+    if (phone.length < 8) return { ok: false };
+    const { data: ws } = await supabaseAdmin.from("marriage_wa_settings").select("instance").eq("store_id", data.storeId).maybeSingle();
+    let instance = (ws as { instance?: string } | null)?.instance || "";
+    if (!instance) { const { data: a } = await supabaseAdmin.from("wa_autoreply").select("instance").eq("store_id", data.storeId).limit(1).maybeSingle(); instance = (a as { instance?: string } | null)?.instance || ""; }
+    if (!instance) return { ok: false };
+    const text = `يا هلا ومسهلا فيك مع خطابة أم ندى 🤍\nتم استلام وقبول طلبك بنجاح 💍\nرقم طلبك للمتابعة: *${data.code}*\nاحتفظ فيه، وبنتواصل معك بسرية تامة أول ما يتوفر التوافق المناسب بإذن الله 🌷`;
+    try { const { evoSend } = await import("@/lib/autoreply.server"); await evoSend(`/message/sendText/${encodeURIComponent(instance)}`, { number: phone, text }); return { ok: true }; } catch { return { ok: false }; }
+  });
