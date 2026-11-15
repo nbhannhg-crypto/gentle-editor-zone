@@ -149,7 +149,11 @@ export async function handleMarriageWa(db: any, instance: string, number: string
   const phone = number.replace(/\D/g, "") || number;
   const { data: s } = await db.from("marriage_wa_sessions").select("*").eq("instance", instance).eq("phone", phone).maybeSingle();
   const active = s && !s.done;
-  if (!active && !START.test(t)) {
+  // ✅ Already completed a registration → never restart silently; ask for explicit «تأكيد».
+  const completed = !!s && s.done && s.step > 0;
+  if (completed && !sim && START.test(t)) return "يا هلا فيك 🤍 طلبك مسجل عندنا مسبقاً وجاري البحث لك عن النصيب المناسب بإذن الله.\n\nإذا حاب تعدّل بياناتك أو تسجل طلب جديد أرسل ( تأكيد )";
+  const reconfirm = completed && /^(تأكيد|تاكيد|تأكيد التسجيل)$/.test(t);
+  if (!active && !START.test(t) && !reconfirm) {
     // 🤍 First message ever from this number → one-time welcome (never repeated)
     if (s || sim) return null;
     const c0 = await loadMarriageSettings(db, instance);
@@ -253,11 +257,19 @@ export async function handleMarriageWa(db: any, instance: string, number: string
 
 const DUNNO = /^(ما ?اعرف|ماعرف|مااعرف|ما ?ادري|مادري|مدري|ما ?اذكر|ماذكر|ناسي|نسيت|ما ?عندي|ماعندي|وش دراني|عادي|لا يوجد|مافي|ما فيه)$/;
 
-async function findStore(db: any, instance: string): Promise<string | null> {
+export async function findStore(db: any, instance: string): Promise<string | null> {
   const { data: c } = await db.from("wa_autoreply").select("store_id").eq("instance", instance).maybeSingle();
   if (c?.store_id) return c.store_id;
   const { data: r } = await db.from("user_roles").select("user_id").eq("role", "admin").limit(1).maybeSingle();
   if (!r) return null;
   const { data: st } = await db.from("stores").select("id").eq("owner_id", r.user_id).order("created_at").limit(1).maybeSingle();
   return st?.id ?? null;
+}
+
+/** 🚀 Owner starts registration for a number manually (no need for the client to type «تسجيل»). */
+export async function startMarriageWa(db: any, instance: string, phone: string, storeId: string): Promise<string> {
+  const { data: c } = await db.from("marriage_wa_settings").select("*").eq("store_id", storeId).maybeSingle();
+  const cfg = (c as Settings) ?? { store_id: storeId, enabled: true, instance: "", smart: true, welcome: "", questions: {}, learned: [] };
+  await db.from("marriage_wa_sessions").upsert({ instance, phone, store_id: storeId, step: 0, gender: "", data: { greeted: "1", manual: "1" }, done: false, updated_at: new Date().toISOString() }, { onConflict: "instance,phone" });
+  return askText(WA_STEPS[0]!, cfg, true, 0);
 }

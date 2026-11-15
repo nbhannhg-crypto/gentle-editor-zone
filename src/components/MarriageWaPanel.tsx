@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { waList } from "@/lib/studio.functions";
-import { simulateMarriageWa, marriageWaSteps } from "@/lib/marriage.functions";
+import { simulateMarriageWa, marriageWaSteps, startMarriageWaManual } from "@/lib/marriage.functions";
 
 type Step = { k: string; q: string; opts: string[] };
 type Learned = { q: string; a: string };
@@ -25,6 +25,10 @@ export function MarriageWaPanel({ storeId, copy }: { storeId?: string | undefine
   const listWa = useServerFn(waList);
   const sim = useServerFn(simulateMarriageWa);
   const getSteps = useServerFn(marriageWaSteps);
+  const startManual = useServerFn(startMarriageWaManual);
+  const [mPhone, setMPhone] = useState("");
+  const [mBusy, setMBusy] = useState(false);
+  const [mNote, setMNote] = useState("");
   const end = useRef<HTMLDivElement>(null);
 
   const loadSess = async () => {
@@ -73,6 +77,22 @@ export function MarriageWaPanel({ storeId, copy }: { storeId?: string | undefine
       </div>
 
       {view === "main" && <div className="mt-2 space-y-2">
+        <div className="rounded-xl border border-primary/40 bg-primary/5 p-2">
+          <b className="text-xs">🚀 ابدأ التسجيل مع شخص بنفسك</b>
+          <p className="text-[11px] text-muted-foreground">للي ما عرف يكتب «تسجيل»: اكتب رقمه واضغط، ويوصله أول سؤال على الواتساب فوراً.</p>
+          <div className="mt-1 flex gap-1.5">
+            <input value={mPhone} onChange={(e) => setMPhone(e.target.value)} inputMode="tel" dir="ltr" placeholder="مثال: 0551234567" className="min-w-0 flex-1 rounded-lg border bg-background p-2 text-sm" />
+            <button disabled={mBusy || mPhone.replace(/\D/g, "").length < 9} onClick={async () => {
+              const inst = cfg.instance || nums.find((n) => n.status === "open")?.name || nums[0]?.name;
+              if (!inst) { setMNote("ما فيه رقم واتساب مربوط"); return; }
+              setMBusy(true); setMNote("");
+              try { const r = await startManual({ data: { storeId, instance: inst, phone: mPhone } }); setMNote(`✅ انرسل أول سؤال للرقم ${r.phone}`); setMPhone(""); }
+              catch (e) { setMNote(`❌ ${e instanceof Error ? e.message : "ما انرسل، تأكد من الرقم"}`); }
+              setMBusy(false);
+            }} className="shrink-0 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-50">{mBusy ? "..." : "ابدأ التسجيل"}</button>
+          </div>
+          {mNote && <p className="mt-1 text-[11px]">{mNote}</p>}
+        </div>
         <p className="text-xs text-muted-foreground">العميل يكتب «تسجيل» أو «خطابة» أو «استمارة» ← النظام يسأله سؤال سؤال بأزرار مرقمة، وأول ما يخلص ينحفظ طلبه هنا ويوصله رقم طلبه.</p>
         <label className="block text-xs"><span className="text-muted-foreground">📲 رقم الخطابة المخصص للتسجيل</span>
           <select value={cfg.instance} onChange={(e) => void save({ ...cfg, instance: e.target.value })} className="mt-0.5 w-full rounded-lg border bg-background p-2 text-sm">
