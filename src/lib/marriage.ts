@@ -4,7 +4,9 @@ export type MField = { k: string; l: string; opts?: string[]; long?: boolean; pr
 export const M_SECTIONS: { t: string; fields: MField[] }[] = [
   { t: "أولاً: البيانات الشخصية", fields: [
     { k: "name", l: "الاسم الكامل", ph: "مثال: محمد عبدالله", private: true, req: true }, { k: "age", l: "العمر", ph: "مثال: 28", req: true },
-    { k: "nationality", l: "الجنسية", ph: "مثال: سعودي" }, { k: "city", l: "بلد الإقامة والمدينة", ph: "مثال: السعودية - الرياض", req: true },
+    { k: "nationality", l: "الجنسية", ph: "مثال: سعودي" }, { k: "country", l: "من أي دولة (الأصل)", ph: "مثال: اليمن" },
+    { k: "city", l: "بلد الإقامة والمدينة", ph: "مثال: السعودية - الرياض", req: true },
+    { k: "district", l: "اسم الحي", ph: "مثال: حي النرجس", private: true }, { k: "health", l: "الحالة الصحية", ph: "مثال: خالي من الأمراض" },
     { k: "tribe", l: "العائلة / القبيلة", ph: "اختياري، يبقى سرياً", private: true },
     { k: "marital", l: "الحالة الاجتماعية", opts: ["أعزب/عزباء", "مطلق/ة", "أرمل/ة", "متزوج"] },
     { k: "kids", l: "عدد الأطفال إن وجد", ph: "مثال: لا يوجد / 2" },
