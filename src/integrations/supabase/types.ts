@@ -600,6 +600,33 @@ export type Database = {
           },
         ]
       }
+      marriage_trash: {
+        Row: {
+          deleted_at: string
+          id: string
+          kind: string
+          label: string
+          payload: Json
+          store_id: string
+        }
+        Insert: {
+          deleted_at?: string
+          id?: string
+          kind: string
+          label?: string
+          payload: Json
+          store_id: string
+        }
+        Update: {
+          deleted_at?: string
+          id?: string
+          kind?: string
+          label?: string
+          payload?: Json
+          store_id?: string
+        }
+        Relationships: []
+      }
       marriage_wa_sessions: {
         Row: {
           created_at: string
@@ -608,6 +635,7 @@ export type Database = {
           gender: string
           id: string
           instance: string
+          paused: boolean
           phone: string
           step: number
           store_id: string
@@ -620,6 +648,7 @@ export type Database = {
           gender?: string
           id?: string
           instance: string
+          paused?: boolean
           phone: string
           step?: number
           store_id: string
@@ -632,6 +661,7 @@ export type Database = {
           gender?: string
           id?: string
           instance?: string
+          paused?: boolean
           phone?: string
           step?: number
           store_id?: string
@@ -1353,8 +1383,13 @@ export type Database = {
           trigger_text: string
         }[]
       }
+      restore_marriage_trash: { Args: { _id: string }; Returns: string }
       review_topup: {
         Args: { _approve: boolean; _id: string }
+        Returns: undefined
+      }
+      set_marriage_wa_paused: {
+        Args: { _paused: boolean; _phone: string; _store: string }
         Returns: undefined
       }
       spend_points: {

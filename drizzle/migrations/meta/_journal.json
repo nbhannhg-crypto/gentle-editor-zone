@@ -155,6 +155,13 @@
       "when": 1794713078015,
       "tag": "0021_marriage_wa_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1794767415166,
+      "tag": "0022_marriage_trash_and_pause",
+      "breakpoints": true
     }
   ]
 }
