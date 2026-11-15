@@ -86,3 +86,27 @@ export const sendMarriageConfirm = createServerFn({ method: "POST" })
     const text = `يا هلا ومسهلا فيك مع خطابة أم ندى 🤍\nتم استلام وقبول طلبك بنجاح 💍\nرقم طلبك للمتابعة: *${data.code}*\nاحتفظ فيه، وبنتواصل معك بسرية تامة أول ما يتوفر التوافق المناسب بإذن الله 🌷`;
     try { const { evoSend } = await import("@/lib/autoreply.server"); await evoSend(`/message/sendText/${encodeURIComponent(instance)}`, { number: phone, text }); return { ok: true }; } catch { return { ok: false }; }
   });
+
+/** 💌 Owner presses «💬 واتساب» on an order → polished approval message is sent to the client + any half-finished WA session is closed. */
+export const sendMarriageApproved = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: f } = await context.supabase.from("marriage_forms").select("store_id, code, data").eq("id", data.id).maybeSingle();
+    if (!f) throw new Error("غير مسموح");
+    const d = (f.data ?? {}) as Record<string, string>;
+    let phone = String(d["phone"] ?? "").replace(/\D/g, "");
+    if (phone.startsWith("00")) phone = phone.slice(2);
+    if (phone.startsWith("05")) phone = "966" + phone.slice(1); else if (phone.startsWith("5") && phone.length === 9) phone = "966" + phone;
+    const name = String(d["name"] ?? "").trim().split(/\s+/)[0] ?? "";
+    const text = `يا هلا ومسهلا فيك${name ? ` يا ${name}` : ""} مع خطابة أم ندى 🤍\n\nيسعدني أبلغك إنه تم اعتماد وتسجيل طلبك بنجاح 💍\nرقم طلبك للمتابعة: *${f.code}*\n\n🔒 بياناتك أمانة في سرية تامة ولا تُنشر.\nأنا أتابع طلبك بنفسي، وبنتواصل معك أول ما يتوفر التوافق المناسب بالحلال إن شاء الله 🌷\n\nالله يكتب لك الخير والستر والتوفيق 🤲`;
+    if (phone.length < 8) return { ok: false, phone: "", text };
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // close any half-finished WA registration for this number so the bot never re-asks
+    await supabaseAdmin.from("marriage_wa_sessions").update({ done: true, updated_at: new Date().toISOString() }).eq("store_id", f.store_id).eq("phone", phone);
+    const { data: ws } = await supabaseAdmin.from("marriage_wa_settings").select("instance").eq("store_id", f.store_id).maybeSingle();
+    let instance = (ws as { instance?: string } | null)?.instance || "";
+    if (!instance) { const { data: a } = await supabaseAdmin.from("wa_autoreply").select("instance").eq("store_id", f.store_id).limit(1).maybeSingle(); instance = (a as { instance?: string } | null)?.instance || ""; }
+    if (!instance) return { ok: false, phone, text };
+    try { const { evoSend } = await import("@/lib/autoreply.server"); await evoSend(`/message/sendText/${encodeURIComponent(instance)}`, { number: phone, text }); return { ok: true, phone, text }; } catch { return { ok: false, phone, text }; }
+  });
