@@ -149,7 +149,14 @@ export async function handleMarriageWa(db: any, instance: string, number: string
   const phone = number.replace(/\D/g, "") || number;
   const { data: s } = await db.from("marriage_wa_sessions").select("*").eq("instance", instance).eq("phone", phone).maybeSingle();
   const active = s && !s.done;
-  if (!active && !START.test(t)) return null;
+  if (!active && !START.test(t)) {
+    // 🤍 First message ever from this number → one-time welcome (never repeated)
+    if (s || sim) return null;
+    const c0 = await loadMarriageSettings(db, instance);
+    if (!c0 || !c0.enabled || (c0.instance && c0.instance !== instance)) return null;
+    await db.from("marriage_wa_sessions").upsert({ instance, phone, store_id: c0.store_id, step: 0, gender: "", data: { greeted: "1" }, done: true, updated_at: new Date().toISOString() }, { onConflict: "instance,phone" });
+    return "يا هلا ومسهلا فيك مع خطابة أم ندى 🤍\nبياناتك في سرية وأمان تام.\n\nإذا تبي تسجّل طلب زواج اكتب «تسجيل» ونبدأ معك خطوة بخطوة، أو تفضّل بسؤالك 🌷";
+  }
 
   let cfg: Settings | null;
   if (sim) {
