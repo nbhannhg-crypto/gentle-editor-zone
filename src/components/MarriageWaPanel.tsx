@@ -8,7 +8,7 @@ import { simulateMarriageWa, marriageWaSteps, startMarriageWaManual } from "@/li
 type Step = { k: string; q: string; opts: string[] };
 type Learned = { q: string; a: string };
 type Cfg = { enabled: boolean; instance: string; smart: boolean; welcome: string; questions: Record<string, string>; learned: Learned[] };
-type Sess = { id: string; phone: string; step: number; done: boolean; gender: string; updated_at: string; data: Record<string, string> };
+type Sess = { id: string; phone: string; step: number; done: boolean; paused?: boolean; gender: string; updated_at: string; data: Record<string, string> };
 const EMPTY: Cfg = { enabled: true, instance: "", smart: true, welcome: "", questions: {}, learned: [] };
 
 /** 🎛️ لوحة ضبط تسجيل الخطابة بالواتساب: تشغيل، رقم مخصص، ذكاء، تعديل الأسئلة، تعليم، جلسات، ومحاكي. */
@@ -17,7 +17,7 @@ export function MarriageWaPanel({ storeId, copy }: { storeId?: string | undefine
   const [steps, setSteps] = useState<Step[]>([]);
   const [nums, setNums] = useState<{ name: string; label: string; status: string }[]>([]);
   const [sess, setSess] = useState<Sess[]>([]);
-  const [view, setView] = useState<"main" | "q" | "learn" | "sess" | "sim">("main");
+  const [view, setView] = useState<"main" | "q" | "learn" | "sess" | "sim" | "trash">("main");
   const [lq, setLq] = useState({ q: "", a: "" });
   const [chat, setChat] = useState<{ me: boolean; t: string }[]>([]);
   const [msg, setMsg] = useState("");
@@ -28,6 +28,24 @@ export function MarriageWaPanel({ storeId, copy }: { storeId?: string | undefine
   const startManual = useServerFn(startMarriageWaManual);
   const [mPhone, setMPhone] = useState("");
   const [mBusy, setMBusy] = useState(false);
+  const [pPhone, setPPhone] = useState("");
+  const [trash, setTrash] = useState<{ id: string; kind: string; label: string; deleted_at: string }[]>([]);
+  const loadTrash = async () => {
+    let q = supabase.from("marriage_trash").select("id, kind, label, deleted_at").order("deleted_at", { ascending: false }).limit(300);
+    if (storeId) q = q.eq("store_id", storeId);
+    const { data } = await q; setTrash(data ?? []);
+  };
+  const setPaused = async (phone: string, paused: boolean) => {
+    if (!storeId) return;
+    const { error } = await supabase.rpc("set_marriage_wa_paused", { _store: storeId, _phone: phone, _paused: paused });
+    if (error) { toast.error("تعذر التغيير، تأكد من الرقم"); return; }
+    toast.success(paused ? "⏸️ انطفت الأسئلة على هذا الرقم" : "▶️ اشتغلت الأسئلة على هذا الرقم"); void loadSess();
+  };
+  const restore = async (id: string) => {
+    const { error } = await supabase.rpc("restore_marriage_trash", { _id: id });
+    if (error) { toast.error("تعذر الاسترجاع"); return; }
+    toast.success("🔄 رجع مكانه"); void loadTrash(); void loadSess();
+  };
   const [mNote, setMNote] = useState("");
   const end = useRef<HTMLDivElement>(null);
 
@@ -62,7 +80,7 @@ export function MarriageWaPanel({ storeId, copy }: { storeId?: string | undefine
   };
   const lastOpts = (() => { const last = [...chat].reverse().find((m) => !m.me)?.t ?? ""; return [...last.matchAll(/(\d)️⃣ (.+)/g)].map((m) => m[2]!); })();
 
-  const tabs: [typeof view, string][] = [["main", "🎛️ الضبط"], ["q", "📝 الأسئلة"], ["learn", "🧠 تعليم"], ["sess", `👥 الجلسات (${sess.filter((s) => !s.done).length})`], ["sim", "🧪 جرّب"]];
+  const tabs: [typeof view, string][] = [["main", "🎛️ الضبط"], ["q", "📝 الأسئلة"], ["learn", "🧠 تعليم"], ["sess", `👥 الجلسات (${sess.filter((s) => !s.done).length})`], ["sim", "🧪 جرّب"], ["trash", "🗑️ المحذوفات"]];
   const total = steps.length || 17;
 
   return (
@@ -73,7 +91,7 @@ export function MarriageWaPanel({ storeId, copy }: { storeId?: string | undefine
           className={`rounded-full px-3 py-1 text-xs font-semibold ${cfg.enabled ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>{cfg.enabled ? "🟢 شغّال" : "⏸️ موقف"}</button>
       </div>
       <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1">
-        {tabs.map(([k, l]) => <button key={k} onClick={() => { setView(k); if (k === "sess") void loadSess(); }} className={`shrink-0 rounded-full border px-3 py-1 text-xs ${view === k ? "border-primary bg-primary text-primary-foreground" : ""}`}>{l}</button>)}
+        {tabs.map(([k, l]) => <button key={k} onClick={() => { setView(k); if (k === "sess") void loadSess(); if (k === "trash") void loadTrash(); }} className={`shrink-0 rounded-full border px-3 py-1 text-xs ${view === k ? "border-primary bg-primary text-primary-foreground" : ""}`}>{l}</button>)}
       </div>
 
       {view === "main" && <div className="mt-2 space-y-2">
@@ -126,13 +144,34 @@ export function MarriageWaPanel({ storeId, copy }: { storeId?: string | undefine
       </div>}
 
       {view === "sess" && <div className="mt-2 space-y-1.5">
+        <div className="rounded-xl border border-primary/40 bg-primary/5 p-2">
+          <p className="mb-1 text-xs font-semibold">⏸️ إطفاء الأسئلة على رقم معيّن (البوت يسكت عنه وتكلمه أنت)</p>
+          <div className="flex gap-1">
+            <input value={pPhone} onChange={(e) => setPPhone(e.target.value)} dir="ltr" placeholder="05xxxxxxxx" className="min-w-0 flex-1 rounded-lg border bg-background p-1.5 text-sm" />
+            <button onClick={() => void setPaused(pPhone, true)} className="rounded-lg bg-destructive px-2 text-xs text-destructive-foreground">⏸️ إطفاء</button>
+            <button onClick={() => void setPaused(pPhone, false)} className="rounded-lg border px-2 text-xs">▶️ تشغيل</button>
+          </div>
+        </div>
         {!sess.length && <p className="text-xs text-muted-foreground">ما فيه أحد سجّل بالواتساب للحين.</p>}
         {sess.map((s) => <div key={s.id} className="flex items-center justify-between gap-2 rounded-xl border p-2 text-xs">
           <div><b dir="ltr">+{s.phone}</b> {s.gender === "female" ? "👰" : s.gender === "male" ? "🤵" : ""} {s.data?.["name"] ?? ""}
             <div className="text-muted-foreground">{s.done ? "✅ اكتمل" : `⏳ واقف عند سؤال ${Math.min(s.step + 1, total)}/${total}: ${steps[s.step]?.q.split("\n").pop() ?? ""}`} • {new Date(s.updated_at).toLocaleString("ar")}</div></div>
           <div className="flex gap-1">
+            <button onClick={() => void setPaused(s.phone, !s.paused)} className={`rounded-lg border px-2 py-1 ${s.paused ? "border-destructive text-destructive" : ""}`}>{s.paused ? "▶️ تشغيل" : "⏸️ إطفاء"}</button>
             <a href={`https://wa.me/${s.phone}`} target="_blank" rel="noreferrer" className="rounded-lg border px-2 py-1">💬</a>
-            <button onClick={async () => { await supabase.from("marriage_wa_sessions").delete().eq("id", s.id); void loadSess(); }} className="rounded-lg border px-2 py-1">🗑️</button>
+            <button onClick={async () => { if (!confirm("تنقل الجلسة لسلة المحذوفات؟ (تقدر ترجعها)")) return; await supabase.from("marriage_wa_sessions").delete().eq("id", s.id); void loadSess(); }} className="rounded-lg border px-2 py-1">🗑️</button>
+          </div>
+        </div>)}
+      </div>}
+
+      {view === "trash" && <div className="mt-2 space-y-1.5">
+        <p className="text-xs text-muted-foreground">أي طلب أو جلسة تحذفها تنحفظ هنا تلقائياً، واضغط 🔄 يرجع مكانه بكل بياناته.</p>
+        {!trash.length && <p className="text-xs text-muted-foreground">السلة فاضية.</p>}
+        {trash.map((t) => <div key={t.id} className="flex items-center justify-between gap-2 rounded-xl border p-2 text-xs">
+          <div><b>{t.kind === "form" ? "📋 طلب" : "💬 جلسة"} {t.label}</b><div className="text-muted-foreground">انحذف {new Date(t.deleted_at).toLocaleString("ar")}</div></div>
+          <div className="flex gap-1">
+            <button onClick={() => void restore(t.id)} className="rounded-lg bg-primary px-2 py-1 text-primary-foreground">🔄 استرجاع</button>
+            <button onClick={async () => { if (!confirm("حذف نهائي بدون رجعة؟")) return; await supabase.from("marriage_trash").delete().eq("id", t.id); void loadTrash(); }} className="rounded-lg border px-2 py-1">✖</button>
           </div>
         </div>)}
       </div>}

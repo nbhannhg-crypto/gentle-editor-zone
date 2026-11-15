@@ -148,6 +148,7 @@ export async function handleMarriageWa(db: any, instance: string, number: string
   if (!t) return null;
   const phone = number.replace(/\D/g, "") || number;
   const { data: s } = await db.from("marriage_wa_sessions").select("*").eq("instance", instance).eq("phone", phone).maybeSingle();
+  if (s?.paused && !sim) return null; // ⏸️ الأسئلة موقوفة لهذا الرقم
   const active = s && !s.done;
   // ✅ Already completed a registration → never restart silently; ask for explicit «تأكيد».
   const completed = !!s && s.done && s.step > 0;

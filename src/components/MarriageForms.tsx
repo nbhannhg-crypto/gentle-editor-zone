@@ -54,7 +54,7 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
     if (open?.id === r.id) setOpen({ ...r, ...patch });
   };
   const del = async (r: Row) => {
-    if (!confirm(`حذف الطلب ${r.code}؟`)) return;
+    if (!confirm(`حذف الطلب ${r.code}؟ (ينحفظ في سلة المحذوفات وتقدر ترجعه)`)) return;
     const { error } = await supabase.from("marriage_forms").delete().eq("id", r.id);
     if (error) { toast.error("ما انحذف"); return; }
     setRows((p) => p.filter((x) => x.id !== r.id)); setOpen(null);
@@ -90,6 +90,7 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
         {link && <div className="mt-3 flex flex-wrap gap-2">
           <code className="min-w-0 flex-1 truncate rounded-xl bg-primary-foreground/10 px-3 py-2 text-xs" dir="ltr">{link}</code>
           <button onClick={() => copy(link)} className="rounded-xl bg-gold px-3 py-2 text-sm font-semibold text-accent-foreground">📋 نسخ الرابط</button>
+          <button onClick={async () => { const [f, w, t] = await Promise.all([supabase.from("marriage_forms").select("*"), supabase.from("marriage_wa_sessions").select("*"), supabase.from("marriage_trash").select("*")]); const blob = new Blob([JSON.stringify({ at: new Date().toISOString(), forms: f.data, sessions: w.data, trash: t.data }, null, 2)], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `نسخة-الخطابة-${new Date().toISOString().slice(0, 10)}.json`; a.click(); toast.success("💾 نزلت النسخة الاحتياطية"); }} className="rounded-xl border px-3 py-2 text-sm">💾 نسخة احتياطية</button>
           <a href={link} target="_blank" rel="noreferrer" className="rounded-xl border border-primary-foreground/30 px-3 py-2 text-sm">👁️ معاينة</a>
         </div>}
       </section>
