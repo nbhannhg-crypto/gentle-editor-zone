@@ -8,7 +8,7 @@ import { simulateMarriageWa, marriageWaSteps, startMarriageWaManual } from "@/li
 type Step = { k: string; q: string; opts: string[] };
 type Learned = { q: string; a: string };
 type Cfg = { enabled: boolean; instance: string; smart: boolean; welcome: string; questions: Record<string, string>; learned: Learned[] };
-type Sess = { id: string; phone: string; step: number; done: boolean; gender: string; updated_at: string; data: Record<string, string> };
+type Sess = { id: string; phone: string; step: number; done: boolean; paused?: boolean; gender: string; updated_at: string; data: Record<string, string> };
 const EMPTY: Cfg = { enabled: true, instance: "", smart: true, welcome: "", questions: {}, learned: [] };
 
 /** 🎛️ لوحة ضبط تسجيل الخطابة بالواتساب: تشغيل، رقم مخصص، ذكاء، تعديل الأسئلة، تعليم، جلسات، ومحاكي. */
@@ -17,7 +17,7 @@ export function MarriageWaPanel({ storeId, copy }: { storeId?: string | undefine
   const [steps, setSteps] = useState<Step[]>([]);
   const [nums, setNums] = useState<{ name: string; label: string; status: string }[]>([]);
   const [sess, setSess] = useState<Sess[]>([]);
-  const [view, setView] = useState<"main" | "q" | "learn" | "sess" | "sim">("main");
+  const [view, setView] = useState<"main" | "q" | "learn" | "sess" | "sim" | "trash">("main");
   const [lq, setLq] = useState({ q: "", a: "" });
   const [chat, setChat] = useState<{ me: boolean; t: string }[]>([]);
   const [msg, setMsg] = useState("");
@@ -28,6 +28,24 @@ export function MarriageWaPanel({ storeId, copy }: { storeId?: string | undefine
   const startManual = useServerFn(startMarriageWaManual);
   const [mPhone, setMPhone] = useState("");
   const [mBusy, setMBusy] = useState(false);
+  const [pPhone, setPPhone] = useState("");
+  const [trash, setTrash] = useState<{ id: string; kind: string; label: string; deleted_at: string }[]>([]);
+  const loadTrash = async () => {
+    let q = supabase.from("marriage_trash").select("id, kind, label, deleted_at").order("deleted_at", { ascending: false }).limit(300);
+    if (storeId) q = q.eq("store_id", storeId);
+    const { data } = await q; setTrash(data ?? []);
+  };
+  const setPaused = async (phone: string, paused: boolean) => {
+    if (!storeId) return;
+    const { error } = await supabase.rpc("set_marriage_wa_paused", { _store: storeId, _phone: phone, _paused: paused });
+    if (error) { toast.error("تعذر التغيير، تأكد من الرقم"); return; }
+    toast.success(paused ? "⏸️ انطفت الأسئلة على هذا الرقم" : "▶️ اشتغلت الأسئلة على هذا الرقم"); void loadSess();
+  };
+  const restore = async (id: string) => {
+    const { error } = await supabase.rpc("restore_marriage_trash", { _id: id });
+    if (error) { toast.error("تعذر الاسترجاع"); return; }
+    toast.success("🔄 رجع مكانه"); void loadTrash(); void loadSess();
+  };
   const [mNote, setMNote] = useState("");
   const end = useRef<HTMLDivElement>(null);
 
