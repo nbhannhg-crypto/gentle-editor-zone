@@ -639,6 +639,39 @@ export type Database = {
         }
         Relationships: []
       }
+      marriage_wa_settings: {
+        Row: {
+          enabled: boolean
+          instance: string
+          learned: Json
+          questions: Json
+          smart: boolean
+          store_id: string
+          updated_at: string
+          welcome: string
+        }
+        Insert: {
+          enabled?: boolean
+          instance?: string
+          learned?: Json
+          questions?: Json
+          smart?: boolean
+          store_id: string
+          updated_at?: string
+          welcome?: string
+        }
+        Update: {
+          enabled?: boolean
+          instance?: string
+          learned?: Json
+          questions?: Json
+          smart?: boolean
+          store_id?: string
+          updated_at?: string
+          welcome?: string
+        }
+        Relationships: []
+      }
       media_library: {
         Row: {
           code: string

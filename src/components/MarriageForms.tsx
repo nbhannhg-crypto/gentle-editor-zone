@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { MarriageWaPanel } from "@/components/MarriageWaPanel";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { M_ALL, M_CORE, M_SECTIONS, M_SOURCE, M_STATUS, publicCardText } from "@/lib/marriage";
@@ -124,11 +125,7 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
         </div>}
       </details>
 
-      <div className="rounded-2xl border bg-card p-3 text-sm">
-        <b>💬 التسجيل بالواتساب بدون رابط</b>
-        <p className="mt-1 text-xs text-muted-foreground">إذا كتب العميل لرقم الواتساب المربوط كلمة «تسجيل» أو «خطابة» أو «استمارة»، يسأله النظام سؤال سؤال، وأول ما يخلص ينحفظ طلبه هنا تلقائي ويوصله رقم طلبه. يكتب «تخطي» لأي سؤال أو «الغاء» للإيقاف.</p>
-        <button onClick={() => copy("للتسجيل بسرية وبدون روابط، اكتب لنا بالواتساب كلمة: تسجيل 🤍")} className="mt-2 rounded-xl border px-3 py-1.5 text-xs">📋 نسخ رسالة دعوة العميل</button>
-      </div>
+      <MarriageWaPanel storeId={storeId} copy={copy} />
 
       <div className="flex flex-wrap gap-2">
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔎 بحث بالكود أو المدينة أو أي كلمة" className="min-w-0 flex-1 rounded-xl border bg-background p-2.5 text-sm" />

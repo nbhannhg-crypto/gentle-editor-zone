@@ -26,3 +26,24 @@ export const parseMarriageText = createServerFn({ method: "POST" })
       return { error: "ما قدرت أفهم النص، جرّب تلصقه كامل", gender: "male", fields: {} as Record<string, string> };
     }
   });
+
+/** 🧪 Simulator: owner chats with the WhatsApp registration bot without a real number. */
+export const simulateMarriageWa = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ storeId: z.string().uuid(), text: z.string().trim().min(1).max(2000), reset: z.boolean().optional() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: st } = await context.supabase.from("stores").select("id").eq("id", data.storeId).maybeSingle();
+    if (!st) throw new Error("غير مسموح");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const phone = "sim" + context.userId.replace(/\D/g, "").slice(0, 12);
+    if (data.reset) await supabaseAdmin.from("marriage_wa_sessions").delete().eq("instance", "__sim__").eq("phone", phone);
+    const { handleMarriageWa } = await import("@/lib/marriage-wa.server");
+    const reply = await handleMarriageWa(supabaseAdmin, "__sim__", phone, data.text, { storeId: data.storeId });
+    return { reply: reply ?? "(النظام ما يرد إلا إذا بدأ العميل بكلمة «تسجيل» أو «خطابة» أو «استمارة»)" };
+  });
+
+/** Question list for the settings panel (default texts + choices). */
+export const marriageWaSteps = createServerFn({ method: "GET" }).handler(async () => {
+  const { WA_STEPS } = await import("@/lib/marriage-wa.server");
+  return WA_STEPS.map((s) => ({ k: s.k, q: s.q, opts: s.opts ?? [] }));
+});

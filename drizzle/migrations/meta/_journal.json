@@ -148,6 +148,13 @@
       "when": 1794707713685,
       "tag": "0020_migration",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1794713078015,
+      "tag": "0021_marriage_wa_settings",
+      "breakpoints": true
     }
   ]
 }
