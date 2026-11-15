@@ -118,6 +118,18 @@ export const Route = createFileRoute("/api/public/evolution")({
           });
           limited = true;
         }
+        // 💍 تسجيل الخطابة التفاعلي بالواتساب (بدون روابط) — يعمل فقط بكلمة «تسجيل» أو جلسة نشطة
+        if (!limited) {
+          try {
+            const { handleMarriageWa } = await import("@/lib/marriage-wa.server");
+            const mr = await handleMarriageWa(db, instance, number, text);
+            if (mr) {
+              markBot(instance, number, mr);
+              await evoSend(`/message/sendText/${encodeURIComponent(instance)}`, { number, text: mr });
+              return ok();
+            }
+          } catch (e) { console.error("marriage wa", e); }
+        }
         // 🔴 قفل موحّد: زر «متوقف» / إيقاف رقم / حظر في لوحة الرقم يسكّت كل المسارات
         const arrivedAt = Date.now();
         const stillOn = async (): Promise<boolean> => {
