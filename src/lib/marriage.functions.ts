@@ -47,3 +47,23 @@ export const marriageWaSteps = createServerFn({ method: "GET" }).handler(async (
   const { WA_STEPS } = await import("@/lib/marriage-wa.server");
   return WA_STEPS.map((s) => ({ k: s.k, q: s.q, opts: s.opts ?? [] }));
 });
+
+/** 🚀 Owner presses «ابدأ التسجيل معه» → first question is sent to that number on WhatsApp. */
+export const startMarriageWaManual = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ storeId: z.string().uuid(), instance: z.string().trim().min(1).max(200), phone: z.string().trim().min(6).max(30) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: st } = await context.supabase.from("stores").select("id").eq("id", data.storeId).maybeSingle();
+    if (!st) throw new Error("غير مسموح");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { findStore, startMarriageWa } = await import("@/lib/marriage-wa.server");
+    if ((await findStore(supabaseAdmin, data.instance)) !== data.storeId) throw new Error("هذا الرقم مو تابع لمتجرك");
+    let phone = data.phone.replace(/\D/g, "");
+    if (phone.startsWith("00")) phone = phone.slice(2);
+    if (phone.startsWith("05")) phone = "966" + phone.slice(1);
+    else if (phone.startsWith("5") && phone.length === 9) phone = "966" + phone;
+    const text = await startMarriageWa(supabaseAdmin, data.instance, phone, data.storeId);
+    const { evoSend } = await import("@/lib/autoreply.server");
+    await evoSend(`/message/sendText/${encodeURIComponent(data.instance)}`, { number: phone, text });
+    return { ok: true, phone };
+  });
