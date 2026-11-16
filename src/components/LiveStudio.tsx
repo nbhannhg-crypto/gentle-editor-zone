@@ -136,14 +136,24 @@ export function LiveStudio() {
       return reply;
     } catch (e) { patch(id, { status: "error", text: (e as Error).message }); setTimeout(() => setQueue((q) => q.filter((x) => x.id !== id)), 4000); return ""; }
   };
-  const chain = async (label: string, prompt: string, parts = 4) => {
+  const [storyParts, setStoryParts] = useState<number>(() => { try { return Math.min(200, Math.max(1, Number(localStorage.getItem("live_story_parts")) || 4)); } catch { return 4; } });
+  const partsRef = useRef(storyParts); partsRef.current = storyParts;
+  const [storyProg, setStoryProg] = useState("");
+  const storyStop = useRef(0);
+  const chain = async (label: string, prompt: string, parts?: number) => {
+    const n = Math.min(200, Math.max(1, parts ?? partsRef.current));
+    const my = ++storyStop.current;
     let so = "";
-    for (let i = 0; i < parts; i++) {
-      const r = await ai(`${label} ${i + 1}/${parts}`, `${prompt}\nقوليها مقطع مقطع. هذا المقطع ${i + 1} من ${parts}. ${so ? `قلتي قبل: «${so.slice(-600)}». كملي بعده مباشرة بدون إعادة` : "ابدئي البداية"} بجملة قصيرة وحدة. ${i === parts - 1 ? "اختمي بسؤال للحضور." : "لا تختمين."}`);
-      if (!r) break; so += " " + r;
+    for (let i = 0; i < n; i++) {
+      while (qRef.current.length > 1 && storyStop.current === my) await new Promise((r) => setTimeout(r, 500));
+      if (storyStop.current !== my) break;
+      setStoryProg(`📖 ${label} — صفحة ${i + 1} من ${n}`);
+      const r = await ai(`${label} ${i + 1}/${n}`, `${prompt}\nقوليها مقطع مقطع. هذا المقطع ${i + 1} من ${n}. ${so ? `قلتي قبل: «${so.slice(-600)}». كملي بعده مباشرة بدون إعادة` : "ابدئي البداية"} بجملة قصيرة وحدة. ${i === n - 1 ? "اختمي بسؤال للحضور." : "لا تختمين."}`);
+      if (!r) break; so += " " + r; lastAct.current = Date.now();
     }
+    if (storyStop.current === my) setStoryProg("");
   };
-  const openTopic = (t?: string) => { const p = sRef.current.persona; const pick = t || p.topics[Math.floor(Math.random() * p.topics.length)] || "سالفة خفيفة"; void chain(`سالفة: ${pick}`, `البث هادئ الحين، سولفي للحضور عن: ${pick}. ${p.topicStyle}`, 3); };
+  const openTopic = (t?: string) => { const p = sRef.current.persona; const pick = t || p.topics[Math.floor(Math.random() * p.topics.length)] || "سالفة خفيفة"; void chain(`سالفة: ${pick}`, `البث هادئ الحين، سولفي للحضور عن: ${pick}. ${p.topicStyle}`); };
 
   const handle = (e: Ev) => {
     lastAct.current = Date.now();
@@ -249,6 +259,11 @@ export function LiveStudio() {
             <button onClick={() => { const v = !spellFix; setSpellFix(v); localStorage.setItem("live_spell_fix", v ? "1" : "0"); toast.success(v ? "تم تشغيل مصحح الحروف" : "تم إطفاء مصحح الحروف"); }} className={`rounded-full border px-2.5 py-1 text-xs ${spellFix ? "border-primary bg-primary text-primary-foreground" : ""}`}>🛡️ مصحح الحروف: {spellFix ? "شغّال" : "مطفي"}</button>
             <button onClick={() => { localStorage.setItem("live_studio_prev_persona", JSON.stringify(s.persona)); up("persona", NADA_PERSONA); toast.success("تم تفعيل شخصية أم ندى"); }} className="rounded-full border border-primary px-2.5 py-1 text-xs">تفعيل شخصية أم ندى</button>
             <button onClick={() => { try { const pp = JSON.parse(localStorage.getItem("live_studio_prev_persona") || "null"); up("persona", pp && pp.name !== "أم ندى" ? pp : DEF.persona); toast.success("رجعت الشخصية السابقة"); } catch { /* */ } }} className="rounded-full border px-2.5 py-1 text-xs">↩️ الشخصية السابقة</button></div>
+          <div className="mb-2 flex flex-wrap items-center gap-2 text-xs"><span>📚 عدد صفحات القصة/السالفة:</span>
+            <input type="number" min={1} max={200} value={storyParts} onChange={(e) => { const v = Math.min(200, Math.max(1, Number(e.target.value) || 1)); setStoryParts(v); localStorage.setItem("live_story_parts", String(v)); }} className="w-16 rounded border bg-background px-1 py-0.5 text-center" />
+            {[4, 20, 50, 200].map((v) => <button key={v} onClick={() => { setStoryParts(v); localStorage.setItem("live_story_parts", String(v)); }} className={`rounded-full border px-2 py-0.5 ${storyParts === v ? "border-primary bg-primary text-primary-foreground" : ""}`}>{v}</button>)}
+            {storyProg && <><span className="font-semibold text-primary">{storyProg}</span><button onClick={() => { storyStop.current++; setStoryProg(""); }} className="rounded-full border px-2 py-0.5">⏹️ إنهاء القصة</button></>}
+          </div>
           <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5">{NADA_CTRL.map(([l, pr]) => <button key={l} onClick={() => void chain(l, pr)} className="rounded-lg border bg-background px-2 py-2 text-xs font-medium hover:border-primary">{l}</button>)}</div>
         </div>
         <div className="mt-3 flex flex-wrap gap-1.5">{QUICK.map((q) => <button key={q} onClick={() => enqueue("⚡ سريع", q)} className="rounded-full border px-2.5 py-1 text-xs text-muted-foreground hover:border-primary hover:text-foreground">{q}</button>)}</div>
