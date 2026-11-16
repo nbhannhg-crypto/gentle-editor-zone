@@ -104,10 +104,11 @@ export function LiveStudio() {
     playing.current = true; patch(next.id, { status: "speaking" });
     try {
       const v = sRef.current.voice;
-      const r = await speak({ data: { text: next.text.slice(0, 1400), voiceId: v.id, custom: true, model: v.model, speed: v.speed, volume: v.gain, emotion: v.emotion } });
+      const r = await Promise.race([speak({ data: { text: next.text.slice(0, 1400), voiceId: v.id, custom: true, model: v.model, speed: v.speed, volume: v.gain, emotion: v.emotion } }), new Promise<never>((_, rej) => setTimeout(() => rej(new Error("الصوت تأخر، انتقلنا للي بعده")), 20000))]);
       const a = new Audio(r.audio); audio.current = a; a.volume = v.volume;
       if (v.device && "setSinkId" in a) await (a as any).setSinkId(v.device).catch(() => {});
-      await new Promise<void>((res) => { a.onended = () => res(); a.onerror = () => res(); a.play().catch(() => res()); });
+      // 🛡️ مؤقت أمان: لو علّق التشغيل يفكه تلقائياً
+      await new Promise<void>((res) => { const max = setTimeout(() => { a.pause(); res(); }, Math.max(12000, next.text.length * 250)); const done = () => { clearTimeout(max); res(); }; a.onended = done; a.onerror = done; a.onloadedmetadata = () => { if (Number.isFinite(a.duration)) { clearTimeout(max); setTimeout(() => { a.pause(); res(); }, a.duration * 1000 + 3000); } }; a.play().catch(done); });
       recent.current = [next.text, ...recent.current].slice(0, 6);
       history.current = [...history.current, { who: "a" as const, t: next.text.slice(0, 400) }].slice(-8);
     } catch (e) { toast.error((e as Error).message); }
@@ -127,9 +128,14 @@ export function LiveStudio() {
 الهدية: اشكري صاحبها باسمه بحماس ودلع. الدخول: رحبي فيه باسمه بدفء. اللايكات: حمسيهم يكبسون بعفوية.
 لا تكررين هذي الردود: ${recent.current.join(" | ")}. ${p.rules ? `قوانين صاحب البث (التزمي فيها حرفياً، الممنوع ممنوع والمسموح مسموح): ${p.rules}` : ""}`; };
   const storyIdentity = () => { const p = sRef.current.persona; return `اسمك ${p.name}، ${p.role}. شخصيتك: ${p.personality}. لهجتك: ${p.dialect}. ${p.rules ? `قوانين صاحب البث: ${p.rules}` : ""}`; };
+  const lastAi = useRef(0);
   const ai = async (label: string, prompt: string, front = false, story = false) => {
+    // تهدئة: لا نزحم المفاتيح بطلبات تعليقات متزامنة
+    if (!front && !story) { if (qRef.current.filter((x) => x.status === "thinking").length >= 2 || Date.now() - lastAi.current < 1500) return ""; }
+    lastAi.current = Date.now();
     const id = uid();
-    setQueue((q) => [...(front ? [] : q), { id, label, text: "", status: "thinking" as const }, ...(front ? q : [])]);
+    const CAP = 5;
+    setQueue((q) => { let base = q; if (!story) { while (base.filter((x) => x.status === "ready" || x.status === "error").length >= CAP) { const k = base.findIndex((x) => x.status === "ready" || x.status === "error"); base = [...base.slice(0, k), ...base.slice(k + 1)]; } } return [...(front ? [] : base), { id, label, text: "", status: "thinking" as const }, ...(front ? base : [])]; });
     try {
       const r = await smart({ data: { customer: prompt.slice(0, 1000), product: "", rules: [], mood: story ? "story" : "call", identity: story ? storyIdentity() + (spellRef.current ? SPELL_RULE : "") : identity() + (spellRef.current ? SPELL_RULE : ""), history: story ? [] : history.current } });
       history.current = [...history.current, { who: "c" as const, t: prompt.slice(0, 400) }].slice(-8);
@@ -283,7 +289,7 @@ export function LiveStudio() {
       </section>
 
       <section className={card}>
-        <div className="mb-2 flex items-center justify-between"><h3 className="font-semibold">🔊 طابور الردود الصوتية</h3><button onClick={() => setQueue((q) => q.filter((x) => x.status === "speaking"))} className="text-xs text-muted-foreground">🗑 مسح</button></div>
+        <div className="mb-2 flex items-center justify-between"><h3 className="font-semibold">🔊 طابور الردود الصوتية</h3><button onClick={() => setQueue((q) => q.filter((x) => x.status === "speaking"))} className="text-xs text-muted-foreground">🗑 مسح</button><button onClick={() => { audio.current?.pause(); playing.current = false; setPaused(false); setQueue((q) => q.filter((x) => x.status === "ready")); setTimeout(pump, 50); toast.success("تم فك التعليق"); }} className="text-xs text-primary">🔄 فك التعليق</button></div>
         {queue.length === 0 ? <p className="py-4 text-center text-sm text-muted-foreground">الطابور فاضي</p> : (
           <ul className="space-y-2">{queue.map((q) => (
             <li key={q.id} className={`rounded-xl px-3 py-2 text-sm ${q.status === "speaking" ? "bg-primary/15" : q.status === "error" ? "bg-destructive/15" : "bg-muted/50"}`}>
