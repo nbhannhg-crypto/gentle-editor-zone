@@ -82,8 +82,12 @@ export function LiveStudio() {
   const ws = useRef<WebSocket | null>(null);
   const audio = useRef<HTMLAudioElement | null>(null);
   const player = useRef<HTMLAudioElement | null>(null);
+  const unlocked = useRef(false);
+  const [needTap, setNeedTap] = useState(false);
+  // 🔓 فك قفل الصوت مرة وحدة فقط — ما يمسح أي صوت شغال
+  const unlockAudio = () => { try { const a = player.current ?? new Audio(); player.current = a; if (!unlocked.current && (!a.src || a.paused)) { a.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA="; void a.play().then(() => { unlocked.current = true; }).catch(() => {}); } } catch { /* ignore */ } };
   useEffect(() => {
-    const unlock = () => { try { const a = player.current ?? new Audio(); player.current = a; if (!a.src || a.src.startsWith("data:")) { a.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA="; void a.play().catch(() => {}); } } catch { /* ignore */ } };
+    const unlock = () => { unlockAudio(); window.removeEventListener("pointerdown", unlock); window.removeEventListener("touchstart", unlock); };
     window.addEventListener("pointerdown", unlock); window.addEventListener("touchstart", unlock);
     return () => { window.removeEventListener("pointerdown", unlock); window.removeEventListener("touchstart", unlock); };
   }, []);
@@ -111,10 +115,13 @@ export function LiveStudio() {
     try {
       const v = sRef.current.voice;
       const r = await Promise.race([speak({ data: { text: next.text.slice(0, 1400), voiceId: v.id, custom: true, model: v.model, speed: v.speed, volume: v.gain, emotion: v.emotion } }), new Promise<never>((_, rej) => setTimeout(() => rej(new Error("الصوت تأخر، انتقلنا للي بعده")), 20000))]);
-      const a = player.current ?? new Audio(); player.current = a; a.onended = a.onerror = a.onloadedmetadata = a.onplaying = null; a.src = r.audio; audio.current = a; a.volume = Math.max(0.01, Math.min(1, v.volume ?? 1)); a.onplaying = () => patch(next.id, { status: "speaking" });
+      let src: string = r.audio; try { src = URL.createObjectURL(await (await fetch(r.audio)).blob()); } catch { /* keep data url */ }
+      const a = player.current ?? new Audio(); player.current = a; a.onended = a.onerror = a.onloadedmetadata = a.onplaying = null; a.src = src; audio.current = a; a.volume = Math.max(0.05, Math.min(1, v.volume ?? 1)); a.onplaying = () => { unlocked.current = true; setNeedTap(false); patch(next.id, { status: "speaking" }); };
       if (v.device && "setSinkId" in a) await (a as any).setSinkId(v.device).catch(() => {});
-      // 🛡️ مؤقت أمان: لو علّق التشغيل يفكه تلقائياً
-      await new Promise<void>((res) => { const max = setTimeout(() => { a.pause(); res(); }, Math.max(12000, next.text.length * 250)); const done = () => { clearTimeout(max); res(); }; a.onended = done; a.onerror = done; a.onloadedmetadata = () => { if (Number.isFinite(a.duration)) { clearTimeout(max); setTimeout(() => { a.pause(); res(); }, a.duration * 1000 + 3000); } }; a.play().catch(done); });
+      // 🛡️ مؤقت أمان + لو المتصفح رفض التشغيل ما نتخطى الجملة
+      const ok = await new Promise<boolean>((res) => { const max = setTimeout(() => { a.pause(); res(true); }, Math.max(15000, next.text.length * 250)); const done = () => { clearTimeout(max); res(true); }; a.onended = done; a.onerror = done; a.onloadedmetadata = () => { if (Number.isFinite(a.duration)) { clearTimeout(max); setTimeout(() => { if (!a.paused) a.pause(); res(true); }, a.duration * 1000 + 3000); } }; a.play().catch(() => { clearTimeout(max); res(false); }); });
+      if (src.startsWith("blob:")) setTimeout(() => URL.revokeObjectURL(src), 60000);
+      if (!ok) { playing.current = false; setNeedTap(true); setPaused(true); toast.error("المتصفح منع الصوت — اضغط «🔊 تفعيل الصوت»"); return; }
       recent.current = [next.text, ...recent.current].slice(0, 6);
       history.current = [...history.current, { who: "a" as const, t: next.text.slice(0, 400) }].slice(-8);
     } catch (e) { toast.error((e as Error).message); }
@@ -295,7 +302,7 @@ export function LiveStudio() {
       </section>
 
       <section className={card}>
-        <div className="mb-2 flex items-center justify-between"><h3 className="font-semibold">🔊 طابور الردود الصوتية</h3><button onClick={() => setQueue((q) => q.filter((x) => x.status === "speaking"))} className="text-xs text-muted-foreground">🗑 مسح</button><button onClick={() => { audio.current?.pause(); playing.current = false; setPaused(false); setQueue((q) => q.filter((x) => x.status === "ready")); setTimeout(pump, 50); toast.success("تم فك التعليق"); }} className="text-xs text-primary">🔄 فك التعليق</button></div>
+        <div className="mb-2 flex items-center justify-between"><h3 className="font-semibold">🔊 طابور الردود الصوتية</h3><button onClick={() => { unlockAudio(); setNeedTap(false); setPaused(false); pausedRef.current = false; setTimeout(pump, 150); }} className={`rounded-full px-2 py-0.5 text-xs ${needTap ? "bg-primary text-primary-foreground animate-pulse" : "border"}`}>🔊 تفعيل الصوت</button><button onClick={() => setQueue((q) => q.filter((x) => x.status === "speaking"))} className="text-xs text-muted-foreground">🗑 مسح</button><button onClick={() => { audio.current?.pause(); playing.current = false; setPaused(false); setQueue((q) => q.filter((x) => x.status === "ready")); setTimeout(pump, 50); toast.success("تم فك التعليق"); }} className="text-xs text-primary">🔄 فك التعليق</button></div>
         {queue.length === 0 ? <p className="py-4 text-center text-sm text-muted-foreground">الطابور فاضي</p> : (
           <ul className="space-y-2">{queue.map((q) => (
             <li key={q.id} className={`rounded-xl px-3 py-2 text-sm ${q.status === "speaking" ? "bg-primary/15" : q.status === "error" ? "bg-destructive/15" : "bg-muted/50"}`}>
