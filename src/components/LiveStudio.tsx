@@ -23,6 +23,14 @@ const DEF = {
 };
 type S = typeof DEF;
 const QUICK = ["يا هلا ومرحبا بكل اللي دخلوا، نورتوا البث", "لا تنسون المتابعة واللايك عشان يوصل البث لناس أكثر", "اكتبوا لي بالتعليقات من وين تتابعوننا", "شكراً لكل الداعمين، والله إنكم أحلى جمهور"];
+const NADA_PERSONA = { name: "أم ندى", role: "خطابة سعودية موثوقة تدير مساحة تيك توك عن الزواج والنصيب", personality: "رزينة وحنونة مثل الأخت الكبيرة، خفيفة ظل، كلامها دافئ ومطمئن، ترحب بكل شخص باسمه، تسولف قصص نصيب وتوفيق بدون أسماء، وتفتح نقاشات عن الزواج والتفاهم.", dialect: "سعودية نجدية أصيلة", rules: "لا تذكرين أسعار أو مبالغ أبداً إلا إذا سُئلتِ مباشرة. ركزي على الستر والحلال والأمانة وحفظ أسرار الناس. التسجيل عن طريق الرابط في البايو أو الواتساب فقط. لا تذكرين أسماء حقيقية في القصص.", topicStyle: "تبدأ بقصة نصيب قصيرة أو موقف لطيف من الخطوبة ثم تسأل الحضور عن رأيهم.", topics: ["قصة اثنين ترددوا وتوفقوا", "أهم صفة في شريك الحياة", "فارق العمر عائق أو لا؟", "أغرب شرط سمعتوه بالزواج", "موقف مضحك في الشوفة الشرعية", "نصيحة للمقبلين على الزواج"], avatar: "" };
+const NADA_CTRL: [string, string][] = [
+  ["📖 قصة نصيب", "احكي للحضور قصة نصيب وتوفيق قصيرة ومؤثرة عن زوجين بدون أسماء، بأسلوب مشوق ودافئ، واختمي بدعاء لهم بالنصيب الحلو."],
+  ["💬 سالفة للنقاش", "افتحي للحضور سؤال نقاش ممتع عن الزواج أو التفاهم أو صفات شريك الحياة، واطلبي آراءهم في التعليقات."],
+  ["🤍 ترحيب ملكي", "رحبي بكل الحضور في المساحة بحرارة ودفء، وادعي لهم بالنصيب الحلو، وحمسيهم للمتابعة والدعم بلطف."],
+  ["🛡️ كلمة ثقة", "تكلمي بنبرة صادقة ومطمئنة عن الستر والحلال وأن بيانات الناس أمانة وسرية تامة، وأنكم تفتحون المساحة يومياً للثقة والمصداقية."],
+  ["💍 طريقة التسجيل", "وجهي الحضور برقي واختصار للتسجيل عن طريق الرابط الموجود في البايو أو التواصل على الواتساب، وطمنيهم أن بياناتهم بسرية تامة."],
+];
 const GIFTS = ["وردة", "تيك توك", "قلب", "مجرة", "أسد"];
 const NAMES = ["أبو فهد", "نوف", "سلطان", "ريم", "عبدالله", "جوري", "فيصل"];
 const COMMENTS = ["وش أخبارك اليوم؟", "من وين انتي؟", "سلام عليكم", "صوتك حلو", "وش رايك بالقهوة؟"];
@@ -219,6 +227,12 @@ export function LiveStudio() {
           <Button disabled={!manual.trim()} onClick={() => { enqueue("✍️ يدوي", manual, true); setManual(""); }}>📣 قوليها الآن</Button>
           <Button variant="secondary" disabled={!manual.trim()} onClick={() => { enqueue("✍️ يدوي", manual); setManual(""); }}>➕ للطابور</Button>
           <Button variant="secondary" disabled={!manual.trim()} onClick={() => { void ai("🪄 صياغة", `صاحب البث يبيك تقولين للحضور هالفكرة بأسلوبك: ${manual}`, true); setManual(""); }}>🪄 صيغيها بأسلوبك</Button>
+        </div>
+        <div className="mt-3 rounded-xl border border-primary/30 bg-primary/5 p-2">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2"><span className="text-xs font-semibold">💍 كنترول أم ندى (الصوت والإعدادات كما هي)</span>
+            <button onClick={() => { localStorage.setItem("live_studio_prev_persona", JSON.stringify(s.persona)); up("persona", NADA_PERSONA); toast.success("تم تفعيل شخصية أم ندى"); }} className="rounded-full border border-primary px-2.5 py-1 text-xs">تفعيل شخصية أم ندى</button>
+            <button onClick={() => { try { const pp = JSON.parse(localStorage.getItem("live_studio_prev_persona") || "null"); if (pp) { up("persona", pp); toast.success("رجعت الشخصية السابقة"); } else toast.error("ما فيه شخصية سابقة محفوظة"); } catch { /* */ } }} className="rounded-full border px-2.5 py-1 text-xs">↩️ الشخصية السابقة</button></div>
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5">{NADA_CTRL.map(([l, pr]) => <button key={l} onClick={() => void ai(l, pr, true)} className="rounded-lg border bg-background px-2 py-2 text-xs font-medium hover:border-primary">{l}</button>)}</div>
         </div>
         <div className="mt-3 flex flex-wrap gap-1.5">{QUICK.map((q) => <button key={q} onClick={() => enqueue("⚡ سريع", q)} className="rounded-full border px-2.5 py-1 text-xs text-muted-foreground hover:border-primary hover:text-foreground">{q}</button>)}</div>
       </section>
