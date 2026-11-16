@@ -81,6 +81,12 @@ export function LiveStudio() {
   const smart = useServerFn(smartReply);
   const ws = useRef<WebSocket | null>(null);
   const audio = useRef<HTMLAudioElement | null>(null);
+  const player = useRef<HTMLAudioElement | null>(null);
+  useEffect(() => {
+    const unlock = () => { try { const a = player.current ?? new Audio(); player.current = a; if (!a.src || a.src.startsWith("data:")) { a.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA="; void a.play().catch(() => {}); } } catch { /* ignore */ } };
+    window.addEventListener("pointerdown", unlock); window.addEventListener("touchstart", unlock);
+    return () => { window.removeEventListener("pointerdown", unlock); window.removeEventListener("touchstart", unlock); };
+  }, []);
   const playing = useRef(false);
   const sRef = useRef(s); sRef.current = s;
   const qRef = useRef(queue); qRef.current = queue;
@@ -101,11 +107,11 @@ export function LiveStudio() {
     if (playing.current || pausedRef.current) return;
     const next = qRef.current.find((x) => x.status === "ready");
     if (!next) return;
-    playing.current = true; patch(next.id, { status: "speaking" });
+    playing.current = true; patch(next.id, { label: next.label.replace(/^⏳ تجهيز الصوت… /, "") });
     try {
       const v = sRef.current.voice;
       const r = await Promise.race([speak({ data: { text: next.text.slice(0, 1400), voiceId: v.id, custom: true, model: v.model, speed: v.speed, volume: v.gain, emotion: v.emotion } }), new Promise<never>((_, rej) => setTimeout(() => rej(new Error("الصوت تأخر، انتقلنا للي بعده")), 20000))]);
-      const a = new Audio(r.audio); audio.current = a; a.volume = v.volume;
+      const a = player.current ?? new Audio(); player.current = a; a.onended = a.onerror = a.onloadedmetadata = a.onplaying = null; a.src = r.audio; audio.current = a; a.volume = Math.max(0.01, Math.min(1, v.volume ?? 1)); a.onplaying = () => patch(next.id, { status: "speaking" });
       if (v.device && "setSinkId" in a) await (a as any).setSinkId(v.device).catch(() => {});
       // 🛡️ مؤقت أمان: لو علّق التشغيل يفكه تلقائياً
       await new Promise<void>((res) => { const max = setTimeout(() => { a.pause(); res(); }, Math.max(12000, next.text.length * 250)); const done = () => { clearTimeout(max); res(); }; a.onended = done; a.onerror = done; a.onloadedmetadata = () => { if (Number.isFinite(a.duration)) { clearTimeout(max); setTimeout(() => { a.pause(); res(); }, a.duration * 1000 + 3000); } }; a.play().catch(done); });
