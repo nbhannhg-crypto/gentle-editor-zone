@@ -46,7 +46,7 @@ const fill = (t: string, e: Ev) => t.replace(/\{name\}/g, e.user).replace(/\{gif
 
 const WARM = ["يا الغالي", "يا الطيب", "يا الحبيب", "يا الغالية", "يا عسل"];
 function cleanName(nick: string, uid: string): string {
-  const pick = () => WARM[Math.floor(Math.random() * WARM.length)];
+  const pick = () => WARM[Math.floor(Math.random() * WARM.length)] ?? "يا الغالي";
   for (const raw of [nick, uid]) {
     const t = raw.replace(/[\p{Extended_Pictographic}\uFE0F\u200D]/gu, "").trim();
     if (!t) continue;
