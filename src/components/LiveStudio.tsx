@@ -126,11 +126,12 @@ export function LiveStudio() {
 ردك قصير جداً من 3 إلى 8 كلمات كأنه كلام لايف طبيعي، تردين على نفس كلامه بالضبط، ولا تألفين أسماء غير اسم صاحب التعليق، ولا تذكرين خدمات أو مساعدة أو متجر أو أسعار، وبدون إيموجي ولا أرقام ولا شرح.
 الهدية: اشكري صاحبها باسمه بحماس ودلع. الدخول: رحبي فيه باسمه بدفء. اللايكات: حمسيهم يكبسون بعفوية.
 لا تكررين هذي الردود: ${recent.current.join(" | ")}. ${p.rules ? `قوانين صاحب البث (التزمي فيها حرفياً، الممنوع ممنوع والمسموح مسموح): ${p.rules}` : ""}`; };
-  const ai = async (label: string, prompt: string, front = false) => {
+  const storyIdentity = () => { const p = sRef.current.persona; return `اسمك ${p.name}، ${p.role}. شخصيتك: ${p.personality}. لهجتك: ${p.dialect}. ${p.rules ? `قوانين صاحب البث: ${p.rules}` : ""}`; };
+  const ai = async (label: string, prompt: string, front = false, story = false) => {
     const id = uid();
     setQueue((q) => [...(front ? [] : q), { id, label, text: "", status: "thinking" as const }, ...(front ? q : [])]);
     try {
-      const r = await smart({ data: { customer: prompt.slice(0, 1000), product: "", rules: [], mood: "call", identity: identity() + (spellRef.current ? SPELL_RULE : ""), history: history.current } });
+      const r = await smart({ data: { customer: prompt.slice(0, 1000), product: "", rules: [], mood: story ? "story" : "call", identity: story ? storyIdentity() + (spellRef.current ? SPELL_RULE : "") : identity() + (spellRef.current ? SPELL_RULE : ""), history: story ? [] : history.current } });
       history.current = [...history.current, { who: "c" as const, t: prompt.slice(0, 400) }].slice(-8);
       const reply = spellRef.current ? fixSpell(String(r.reply)) : (r.reply as string);
       patch(id, { text: reply, status: "ready" });
@@ -151,7 +152,7 @@ export function LiveStudio() {
       while (qRef.current.length > 1 && storyStop.current === my) await new Promise((r) => setTimeout(r, 500));
       if (storyStop.current !== my) break;
       setStoryProg(`📖 ${label} — صفحة ${i + 1} من ${n}`);
-      const r = await ai(`${label} ${i + 1}/${n}`, `${prompt}\nقوليها مقطع مقطع. هذا المقطع ${i + 1} من ${n}. ${so ? `قلتي قبل: «${so.slice(-600)}». كملي بعده مباشرة بدون إعادة` : "ابدئي البداية"} بجملة قصيرة وحدة. ${i === n - 1 ? "اختمي بسؤال للحضور." : "لا تختمين."}`);
+      const r = await ai(`${label} ${i + 1}/${n}`, `${prompt}\nقوليها مقطع مقطع. هذا المقطع ${i + 1} من ${n}. ${so ? `قلتي قبل: «${so.slice(-600)}». كملي بعده مباشرة بدون إعادة` : "ابدئي البداية"} بفقرة من جملتين إلى ثلاث جمل مكتملة المعنى. ${i === n - 1 ? "اختمي القصة بعبرة وسؤال للحضور." : "لا تختمين القصة، خلي الحدث مشوق للمقطع الجاي."}`, false, true);
       if (!r) break; so += " " + r; lastAct.current = Date.now();
     }
     if (storyStop.current === my) setStoryProg("");
