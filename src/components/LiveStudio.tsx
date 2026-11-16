@@ -32,6 +32,7 @@ const NADA_CTRL: [string, string][] = [
   ["🛡️ كلمة ثقة", "تكلمي بنبرة صادقة ومطمئنة عن الستر والحلال وأن بيانات الناس أمانة وسرية تامة، وأنكم تفتحون المساحة يومياً للثقة والمصداقية."],
   ["💍 طريقة التسجيل", "وجهي الحضور برقي واختصار للتسجيل عن طريق الرابط الموجود في البايو أو التواصل على الواتساب، وطمنيهم أن بياناتهم بسرية تامة."],
 ];
+const IDLE_WELCOME = ["هلا وغلا فيكم، نورتوا البث", "يا هلا بكل اللي معي، وجودكم أهم شي", "هلا والله، حياكم الله كلكم", "نورتوا يا الغاليين، الله يسعدكم", "مرحبا بكل اللي دخل واللي بيدخل", "وجودكم معي يونسني، الله يحفظكم", "حياكم الله، اكتبوا لي من وين تتابعوني", "هلا بالطيبين، لا تنسون المتابعة", "الله يسعد قلوبكم، نورتوا المكان", "يا مرحبا، سولفوا معي بالتعليقات"];
 const GIFTS = ["وردة", "تيك توك", "قلب", "مجرة", "أسد"];
 const NAMES = ["أبو فهد", "نوف", "سلطان", "ريم", "عبدالله", "جوري", "فيصل"];
 const COMMENTS = ["وش أخبارك اليوم؟", "من وين انتي؟", "سلام عليكم", "صوتك حلو", "وش رايك بالقهوة؟"];
@@ -233,7 +234,7 @@ export function LiveStudio() {
   const handleRef = useRef(handle); handleRef.current = handle;
 
   useEffect(() => {
-    const t = setInterval(() => { const st = sRef.current; if (st.auto.enabled && st.auto.idle && !playing.current && qRef.current.length === 0 && Date.now() - lastAct.current > st.auto.idleSec * 1000) { lastAct.current = Date.now(); openTopic(); } }, 5000);
+    const t = setInterval(() => { const st = sRef.current; if (st.auto.enabled && st.auto.idle && !playing.current && qRef.current.length === 0 && Date.now() - lastAct.current > st.auto.idleSec * 1000) { lastAct.current = Date.now(); const g = IDLE_WELCOME.filter((x) => !recent.current.includes(x)); enqueue("🤍 ترحيب", g[Math.floor(Math.random() * g.length)] ?? IDLE_WELCOME[0]!); } }, 5000);
     return () => clearInterval(t);
   }, []);
 
