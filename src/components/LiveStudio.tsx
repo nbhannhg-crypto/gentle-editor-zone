@@ -115,7 +115,7 @@ export function LiveStudio() {
     try {
       const v = sRef.current.voice;
       const r = await Promise.race([speak({ data: { text: next.text.slice(0, 1400), voiceId: v.id, custom: true, model: v.model, speed: v.speed, volume: v.gain, emotion: v.emotion } }), new Promise<never>((_, rej) => setTimeout(() => rej(new Error("الصوت تأخر، انتقلنا للي بعده")), 20000))]);
-      let src = r.audio; try { src = URL.createObjectURL(await (await fetch(r.audio)).blob()); } catch { /* keep data url */ }
+      let src: string = r.audio; try { src = URL.createObjectURL(await (await fetch(r.audio)).blob()); } catch { /* keep data url */ }
       const a = player.current ?? new Audio(); player.current = a; a.onended = a.onerror = a.onloadedmetadata = a.onplaying = null; a.src = src; audio.current = a; a.volume = Math.max(0.05, Math.min(1, v.volume ?? 1)); a.onplaying = () => { unlocked.current = true; setNeedTap(false); patch(next.id, { status: "speaking" }); };
       if (v.device && "setSinkId" in a) await (a as any).setSinkId(v.device).catch(() => {});
       // 🛡️ مؤقت أمان + لو المتصفح رفض التشغيل ما نتخطى الجملة
