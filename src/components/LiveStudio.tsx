@@ -36,6 +36,10 @@ const NAMES = ["أبو فهد", "نوف", "سلطان", "ريم", "عبدالل�
 const COMMENTS = ["وش أخبارك اليوم؟", "من وين انتي؟", "سلام عليكم", "صوتك حلو", "وش رايك بالقهوة؟"];
 const ICON: Record<EvType, string> = { comment: "💬", gift: "🎁", follow: "➕", like: "❤️", join: "🚪", share: "🔁" };
 const EMOS = [["", "طبيعي"], ["happy", "😊 فرحانة"], ["excited", "🤩 متحمسة"], ["friendly", "🤗 ودودة"], ["calm", "😌 هادئة"]] as const;
+// 🛡️ مصحح سلامة الحروف (اختياري): يصلح كلمات شائعة انقلبت حروفها قبل العرض والنطق
+const SPELL: [RegExp, string][] = [[/معولمات/g, "معلومات"], [/مربوك/g, "مبروك"], [/يقوفكم/g, "يوفقكم"], [/يقوفك/g, "يوفقك"], [/نصبيك/g, "نصيبك"], [/نصبيكم/g, "نصيبكم"], [/الزاوج/g, "الزواج"], [/زاوج/g, "زواج"], [/الحلا ل/g, "الحلال"], [/نورتوا/g, "نورتوا"], [/مساحتان/g, "مساحتنا"], [/التسيجل/g, "التسجيل"], [/الوتساب/g, "الواتساب"], [/الباوي/g, "البايو"], [/حيااكم/g, "حياكم"], [/بعص/g, "بعض"]];
+const fixSpell = (t: string) => SPELL.reduce((a, [r, v]) => a.replace(r, v), t).replace(/[\u200B-\u200D\u0640]/g, "").replace(/\s{2,}/g, " ").trim();
+const SPELL_RULE = "\nمهم جداً: اكتبي كل كلمة بإملاء عربي صحيح 100%، ممنوع تقلبين أو تقدمين أو تأخرين أي حرف داخل الكلمة، وراجعي كل كلمة قبل ما ترسلين.";
 let n = 0; const uid = () => `${Date.now().toString(36)}${n++}`;
 const fill = (t: string, e: Ev) => t.replace(/\{name\}/g, e.user).replace(/\{gift\}/g, e.gift ?? "").replace(/\{count\}/g, e.count && e.count > 1 ? `×${e.count}` : "");
 
@@ -69,6 +73,9 @@ export function LiveStudio() {
   const [simCount, setSimCount] = useState(5);
   const [simLikes, setSimLikes] = useState(150);
   const [topic, setTopic] = useState("");
+  const [spellFix, setSpellFix] = useState(false);
+  const spellRef = useRef(false); spellRef.current = spellFix;
+  useEffect(() => { setSpellFix(localStorage.getItem("live_spell_fix") === "1"); }, []);
   const speak = useServerFn(fishSpeak);
   const smart = useServerFn(smartReply);
   const ws = useRef<WebSocket | null>(null);
@@ -122,10 +129,11 @@ export function LiveStudio() {
     const id = uid();
     setQueue((q) => [...(front ? [] : q), { id, label, text: "", status: "thinking" as const }, ...(front ? q : [])]);
     try {
-      const r = await smart({ data: { customer: prompt.slice(0, 1000), product: "", rules: [], mood: "call", identity: identity(), history: history.current } });
+      const r = await smart({ data: { customer: prompt.slice(0, 1000), product: "", rules: [], mood: "call", identity: identity() + (spellRef.current ? SPELL_RULE : ""), history: history.current } });
       history.current = [...history.current, { who: "c" as const, t: prompt.slice(0, 400) }].slice(-8);
-      patch(id, { text: r.reply, status: "ready" });
-      return r.reply as string;
+      const reply = spellRef.current ? fixSpell(String(r.reply)) : (r.reply as string);
+      patch(id, { text: reply, status: "ready" });
+      return reply;
     } catch (e) { patch(id, { status: "error", text: (e as Error).message }); setTimeout(() => setQueue((q) => q.filter((x) => x.id !== id)), 4000); return ""; }
   };
   const chain = async (label: string, prompt: string, parts = 4) => {
@@ -238,6 +246,7 @@ export function LiveStudio() {
         </div>
         <div className="mt-3 rounded-xl border border-primary/30 bg-primary/5 p-2">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2"><span className="text-xs font-semibold">💍 كنترول أم ندى (الصوت والإعدادات كما هي)</span>
+            <button onClick={() => { const v = !spellFix; setSpellFix(v); localStorage.setItem("live_spell_fix", v ? "1" : "0"); toast.success(v ? "تم تشغيل مصحح الحروف" : "تم إطفاء مصحح الحروف"); }} className={`rounded-full border px-2.5 py-1 text-xs ${spellFix ? "border-primary bg-primary text-primary-foreground" : ""}`}>🛡️ مصحح الحروف: {spellFix ? "شغّال" : "مطفي"}</button>
             <button onClick={() => { localStorage.setItem("live_studio_prev_persona", JSON.stringify(s.persona)); up("persona", NADA_PERSONA); toast.success("تم تفعيل شخصية أم ندى"); }} className="rounded-full border border-primary px-2.5 py-1 text-xs">تفعيل شخصية أم ندى</button>
             <button onClick={() => { try { const pp = JSON.parse(localStorage.getItem("live_studio_prev_persona") || "null"); up("persona", pp && pp.name !== "أم ندى" ? pp : DEF.persona); toast.success("رجعت الشخصية السابقة"); } catch { /* */ } }} className="rounded-full border px-2.5 py-1 text-xs">↩️ الشخصية السابقة</button></div>
           <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5">{NADA_CTRL.map(([l, pr]) => <button key={l} onClick={() => void chain(l, pr)} className="rounded-lg border bg-background px-2 py-2 text-xs font-medium hover:border-primary">{l}</button>)}</div>
