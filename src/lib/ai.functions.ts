@@ -54,12 +54,17 @@ export const smartReply = createServerFn({ method: "POST" })
       customer: z.string().min(1).max(1000),
       product: z.string().max(2000).default(""),
       rules: z.array(ruleSchema).max(200),
-      mood: z.enum(["sales", "call"]).optional(),
+      mood: z.enum(["sales", "call", "story"]).optional(),
       identity: z.string().max(4000).optional(),
       history: z.array(z.object({ who: z.enum(["c", "a"]), t: z.string().max(500) })).max(30).optional(),
     }).parse(d),
   )
   .handler(async ({ data }) => {
+    if (data.mood === "story") {
+      const sys = `أنتِ راوية وقاصّة سعودية متمكنة تحكين قصص في بث مباشر. تحكين أي قصة يطلبونها بسرد مشوق ومترابط وبإملاء صحيح، ولا ترفضين أبداً ولا تقولين ما أحكي قصص أو ما عندي قصص. قصص الأنبياء والصحابة تحكينها بوقار وأمانة كما وردت في القرآن والسنة بدون تأليف أو غزل. قصص المحبين والنصيب والسوالف بدفء وتشويق بدون أسماء حقيقية لأشخاص عاديين. بدون إيموجي وبدون عناوين أو ترقيم أو شرح لما تفعلينه، فقط نص الحكاية. لا تقولين إنك ذكاء اصطناعي.${data.identity?.trim() ? `\n\nشخصيتك:\n${data.identity.trim()}` : ""}`;
+      const reply = await askModel(sys, data.customer, false);
+      return { reply: reply.trim() };
+    }
     if (data.mood === "call") {
       const t = data.customer.trim().replace(/[!.,؟?،\s]+$/g, "");
       if (t.length <= 25) for (const [re, r] of CALL_GREETINGS) if (re.test(t)) return { reply: r };
