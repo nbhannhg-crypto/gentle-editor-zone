@@ -125,9 +125,17 @@ export function LiveStudio() {
       const r = await smart({ data: { customer: prompt.slice(0, 1000), product: "", rules: [], mood: "call", identity: identity(), history: history.current } });
       history.current = [...history.current, { who: "c" as const, t: prompt.slice(0, 400) }].slice(-8);
       patch(id, { text: r.reply, status: "ready" });
-    } catch (e) { patch(id, { status: "error", text: (e as Error).message }); setTimeout(() => setQueue((q) => q.filter((x) => x.id !== id)), 4000); }
+      return r.reply as string;
+    } catch (e) { patch(id, { status: "error", text: (e as Error).message }); setTimeout(() => setQueue((q) => q.filter((x) => x.id !== id)), 4000); return ""; }
   };
-  const openTopic = (t?: string) => { const p = sRef.current.persona; const pick = t || p.topics[Math.floor(Math.random() * p.topics.length)] || "سالفة خفيفة"; void ai(`سالفة: ${pick}`, `البث هادئ الحين، افتحي للحضور سالفة عن: ${pick}. ${p.topicStyle} واختمي بسؤال بسيط.`, true); };
+  const chain = async (label: string, prompt: string, parts = 4) => {
+    let so = "";
+    for (let i = 0; i < parts; i++) {
+      const r = await ai(`${label} ${i + 1}/${parts}`, `${prompt}\nقوليها مقطع مقطع. هذا المقطع ${i + 1} من ${parts}. ${so ? `قلتي قبل: «${so.slice(-600)}». كملي بعده مباشرة بدون إعادة` : "ابدئي البداية"} بجملة قصيرة وحدة. ${i === parts - 1 ? "اختمي بسؤال للحضور." : "لا تختمين."}`);
+      if (!r) break; so += " " + r;
+    }
+  };
+  const openTopic = (t?: string) => { const p = sRef.current.persona; const pick = t || p.topics[Math.floor(Math.random() * p.topics.length)] || "سالفة خفيفة"; void chain(`سالفة: ${pick}`, `البث هادئ الحين، سولفي للحضور عن: ${pick}. ${p.topicStyle}`, 3); };
 
   const handle = (e: Ev) => {
     lastAct.current = Date.now();
@@ -231,8 +239,8 @@ export function LiveStudio() {
         <div className="mt-3 rounded-xl border border-primary/30 bg-primary/5 p-2">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2"><span className="text-xs font-semibold">💍 كنترول أم ندى (الصوت والإعدادات كما هي)</span>
             <button onClick={() => { localStorage.setItem("live_studio_prev_persona", JSON.stringify(s.persona)); up("persona", NADA_PERSONA); toast.success("تم تفعيل شخصية أم ندى"); }} className="rounded-full border border-primary px-2.5 py-1 text-xs">تفعيل شخصية أم ندى</button>
-            <button onClick={() => { try { const pp = JSON.parse(localStorage.getItem("live_studio_prev_persona") || "null"); if (pp) { up("persona", pp); toast.success("رجعت الشخصية السابقة"); } else toast.error("ما فيه شخصية سابقة محفوظة"); } catch { /* */ } }} className="rounded-full border px-2.5 py-1 text-xs">↩️ الشخصية السابقة</button></div>
-          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5">{NADA_CTRL.map(([l, pr]) => <button key={l} onClick={() => void ai(l, pr, true)} className="rounded-lg border bg-background px-2 py-2 text-xs font-medium hover:border-primary">{l}</button>)}</div>
+            <button onClick={() => { try { const pp = JSON.parse(localStorage.getItem("live_studio_prev_persona") || "null"); up("persona", pp && pp.name !== "أم ندى" ? pp : DEF.persona); toast.success("رجعت الشخصية السابقة"); } catch { /* */ } }} className="rounded-full border px-2.5 py-1 text-xs">↩️ الشخصية السابقة</button></div>
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5">{NADA_CTRL.map(([l, pr]) => <button key={l} onClick={() => void chain(l, pr)} className="rounded-lg border bg-background px-2 py-2 text-xs font-medium hover:border-primary">{l}</button>)}</div>
         </div>
         <div className="mt-3 flex flex-wrap gap-1.5">{QUICK.map((q) => <button key={q} onClick={() => enqueue("⚡ سريع", q)} className="rounded-full border px-2.5 py-1 text-xs text-muted-foreground hover:border-primary hover:text-foreground">{q}</button>)}</div>
       </section>
