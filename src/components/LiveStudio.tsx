@@ -24,6 +24,7 @@ const DEF = {
 type S = typeof DEF;
 const QUICK = ["يا هلا ومرحبا بكل اللي دخلوا، نورتوا البث", "لا تنسون المتابعة واللايك عشان يوصل البث لناس أكثر", "اكتبوا لي بالتعليقات من وين تتابعوننا", "شكراً لكل الداعمين، والله إنكم أحلى جمهور"];
 const NADA_PERSONA = { name: "أم ندى", role: "خطابة سعودية موثوقة تدير مساحة تيك توك عن الزواج والنصيب", personality: "رزينة وحنونة مثل الأخت الكبيرة، خفيفة ظل، كلامها دافئ ومطمئن، ترحب بكل شخص باسمه، تسولف قصص نصيب وتوفيق بدون أسماء، وتفتح نقاشات عن الزواج والتفاهم.", dialect: "سعودية نجدية أصيلة", rules: "لا تذكرين أسعار أو مبالغ أبداً إلا إذا سُئلتِ مباشرة. ركزي على الستر والحلال والأمانة وحفظ أسرار الناس. التسجيل عن طريق الرابط في البايو أو الواتساب فقط. لا تذكرين أسماء حقيقية في القصص.", topicStyle: "تبدأ بقصة نصيب قصيرة أو موقف لطيف من الخطوبة ثم تسأل الحضور عن رأيهم.", topics: ["قصة اثنين ترددوا وتوفقوا", "أهم صفة في شريك الحياة", "فارق العمر عائق أو لا؟", "أغرب شرط سمعتوه بالزواج", "موقف مضحك في الشوفة الشرعية", "نصيحة للمقبلين على الزواج"], avatar: "" };
+const STORY_PRESETS = ["قصة يوسف عليه السلام", "قصص الأنبياء", "قصص المحبين", "قصص العاشقين", "قصص المشاهير", "سالفة الطلعة اليومية", "قصة نصيب وزواج"];
 const NADA_CTRL: [string, string][] = [
   ["📖 قصة نصيب", "احكي للحضور قصة نصيب وتوفيق قصيرة ومؤثرة عن زوجين بدون أسماء، بأسلوب مشوق ودافئ، واختمي بدعاء لهم بالنصيب الحلو."],
   ["💬 سالفة للنقاش", "افتحي للحضور سؤال نقاش ممتع عن الزواج أو التفاهم أو صفات شريك الحياة، واطلبي آراءهم في التعليقات."],
@@ -136,12 +137,14 @@ export function LiveStudio() {
       return reply;
     } catch (e) { patch(id, { status: "error", text: (e as Error).message }); setTimeout(() => setQueue((q) => q.filter((x) => x.id !== id)), 4000); return ""; }
   };
-  const [storyParts, setStoryParts] = useState<number>(() => { try { return Math.min(200, Math.max(1, Number(localStorage.getItem("live_story_parts")) || 4)); } catch { return 4; } });
+  const [storyParts, setStoryParts] = useState<number>(() => { try { return Math.min(1000, Math.max(1, Number(localStorage.getItem("live_story_parts")) || 4)); } catch { return 4; } });
   const partsRef = useRef(storyParts); partsRef.current = storyParts;
   const [storyProg, setStoryProg] = useState("");
+  const [storyTitle, setStoryTitle] = useState<string>(() => { try { return localStorage.getItem("live_story_title") || ""; } catch { return ""; } });
+  const tellStory = (t: string) => { const x = t.trim(); if (!x) { toast.error("اكتب اسم القصة"); return; } localStorage.setItem("live_story_title", x); void chain(`📖 ${x}`, `احكي للحضور ${x} كاملة بالتسلسل من البداية للنهاية بأسلوب مشوق ودافئ وبمعلومات صحيحة وأمينة${/نبي|أنبياء|يوسف/.test(x) ? " كما وردت في القرآن والسنة بدون تأليف" : ""}، وبدون أسماء حقيقية لأشخاص عاديين.`); };
   const storyStop = useRef(0);
   const chain = async (label: string, prompt: string, parts?: number) => {
-    const n = Math.min(200, Math.max(1, parts ?? partsRef.current));
+    const n = Math.min(1000, Math.max(1, parts ?? partsRef.current));
     const my = ++storyStop.current;
     let so = "";
     for (let i = 0; i < n; i++) {
@@ -260,10 +263,12 @@ export function LiveStudio() {
             <button onClick={() => { localStorage.setItem("live_studio_prev_persona", JSON.stringify(s.persona)); up("persona", NADA_PERSONA); toast.success("تم تفعيل شخصية أم ندى"); }} className="rounded-full border border-primary px-2.5 py-1 text-xs">تفعيل شخصية أم ندى</button>
             <button onClick={() => { try { const pp = JSON.parse(localStorage.getItem("live_studio_prev_persona") || "null"); up("persona", pp && pp.name !== "أم ندى" ? pp : DEF.persona); toast.success("رجعت الشخصية السابقة"); } catch { /* */ } }} className="rounded-full border px-2.5 py-1 text-xs">↩️ الشخصية السابقة</button></div>
           <div className="mb-2 flex flex-wrap items-center gap-2 text-xs"><span>📚 عدد صفحات القصة/السالفة:</span>
-            <input type="number" min={1} max={200} value={storyParts} onChange={(e) => { const v = Math.min(200, Math.max(1, Number(e.target.value) || 1)); setStoryParts(v); localStorage.setItem("live_story_parts", String(v)); }} className="w-16 rounded border bg-background px-1 py-0.5 text-center" />
-            {[4, 20, 50, 200].map((v) => <button key={v} onClick={() => { setStoryParts(v); localStorage.setItem("live_story_parts", String(v)); }} className={`rounded-full border px-2 py-0.5 ${storyParts === v ? "border-primary bg-primary text-primary-foreground" : ""}`}>{v}</button>)}
+            <input type="number" min={1} max={1000} value={storyParts} onChange={(e) => { const v = Math.min(1000, Math.max(1, Number(e.target.value) || 1)); setStoryParts(v); localStorage.setItem("live_story_parts", String(v)); }} className="w-16 rounded border bg-background px-1 py-0.5 text-center" />
+            {[4, 20, 50, 200, 500, 1000].map((v) => <button key={v} onClick={() => { setStoryParts(v); localStorage.setItem("live_story_parts", String(v)); }} className={`rounded-full border px-2 py-0.5 ${storyParts === v ? "border-primary bg-primary text-primary-foreground" : ""}`}>{v}</button>)}
             {storyProg && <><span className="font-semibold text-primary">{storyProg}</span><button onClick={() => { storyStop.current++; setStoryProg(""); }} className="rounded-full border px-2 py-0.5">⏹️ إنهاء القصة</button></>}
           </div>
+          <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs"><input value={storyTitle} onChange={(e) => setStoryTitle(e.target.value)} placeholder="اكتب القصة: قصة يوسف، قصص المحبين..." className="min-w-0 flex-1 rounded border bg-background px-2 py-1" /><button onClick={() => tellStory(storyTitle)} className="rounded-full border border-primary bg-primary px-2.5 py-1 text-primary-foreground">▶️ احكيها</button></div>
+          <div className="mb-2 flex flex-wrap gap-1.5">{STORY_PRESETS.map((t) => <button key={t} onClick={() => { setStoryTitle(t); tellStory(t); }} className="rounded-full border px-2 py-0.5 text-xs hover:border-primary">{t}</button>)}</div>
           <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5">{NADA_CTRL.map(([l, pr]) => <button key={l} onClick={() => void chain(l, pr)} className="rounded-lg border bg-background px-2 py-2 text-xs font-medium hover:border-primary">{l}</button>)}</div>
         </div>
         <div className="mt-3 flex flex-wrap gap-1.5">{QUICK.map((q) => <button key={q} onClick={() => enqueue("⚡ سريع", q)} className="rounded-full border px-2.5 py-1 text-xs text-muted-foreground hover:border-primary hover:text-foreground">{q}</button>)}</div>
