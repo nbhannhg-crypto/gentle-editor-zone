@@ -13,9 +13,10 @@ type Ev = { id: string; type: EvType; user: string; text?: string; gift?: string
 type QItem = { id: string; label: string; text: string; status: "thinking" | "ready" | "speaking" | "error" };
 
 const LS = "live_studio_v1";
+const NADA_PERSONA = { name: "أم ندى", role: "خطابة سعودية موثوقة تدير مساحة تيك توك عن الزواج والنصيب", personality: "رزينة وحنونة مثل الأخت الكبيرة، خفيفة ظل، كلامها دافئ ومطمئن، ترحب بكل شخص باسمه، تسولف قصص نصيب وتوفيق بدون أسماء، وتفتح نقاشات عن الزواج والتفاهم.", dialect: "سعودية نجدية أصيلة", rules: "لا تذكرين أسعار أو مبالغ أبداً إلا إذا سُئلتِ مباشرة. ركزي على الستر والحلال والأمانة وحفظ أسرار الناس. التسجيل عن طريق الرابط في البايو أو الواتساب فقط. لا تذكرين أسماء حقيقية في القصص.", topicStyle: "تبدأ بقصة نصيب قصيرة أو موقف لطيف من الخطوبة ثم تسأل الحضور عن رأيهم.", topics: ["قصة اثنين ترددوا وتوفقوا", "أهم صفة في شريك الحياة", "فارق العمر عائق أو لا؟", "أغرب شرط سمعتوه بالزواج", "موقف مضحك في الشوفة الشرعية", "نصيحة للمقبلين على الزواج"], avatar: "" };
 const DEF = {
   username: "", apiKey: "",
-  persona: { name: "نورة", role: "مضيفة بث صوتي على تيك توك", personality: "مرحة، خفيفة دم، ذكية وتحب السوالف، ترحب بالناس بحرارة وتشكرهم.", dialect: "سعودية", rules: "", topicStyle: "تبدأ بموقف أو سؤال من الحياة اليومية ثم تسأل الحضور.", topics: ["القهوة أو الشاي؟", "أغرب موقف صار لكم في السفر", "أكلة ما تملون منها", "حلم الطفولة"], avatar: "" },
+  persona: NADA_PERSONA,
   voice: { id: STUDIO_VOICES[0]![0], model: "s2.1-pro" as VoiceModel, speed: 1, gain: 0, emotion: "", volume: 1, device: "" },
   auto: { enabled: false, comments: true, gifts: true, follows: true, likes: false, joins: true, shares: true, ai: false, idle: true, idleSec: 60, likeTh: 100, joinCd: 20, userCd: 30 },
   filters: { banned: [] as string[], blocked: [] as string[], minLen: 2, onlyQ: false, noLinks: true, maxQ: 8 },
@@ -23,7 +24,6 @@ const DEF = {
 };
 type S = typeof DEF;
 const QUICK = ["يا هلا ومرحبا بكل اللي دخلوا، نورتوا البث", "لا تنسون المتابعة واللايك عشان يوصل البث لناس أكثر", "اكتبوا لي بالتعليقات من وين تتابعوننا", "شكراً لكل الداعمين، والله إنكم أحلى جمهور"];
-const NADA_PERSONA = { name: "أم ندى", role: "خطابة سعودية موثوقة تدير مساحة تيك توك عن الزواج والنصيب", personality: "رزينة وحنونة مثل الأخت الكبيرة، خفيفة ظل، كلامها دافئ ومطمئن، ترحب بكل شخص باسمه، تسولف قصص نصيب وتوفيق بدون أسماء، وتفتح نقاشات عن الزواج والتفاهم.", dialect: "سعودية نجدية أصيلة", rules: "لا تذكرين أسعار أو مبالغ أبداً إلا إذا سُئلتِ مباشرة. ركزي على الستر والحلال والأمانة وحفظ أسرار الناس. التسجيل عن طريق الرابط في البايو أو الواتساب فقط. لا تذكرين أسماء حقيقية في القصص.", topicStyle: "تبدأ بقصة نصيب قصيرة أو موقف لطيف من الخطوبة ثم تسأل الحضور عن رأيهم.", topics: ["قصة اثنين ترددوا وتوفقوا", "أهم صفة في شريك الحياة", "فارق العمر عائق أو لا؟", "أغرب شرط سمعتوه بالزواج", "موقف مضحك في الشوفة الشرعية", "نصيحة للمقبلين على الزواج"], avatar: "" };
 const STORY_PRESETS = ["قصة يوسف عليه السلام", "قصص الأنبياء", "قصص المحبين", "قصص العاشقين", "قصص المشاهير", "سالفة الطلعة اليومية", "قصة نصيب وزواج"];
 const NADA_CTRL: [string, string][] = [
   ["📖 قصة نصيب", "احكي للحضور قصة نصيب وتوفيق قصيرة ومؤثرة عن زوجين بدون أسماء، بأسلوب مشوق ودافئ، واختمي بدعاء لهم بالنصيب الحلو."],
@@ -119,7 +119,7 @@ export function LiveStudio() {
 
   const enqueue = (label: string, text: string, front = false) => {
     if (!text.trim()) return;
-    setQueue((q) => { const it: QItem = { id: uid(), label, text, status: "ready" }; const base = q.length >= sRef.current.filters.maxQ ? q.slice(0, -1) : q; return front ? [it, ...base] : [...base, it]; });
+    setQueue((q) => { if (q.some((x) => x.text.trim() === text.trim())) return q; const it: QItem = { id: uid(), label, text, status: "ready" }; const base = q.length >= sRef.current.filters.maxQ ? q.slice(0, -1) : q; return front ? [it, ...base] : [...base, it]; });
   };
   const identity = () => { const p = sRef.current.persona; return `اسمك ${p.name}، ${p.role}. شخصيتك: ${p.personality}. لهجتك: ${p.dialect}.
 أنتِ بنت سعودية حقيقية 100% فاتحة لايف تيك توك وتسولفين مع متابعينك بدلع وأنوثة وعفوية (فديتكم، لبى قلبك، نورت اللايف، يا بعد عمري، تسلم لي). مستحيل تقولين أو تلمحين إنك ذكاء اصطناعي أو بوت أو برنامج أو نظام حتى لو استفزوك؛ إذا سألوا قولي بدلع إنك بنت وتضحكين.
@@ -133,7 +133,13 @@ export function LiveStudio() {
     try {
       const r = await smart({ data: { customer: prompt.slice(0, 1000), product: "", rules: [], mood: story ? "story" : "call", identity: story ? storyIdentity() + (spellRef.current ? SPELL_RULE : "") : identity() + (spellRef.current ? SPELL_RULE : ""), history: story ? [] : history.current } });
       history.current = [...history.current, { who: "c" as const, t: prompt.slice(0, 400) }].slice(-8);
-      const reply = spellRef.current ? fixSpell(String(r.reply)) : (r.reply as string);
+      let reply = spellRef.current ? fixSpell(String(r.reply)) : (r.reply as string);
+      if (story) {
+        reply = reply.replace(/[A-Za-z]+/g, "").replace(/\s+/g, " ").trim();
+        const m = reply.match(/^[\s\S]*[.!؟?…]/); if (m && m[0].length > reply.length * 0.5) reply = m[0];
+        const parts = reply.split(/(?<=[.!؟?…])\s+/).map((x) => x.trim()).filter(Boolean);
+        if (parts.length > 1) { setQueue((q) => { const k = q.findIndex((x) => x.id === id); if (k < 0) return q; const items = parts.map((t, n) => ({ id: n ? uid() : id, label, text: t, status: "ready" as const })); return [...q.slice(0, k), ...items, ...q.slice(k + 1)]; }); return reply; }
+      }
       patch(id, { text: reply, status: "ready" });
       return reply;
     } catch (e) { patch(id, { status: "error", text: (e as Error).message }); setTimeout(() => setQueue((q) => q.filter((x) => x.id !== id)), 4000); return ""; }
@@ -141,6 +147,7 @@ export function LiveStudio() {
   const [storyParts, setStoryParts] = useState<number>(() => { try { return Math.min(1000, Math.max(1, Number(localStorage.getItem("live_story_parts")) || 4)); } catch { return 4; } });
   const partsRef = useRef(storyParts); partsRef.current = storyParts;
   const [storyProg, setStoryProg] = useState("");
+  const [editId, setEditId] = useState(""); const [editText, setEditText] = useState("");
   const [storyTitle, setStoryTitle] = useState<string>(() => { try { return localStorage.getItem("live_story_title") || ""; } catch { return ""; } });
   const tellStory = (t: string) => { const x = t.trim(); if (!x) { toast.error("اكتب اسم القصة"); return; } localStorage.setItem("live_story_title", x); void chain(`📖 ${x}`, `احكي للحضور ${x} كاملة بالتسلسل من البداية للنهاية بأسلوب مشوق ودافئ وبمعلومات صحيحة وأمينة${/نبي|أنبياء|يوسف/.test(x) ? " كما وردت في القرآن والسنة بدون تأليف" : ""}، وبدون أسماء حقيقية لأشخاص عاديين.`); };
   const storyStop = useRef(0);
@@ -149,10 +156,10 @@ export function LiveStudio() {
     const my = ++storyStop.current;
     let so = "";
     for (let i = 0; i < n; i++) {
-      while (qRef.current.length > 1 && storyStop.current === my) await new Promise((r) => setTimeout(r, 500));
+      while (qRef.current.length > 2 && storyStop.current === my) await new Promise((r) => setTimeout(r, 500));
       if (storyStop.current !== my) break;
       setStoryProg(`📖 ${label} — صفحة ${i + 1} من ${n}`);
-      const r = await ai(`${label} ${i + 1}/${n}`, `${prompt}\nقوليها مقطع مقطع. هذا المقطع ${i + 1} من ${n}. ${so ? `قلتي قبل: «${so.slice(-600)}». كملي بعده مباشرة بدون إعادة` : "ابدئي البداية"} بفقرة من جملتين إلى ثلاث جمل مكتملة المعنى. ${i === n - 1 ? "اختمي القصة بعبرة وسؤال للحضور." : "لا تختمين القصة، خلي الحدث مشوق للمقطع الجاي."}`, false, true);
+      const r = await ai(`${label} ${i + 1}/${n}`, `${prompt}\nقوليها مقطع مقطع. هذا المقطع ${i + 1} من ${n}. ${so ? `قلتي قبل: «${so.slice(-600)}». كملي بعده مباشرة بدون إعادة` : "ابدئي البداية"} بثلاث إلى أربع جمل قصيرة مرتبة، كل جملة حوالي عشر كلمات وتنتهي بنقطة. ${i === n - 1 ? "اختمي القصة بعبرة وسؤال للحضور." : "لا تختمين القصة، خلي الحدث مشوق للمقطع الجاي."}`, false, true);
       if (!r) break; so += " " + r; lastAct.current = Date.now();
     }
     if (storyStop.current === my) setStoryProg("");
@@ -281,7 +288,8 @@ export function LiveStudio() {
           <ul className="space-y-2">{queue.map((q) => (
             <li key={q.id} className={`rounded-xl px-3 py-2 text-sm ${q.status === "speaking" ? "bg-primary/15" : q.status === "error" ? "bg-destructive/15" : "bg-muted/50"}`}>
               <div className="flex justify-between text-xs text-muted-foreground"><span>{q.label}</span><span>{{ thinking: "💭 تفكر", ready: "⏳ بالدور", speaking: "🔊 تتكلم", error: "⚠️ خطأ" }[q.status]}</span></div>
-              {q.text && <div className="mt-1">{q.text}</div>}
+              {q.text && (editId === q.id ? <div className="mt-1 space-y-1"><Textarea value={editText} onChange={(e) => setEditText(e.target.value)} rows={2} /><div className="flex gap-1.5"><button onClick={() => { patch(q.id, { text: editText }); setEditId(""); }} className="rounded-full border border-primary px-2 py-0.5 text-xs">✅ حفظ</button><button onClick={() => setEditId("")} className="rounded-full border px-2 py-0.5 text-xs">إلغاء</button></div></div> : <div className="mt-1">{q.text}</div>)}
+              {q.status !== "thinking" && editId !== q.id && <div className="mt-1 flex gap-1.5">{q.status === "ready" && <button onClick={() => { setEditId(q.id); setEditText(q.text); }} className="rounded-full border px-2 py-0.5 text-xs">✏️ تعديل</button>}<button onClick={() => { if (q.status === "speaking") audio.current?.pause(); setQueue((l) => l.filter((x) => x.id !== q.id)); if (q.status === "speaking") { playing.current = false; setTimeout(pump, 50); } }} className="rounded-full border px-2 py-0.5 text-xs text-destructive">⏹️ إيقاف/حذف</button></div>}
             </li>))}</ul>)}
       </section>
 
