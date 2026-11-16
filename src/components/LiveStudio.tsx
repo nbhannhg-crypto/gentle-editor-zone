@@ -33,6 +33,8 @@ const NADA_CTRL: [string, string][] = [
   ["💍 طريقة التسجيل", "وجهي الحضور برقي واختصار للتسجيل عن طريق الرابط الموجود في البايو أو التواصل على الواتساب، وطمنيهم أن بياناتهم بسرية تامة."],
 ];
 const IDLE_WELCOME = ["هلا وغلا فيكم، نورتوا البث", "يا هلا بكل اللي معي، وجودكم أهم شي", "هلا والله، حياكم الله كلكم", "نورتوا يا الغاليين، الله يسعدكم", "مرحبا بكل اللي دخل واللي بيدخل", "وجودكم معي يونسني، الله يحفظكم", "حياكم الله، اكتبوا لي من وين تتابعوني", "هلا بالطيبين، لا تنسون المتابعة", "الله يسعد قلوبكم، نورتوا المكان", "يا مرحبا، سولفوا معي بالتعليقات"];
+const WELCOME_BANK = ["هلا وغلا نورتوا البث", "يا هلا بالجميع حياكم الله", "هلا كيفكم يا بعدي", "ارحبوا تراحيب المطر", "يا مسهلا بكل من دخل نورتوا المكان", "وجودكم معي أهم شي الله يسعدكم", "الله يحيي هالطلة يا مرحبا", "هلا بالطيبين نورتوا", "يا هلا ومسهلا فيكم جميع", "مساء الخير والورد على الجميع", "حياكم الله سولفوا معي بالتعليقات", "نورتوا البث يا الغاليين"];
+const WELCOME_ONE = ["يا هلا والله {name}، نورت البث", "هلا وغلا {name}، حياك الله", "يا مرحبا {name}، الله يسعدك", "هلا {name}، نورتنا والله", "حياك الله يا {name}، منور البث"];
 const GIFTS = ["وردة", "تيك توك", "قلب", "مجرة", "أسد"];
 const NAMES = ["أبو فهد", "نوف", "سلطان", "ريم", "عبدالله", "جوري", "فيصل"];
 const COMMENTS = ["وش أخبارك اليوم؟", "من وين انتي؟", "سلام عليكم", "صوتك حلو", "وش رايك بالقهوة؟"];
@@ -148,6 +150,7 @@ export function LiveStudio() {
       if (v.device && "setSinkId" in a) await (a as any).setSinkId(v.device).catch(() => {});
       // 🛡️ مؤقت أمان + لو المتصفح رفض التشغيل ما نتخطى الجملة
       const ok = await new Promise<boolean>((res) => { const max = setTimeout(() => { a.pause(); res(true); }, Math.max(60000, next.text.length * 600)); const done = () => { clearTimeout(max); res(true); }; let tries = 0; a.onended = done; a.onerror = () => { if (tries++ < 2) { const t = a.currentTime; setTimeout(() => { a.load(); a.currentTime = Math.max(0, t - 0.3); void a.play().catch(() => {}); }, 300); } else done(); }; a.play().catch(() => { clearTimeout(max); res(false); }); });
+      a.onended = a.onerror = a.onplaying = null; a.pause(); a.removeAttribute("src"); a.load(); // 🔇 إغلاق المسار = لا وشيش
       if (src.startsWith("blob:")) setTimeout(() => URL.revokeObjectURL(src), 60000);
       if (!ok) { playing.current = false; setNeedTap(true); setPaused(true); toast.error("المتصفح منع الصوت — اضغط «🔊 تفعيل الصوت»"); return; }
       recent.current = [next.text, ...recent.current].slice(0, 6);
@@ -189,7 +192,7 @@ export function LiveStudio() {
       }
       patch(id, { text: reply, status: "ready" });
       return reply;
-    } catch (e) { patch(id, { status: "error", text: (e as Error).message }); setTimeout(() => setQueue((q) => q.filter((x) => x.id !== id)), 4000); return ""; }
+    } catch { setQueue((q) => q.filter((x) => x.id !== id)); return ""; }
   };
   const [storyParts, setStoryParts] = useState<number>(() => { try { return Math.min(1000, Math.max(1, Number(localStorage.getItem("live_story_parts")) || 4)); } catch { return 4; } });
   const partsRef = useRef(storyParts); partsRef.current = storyParts;
@@ -229,7 +232,7 @@ export function LiveStudio() {
     const on = { gift: a.gifts, follow: a.follows, like: a.likes, join: a.joins, share: a.shares }[e.type as Exclude<EvType, "comment">];
     if (!on) return; cds.current.set(cdKey, now);
     const tpl = fill(st.tpl[e.type as keyof S["tpl"]], e);
-    if (a.ai) void ai(`${ICON[e.type]} ${e.user}`, `حدث في البث: ${tpl}. علّقي برد قصير جداً بدلع سعودي.`); else enqueue(`${ICON[e.type]} ${e.user}`, tpl);
+    enqueue(`${ICON[e.type]} ${e.user}`, tpl, true); // ⚡ فوري دائماً بدون ذكاء
   };
   const handleRef = useRef(handle); handleRef.current = handle;
 
@@ -326,6 +329,7 @@ export function LiveStudio() {
           <div className="mb-2 flex flex-wrap gap-1.5">{STORY_PRESETS.map((t) => <button key={t} onClick={() => { setStoryTitle(t); tellStory(t); }} className="rounded-full border px-2 py-0.5 text-xs hover:border-primary">{t}</button>)}</div>
           <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5">{NADA_CTRL.map(([l, pr]) => <button key={l} onClick={() => void chain(l, pr)} className="rounded-lg border bg-background px-2 py-2 text-xs font-medium hover:border-primary">{l}</button>)}</div>
         </div>
+        <div className="mt-3 rounded-xl border p-2"><div className="mb-1.5 text-xs font-semibold">👋 ترحيب فوري (ينطق على طول)</div><div className="flex flex-wrap gap-1.5">{WELCOME_BANK.map((q) => <button key={q} onClick={() => enqueue("👋 ترحيب", q, true)} className="rounded-full border border-primary/40 bg-background px-2.5 py-1.5 text-xs hover:bg-primary hover:text-primary-foreground">{q}</button>)}</div></div>
         <div className="mt-3 flex flex-wrap gap-1.5">{QUICK.map((q) => <button key={q} onClick={() => enqueue("⚡ سريع", q)} className="rounded-full border px-2.5 py-1 text-xs text-muted-foreground hover:border-primary hover:text-foreground">{q}</button>)}</div>
       </section>
 
@@ -348,6 +352,7 @@ export function LiveStudio() {
             <li key={e.id} className="flex items-start gap-2 rounded-lg bg-muted/40 px-2 py-1.5 text-sm">
               <span>{ICON[e.type]}</span>
               <div className="min-w-0 flex-1"><b>{e.user}</b> {e.sim && <span className="text-[10px] text-muted-foreground">(محاكاة)</span>}<div className="text-xs text-muted-foreground">{e.type === "comment" ? e.text : e.type === "gift" ? `${e.gift} ×${e.count}` : e.type === "like" ? `${e.count} لايك` : { follow: "تابع", join: "دخل البث", share: "شارك البث" }[e.type]}</div></div>
+              <button onClick={() => enqueue(`👋 ${e.user}`, rnd(WELCOME_ONE).replace("{name}", e.user), true)} className="shrink-0 rounded-full border border-primary px-2 py-0.5 text-xs text-primary">👋 رحبي</button>
               {e.type === "comment" && <button onClick={() => void ai(`💬 ${e.user}`, `${e.user} كتب: ${e.text}. ردي عليه.`, true)} className="text-xs text-primary">ردي</button>}
             </li>))}
           {events.length === 0 && <li className="py-4 text-center text-sm text-muted-foreground">ما فيه أحداث بعد — جرب المحاكاة</li>}
