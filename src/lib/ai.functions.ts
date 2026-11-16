@@ -353,8 +353,8 @@ export const fishSpeak = createServerFn({ method: "POST" })
         text: clean,
         reference_id: voiceId,
         format: "mp3", normalize: true,
-        latency: "balanced", mp3_bitrate: 128,
-        temperature: 0.3, top_p: 0.7,
+        latency: "normal", mp3_bitrate: 192,
+        temperature: 0.7, top_p: 0.7,
         prosody: { speed: data.speed, volume: data.volume },
       }),
     });

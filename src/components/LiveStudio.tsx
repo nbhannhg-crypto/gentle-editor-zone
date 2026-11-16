@@ -44,9 +44,21 @@ const SPELL_RULE = "\nمهم جداً: اكتبي كل كلمة بإملاء ع�
 let n = 0; const uid = () => `${Date.now().toString(36)}${n++}`;
 const fill = (t: string, e: Ev) => t.replace(/\{name\}/g, e.user).replace(/\{gift\}/g, e.gift ?? "").replace(/\{count\}/g, e.count && e.count > 1 ? `×${e.count}` : "");
 
+const WARM = ["يا الغالي", "يا الطيب", "يا الحبيب", "يا الغالية", "يا عسل"];
+function cleanName(nick: string, uid: string): string {
+  const pick = () => WARM[Math.floor(Math.random() * WARM.length)] ?? "يا الغالي";
+  for (const raw of [nick, uid]) {
+    const t = raw.replace(/[\p{Extended_Pictographic}\uFE0F\u200D]/gu, "").trim();
+    if (!t) continue;
+    if (/[\u0600-\u06FF]/.test(t)) { const ar = t.replace(/[^\u0600-\u06FF\s]/g, " ").replace(/\s+/g, " ").trim(); if (ar.length >= 2) return ar; continue; }
+    // اسم إنجليزي حقيقي واضح فقط: حروف بدون أرقام أو رموز، كلمة أو كلمتين
+    if (/^[A-Za-z]{2,14}( [A-Za-z]{2,14})?$/.test(t) && /[aeiouy]/i.test(t)) return t;
+  }
+  return pick();
+}
 function parseEuler(m: any): Ev | { viewers: number } | null {
   const t = String(m?.type ?? m?.event ?? "").replace(/^Webcast/, "").replace(/Message$/, "").toLowerCase();
-  const d = m?.data ?? m; const u = d?.user ?? {}; const user = String(u.nickname || u.uniqueId || "متابع"); const at = Date.now();
+  const d = m?.data ?? m; const u = d?.user ?? {}; const user = cleanName(String(u.nickname || ""), String(u.uniqueId || "")); const at = Date.now();
   if (t === "chat") return { id: uid(), type: "comment", user, text: String(d.comment ?? ""), at };
   if (t === "gift") return { id: uid(), type: "gift", user, gift: String(d.giftDetails?.giftName ?? d.giftName ?? "هدية"), count: Number(d.repeatCount ?? 1) || 1, at };
   if (t === "like") return { id: uid(), type: "like", user, count: Number(d.likeCount ?? d.count ?? 1) || 1, at };
