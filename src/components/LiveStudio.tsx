@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { fishSpeak, smartReply } from "@/lib/ai.functions";
 import { STUDIO_VOICES } from "@/lib/studio-voices";
-import { VOICE_MODELS, type VoiceModel } from "@/lib/voice-model";
+import { VOICE_MODELS, type VoiceModel, getStudioVoice } from "@/lib/voice-model";
 
 type EvType = "comment" | "gift" | "follow" | "like" | "join" | "share";
 type Ev = { id: string; type: EvType; user: string; text?: string; gift?: string; count?: number; at: number; sim?: boolean };
@@ -103,6 +103,7 @@ export function LiveStudio() {
   const recent = useRef<string[]>([]);
 
   useEffect(() => { try { const j = JSON.parse(localStorage.getItem(LS) || "{}"); setS((p) => ({ ...p, ...j, persona: { ...p.persona, ...j.persona }, voice: { ...p.voice, ...j.voice }, auto: { ...p.auto, ...j.auto }, filters: { ...p.filters, ...j.filters }, tpl: { ...p.tpl, ...j.tpl } })); } catch { /* */ } }, []);
+  useEffect(() => { const sv = getStudioVoice(); if (sv) setS((p) => ({ ...p, voice: { ...p.voice, id: sv } })); }, []);
   useEffect(() => { try { localStorage.setItem(LS, JSON.stringify(s)); } catch { /* */ } }, [s]);
   useEffect(() => () => { ws.current?.close(); audio.current?.pause(); }, []);
   const up = <K extends keyof S>(k: K, v: Partial<S[K]>) => setS((p) => ({ ...p, [k]: typeof p[k] === "object" ? { ...(p[k] as object), ...v } : v }));
@@ -113,7 +114,7 @@ export function LiveStudio() {
     const v = sRef.current.voice; const k = `${v.id}|${v.model}|${v.speed}|${v.emotion}|${text}`;
     let p = pre.current.get(text);
     if (!p) {
-      p = (async () => { const r = await Promise.race([speak({ data: { text: text.slice(0, 1400), voiceId: v.id, custom: true, model: v.model, speed: v.speed, volume: v.gain, emotion: v.emotion } }), new Promise<never>((_, rej) => setTimeout(() => rej(new Error("الصوت تأخر، انتقلنا للي بعده")), 25000))]); try { return URL.createObjectURL(await (await fetch(r.audio)).blob()); } catch { return r.audio as string; } })();
+      p = (async () => { const r = await Promise.race([speak({ data: { text: text.slice(0, 1400), voiceId: v.id, custom: true, model: v.model, speed: v.speed, volume: v.gain, emotion: v.emotion } }), new Promise<never>((_, rej) => setTimeout(() => rej(new Error("الصوت تأخر، انتقلنا للي بعده")), 25000))]); try { const d = String(r.audio); const bin = atob(d.slice(d.indexOf(",") + 1)); const u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); return URL.createObjectURL(new Blob([u8], { type: "audio/mpeg" })); } catch { return r.audio as string; } })();
       p.catch(() => pre.current.delete(text)); pre.current.set(text, p); void k;
     }
     return p;
@@ -133,7 +134,7 @@ export function LiveStudio() {
       const a = player.current ?? new Audio(); player.current = a; a.onended = a.onerror = a.onplaying = null; a.src = src; audio.current = a; a.volume = Math.max(0.05, Math.min(1, v.volume ?? 1)); a.onplaying = () => { unlocked.current = true; setNeedTap(false); patch(next.id, { status: "speaking" }); };
       if (v.device && "setSinkId" in a) await (a as any).setSinkId(v.device).catch(() => {});
       // 🛡️ مؤقت أمان + لو المتصفح رفض التشغيل ما نتخطى الجملة
-      const ok = await new Promise<boolean>((res) => { const max = setTimeout(() => { a.pause(); res(true); }, Math.max(60000, next.text.length * 600)); const done = () => { clearTimeout(max); res(true); }; a.onended = done; a.onerror = done; a.play().catch(() => { clearTimeout(max); res(false); }); });
+      const ok = await new Promise<boolean>((res) => { const max = setTimeout(() => { a.pause(); res(true); }, Math.max(60000, next.text.length * 600)); const done = () => { clearTimeout(max); res(true); }; let tries = 0; a.onended = done; a.onerror = () => { if (tries++ < 2) { const t = a.currentTime; setTimeout(() => { a.load(); a.currentTime = Math.max(0, t - 0.3); void a.play().catch(() => {}); }, 300); } else done(); }; a.play().catch(() => { clearTimeout(max); res(false); }); });
       if (src.startsWith("blob:")) setTimeout(() => URL.revokeObjectURL(src), 60000);
       if (!ok) { playing.current = false; setNeedTap(true); setPaused(true); toast.error("المتصفح منع الصوت — اضغط «🔊 تفعيل الصوت»"); return; }
       recent.current = [next.text, ...recent.current].slice(0, 6);
