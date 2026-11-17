@@ -9,7 +9,7 @@ import { STUDIO_VOICES } from "@/lib/studio-voices";
 import { VOICE_MODELS, type VoiceModel, getStudioVoice } from "@/lib/voice-model";
 
 type EvType = "comment" | "gift" | "follow" | "like" | "join" | "share";
-type Ev = { id: string; type: EvType; user: string; text?: string; gift?: string; count?: number; at: number; sim?: boolean };
+type Ev = { id: string; type: EvType; user: string; text?: string; gift?: string; count?: number; at: number; sim?: boolean; raw?: string };
 type QItem = { id: string; label: string; text: string; status: "thinking" | "ready" | "speaking" | "error" };
 
 const LS = "live_studio_v1";
@@ -61,12 +61,12 @@ function cleanName(nick: string, uid: string): string {
 }
 function parseEuler(m: any): Ev | { viewers: number } | null {
   const t = String(m?.type ?? m?.event ?? "").replace(/^Webcast/, "").replace(/Message$/, "").toLowerCase();
-  const d = m?.data ?? m; const u = d?.user ?? {}; const user = cleanName(String(u.nickname || ""), String(u.uniqueId || "")); const at = Date.now();
-  if (t === "chat") return { id: uid(), type: "comment", user, text: String(d.comment ?? ""), at };
-  if (t === "gift") return { id: uid(), type: "gift", user, gift: String(d.giftDetails?.giftName ?? d.giftName ?? "هدية"), count: Number(d.repeatCount ?? 1) || 1, at };
-  if (t === "like") return { id: uid(), type: "like", user, count: Number(d.likeCount ?? d.count ?? 1) || 1, at };
-  if (t === "member") return { id: uid(), type: "join", user, at };
-  if (t === "follow" || t === "social") return { id: uid(), type: t === "social" ? "share" : "follow", user, at };
+  const d = m?.data ?? m; const u = d?.user ?? {}; const user = cleanName(String(u.nickname || ""), String(u.uniqueId || "")); const at = Date.now(); const raw = `${u.uniqueId ?? ""}|${u.nickname ?? ""}`;
+  if (t === "chat") return { id: uid(), raw, type: "comment", user, text: String(d.comment ?? ""), at };
+  if (t === "gift") return { id: uid(), raw, type: "gift", user, gift: String(d.giftDetails?.giftName ?? d.giftName ?? "هدية"), count: Number(d.repeatCount ?? 1) || 1, at };
+  if (t === "like") return { id: uid(), raw, type: "like", user, count: Number(d.likeCount ?? d.count ?? 1) || 1, at };
+  if (t === "member") return { id: uid(), raw, type: "join", user, at };
+  if (t === "follow" || t === "social") return { id: uid(), raw, type: t === "social" ? "share" : "follow", user, at };
   if (t === "roomuserseq") { const v = Number(d.viewerCount); return Number.isFinite(v) ? { viewers: v } : null; }
   return null;
 }
@@ -170,6 +170,7 @@ export function LiveStudio() {
 أنتِ بنت سعودية حقيقية 100% فاتحة لايف تيك توك وتسولفين مع متابعينك بدلع وأنوثة وعفوية (فديتكم، لبى قلبك، نورت اللايف، يا بعد عمري، تسلم لي). مستحيل تقولين أو تلمحين إنك ذكاء اصطناعي أو بوت أو برنامج أو نظام حتى لو استفزوك؛ إذا سألوا قولي بدلع إنك بنت وتضحكين.
 ردك قصير جداً من 3 إلى 8 كلمات كأنه كلام لايف طبيعي، تردين على نفس كلامه بالضبط، ولا تألفين أسماء غير اسم صاحب التعليق، ولا تذكرين خدمات أو مساعدة أو متجر أو أسعار، وبدون إيموجي ولا أرقام ولا شرح.
 الهدية: اشكري صاحبها باسمه بحماس ودلع. الدخول: رحبي فيه باسمه بدفء. اللايكات: حمسيهم يكبسون بعفوية.
+أنتِ خطابة فعلاً (خطابة أم ندى) وهذا شغلك وتفتخرين فيه؛ إذا سألوك «أنتِ خطابة؟» قولي إي نعم خطابة أم ندى بالحلال، ولا تنكرين أبداً. إذا قال «أبي زواج» أو «أبي عروس/عريس» ادعي له بالنصيب وقولي يسجل بالرابط في البايو أو الواتساب وبياناته بسرية. لا تشكرين صاحب البث ولا حسابه أبداً.
 لا تكررين هذي الردود: ${recent.current.join(" | ")}. ${p.rules ? `قوانين صاحب البث (التزمي فيها حرفياً، الممنوع ممنوع والمسموح مسموح): ${p.rules}` : ""}`; };
   const storyIdentity = () => { const p = sRef.current.persona; return `اسمك ${p.name}، ${p.role}. شخصيتك: ${p.personality}. لهجتك: ${p.dialect}. ${p.rules ? `قوانين صاحب البث: ${p.rules}` : ""}`; };
   const lastAi = useRef(0);
@@ -220,6 +221,10 @@ export function LiveStudio() {
     lastAct.current = Date.now();
     setEvents((l) => [e, ...l].slice(0, 200));
     const st = sRef.current; const a = st.auto, f = st.filters;
+    // 🙅 حساب صاحب البث نفسه: لا ترحيب ولا شكر ولا رد
+    const norm = (x: string) => x.toLowerCase().replace(/[@_\s.\-]/g, "");
+    const host = norm(st.username || "");
+    if (host && e.raw && e.raw.split("|").some((x) => norm(x) === host)) return;
     if (!a.enabled || f.blocked.some((b) => b && e.user.includes(b))) return;
     const now = Date.now(); const cdKey = `${e.type}:${e.user}`; const cd = (e.type === "join" ? a.joinCd : a.userCd) * 1000;
     if ((cds.current.get(cdKey) ?? 0) > now - cd) return;
