@@ -47,15 +47,26 @@ const SPELL_RULE = "\nمهم جداً: اكتبي كل كلمة بإملاء ع�
 let n = 0; const uid = () => `${Date.now().toString(36)}${n++}`;
 const fill = (t: string, e: Ev) => t.replace(/\{name\}/g, e.user).replace(/\{gift\}/g, e.gift ?? "").replace(/\{count\}/g, e.count && e.count > 1 ? `×${e.count}` : "");
 
-const WARM = ["يا الغالي", "يا الطيب", "يا الحبيب", "يا الغالية", "يا عسل"];
+const WARM = ["الغالي", "الطيب", "الحبيب", "الغالية", "ضيفنا العزيز", "راعي الجود"];
+const EN_AR: Record<string, string> = { fahad: "فهد", fahd: "فهد", saud: "سعود", sara: "سارة", sarah: "سارة", khaled: "خالد", khalid: "خالد", mohammed: "محمد", mohamed: "محمد", muhammad: "محمد", ahmed: "أحمد", ahmad: "أحمد", ali: "علي", omar: "عمر", abdullah: "عبدالله", faisal: "فيصل", nasser: "ناصر", nayef: "نايف", turki: "تركي", sultan: "سلطان", majed: "ماجد", hamad: "حمد", salman: "سلمان", nora: "نورة", noura: "نورة", reem: "ريم", lama: "لمى", nada: "ندى", hind: "هند", maha: "مها", amal: "أمل", abu: "أبو", um: "أم", umm: "أم", otaibi: "العتيبي", alotaibi: "العتيبي", qahtani: "القحطاني", alqahtani: "القحطاني", harbi: "الحربي", alharbi: "الحربي", shammari: "الشمري", alshammari: "الشمري", dosari: "الدوسري", aldosari: "الدوسري", mutairi: "المطيري", almutairi: "المطيري", ghamdi: "الغامدي", alghamdi: "الغامدي", zahrani: "الزهراني", alzahrani: "الزهراني", anazi: "العنزي", alanazi: "العنزي" };
+function joinLetters(t: string): string {
+  // يدمج الحروف العربية المفردة المفرقة (خ . ا . ل . د → خالد)
+  const s = t.replace(/\u0640/g, "").replace(/[^\u0600-\u06FF]+/g, " ").trim();
+  const parts = s.split(" ").filter(Boolean);
+  const out: string[] = []; let buf = "";
+  for (const p of parts) { if (p.length <= 2 && parts.filter((x) => x.length <= 2).length >= 3) buf += p; else { if (buf) { out.push(buf); buf = ""; } out.push(p); } }
+  if (buf) out.push(buf);
+  return out.join(" ").replace(/^(ابو|أبو)(?=\S)/, "أبو ").trim();
+}
 function cleanName(nick: string, uid: string): string {
-  const pick = () => WARM[Math.floor(Math.random() * WARM.length)] ?? "يا الغالي";
+  const pick = () => WARM[Math.floor(Math.random() * WARM.length)] ?? "الغالي";
   for (const raw of [nick, uid]) {
     const t = raw.replace(/[\p{Extended_Pictographic}\uFE0F\u200D]/gu, "").trim();
     if (!t) continue;
-    if (/[\u0600-\u06FF]/.test(t)) { const ar = t.replace(/[^\u0600-\u06FF\s]/g, " ").replace(/\s+/g, " ").trim(); if (ar.length >= 2) return ar; continue; }
-    // اسم إنجليزي حقيقي واضح فقط: حروف بدون أرقام أو رموز، كلمة أو كلمتين
-    if (/^[A-Za-z]{2,14}( [A-Za-z]{2,14})?$/.test(t) && /[aeiouy]/i.test(t)) return t;
+    if (/[\u0600-\u06FF]/.test(t)) { const ar = joinLetters(t); const words = ar.split(" "); if (ar.replace(/\s/g, "").length >= 2 && words.every((w) => w.length >= 2) && words.length <= 3) return ar; continue; }
+    // اسم إنجليزي: تعريب إذا كل كلماته معروفة، وإلا لقب دافئ (ممنوع حروف إنجليزية للصوت)
+    const ws = t.toLowerCase().replace(/[-_.]+/g, " ").replace(/\bal\s+/g, "al").split(/\s+/).filter(Boolean);
+    if (ws.length && ws.length <= 3 && ws.every((w) => EN_AR[w])) return ws.map((w) => EN_AR[w]).join(" ");
   }
   return pick();
 }
