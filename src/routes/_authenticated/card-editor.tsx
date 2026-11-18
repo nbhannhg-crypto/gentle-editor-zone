@@ -17,7 +17,8 @@ export const Route = createFileRoute("/_authenticated/card-editor")({
   component: CardEditor,
 });
 
-type Box = { id: string; x: number; y: number; w: number; h: number; text: string; color: string; bg: string; size: number; erase: boolean };
+type Box = { id: string; x: number; y: number; w: number; h: number; text: string; color: string; bg: string; size: number; erase: boolean; ink?: string };
+type Stamp = { id: string; sx: number; sy: number; w: number; h: number; x: number; y: number };
 const FONT = "Tajawal, Cairo, sans-serif";
 
 function CardEditor() {
@@ -30,8 +31,12 @@ function CardEditor() {
   const moved = useRef(false);
 
   const [view, setView] = useState<string>("");
+  const [stamps, setStamps] = useState<Stamp[]>([]);
+  const [mode, setMode] = useState<"text" | "src" | "dst">("text");
+  const [stampSize, setStampSize] = useState(0.15);
+  const pending = useRef<{ sx: number; sy: number } | null>(null);
   const cur = boxes.find((b) => b.id === sel);
-  const eraseKey = boxes.filter((b) => b.erase).map((b) => [b.x, b.y, b.w, b.h].map((n) => n.toFixed(3)).join(",")).join("|");
+  const eraseKey = boxes.filter((b) => b.erase).map((b) => [b.x, b.y, b.w, b.h].map((n) => n.toFixed(3)).join(",")).join("|") + "#" + boxes.map((b) => b.ink).join(",") + "#" + stamps.map((t) => [t.sx, t.sy, t.w, t.h, t.x, t.y].join(",")).join("|");
   useEffect(() => {
     if (!src) return;
     const t = setTimeout(() => { const c = compose(); if (c) setView(c.toDataURL("image/png")); }, 120);
@@ -46,6 +51,8 @@ function CardEditor() {
     const c = document.createElement("canvas"); c.width = W; c.height = H;
     const ctx = c.getContext("2d")!; ctx.drawImage(img, 0, 0);
     for (const b of boxes) if (b.erase) inpaint(ctx, W, H, b);
+    const orig = document.createElement("canvas"); orig.width = W; orig.height = H; orig.getContext("2d")!.drawImage(img, 0, 0);
+    for (const t of stamps) ctx.drawImage(orig, t.sx * W, t.sy * H, t.w * W, t.h * H, t.x * W, t.y * H, t.w * W, t.h * H);
     return c;
   }
   const upd = (p: Partial<Box>) => setBoxes((bs) => bs.map((b) => (b.id === sel ? { ...b, ...p } : b)));
@@ -66,11 +73,19 @@ function CardEditor() {
     if (moved.current) { moved.current = false; return; }
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height;
+    if (mode === "src") { pending.current = { sx: Math.max(0, Math.min(1 - stampSize, fx - stampSize / 2)), sy: Math.max(0, Math.min(1 - stampSize, fy - stampSize / 2)) }; setMode("dst"); return; }
+    if (mode === "dst" && pending.current) {
+      const p = pending.current; const w = stampSize, h = stampSize;
+      setStamps((ss) => [...ss, { id: crypto.randomUUID(), sx: p.sx, sy: p.sy, w, h, x: Math.max(0, Math.min(1 - w, fx - w / 2)), y: Math.max(0, Math.min(1 - h, fy - h / 2)) }]);
+      pending.current = null; setMode("text"); return;
+    }
     const w = 0.4, h = 0.07;
     const x = Math.max(0, Math.min(1 - w, fx - w / 2)), y = Math.max(0, Math.min(1 - h, fy - h / 2));
     const s = sample(x > 0.02 ? x - 0.01 : x + w + 0.005, fy);
     const tc = textColor(imgRef.current!, x, y, w, h, s.bg); if (tc) s.color = tc;
-    const b: Box = { id: crypto.randomUUID(), x, y, w, h, text: "", bg: s.bg, color: s.color, size: 3.5, erase: true };
+    const th = textHeight(imgRef.current!, x, y, w, h, s.color, s.bg);
+    const size = th ? Math.max(1, Math.min(15, +(th * 100 * 1.25).toFixed(1))) : 3.5;
+    const b: Box = { id: crypto.randomUUID(), x, y, w, h, text: "", bg: s.bg, color: s.color, ink: s.color, size, erase: true };
     setBoxes((bs) => [...bs, b]); setSel(b.id);
   }
 
@@ -146,6 +161,17 @@ function CardEditor() {
           </div>
         </div>
       )}
+      {src && (
+        <div className="space-y-2 rounded-xl border bg-card p-3 text-xs">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" variant={mode === "text" ? "secondary" : "default"} onClick={() => { pending.current = null; setMode(mode === "text" ? "src" : "text"); }}>
+              {mode === "text" ? "📋 نسخ شعار/نقشة" : mode === "src" ? "اضغط على الشعار اللي تبي تنسخه" : "اضغط على المكان اللي تبي تحطه فيه"}
+            </Button>
+            {stamps.length > 0 && <Button size="sm" variant="outline" onClick={() => setStamps((ss) => ss.slice(0, -1))}>↩️ تراجع عن آخر نسخ</Button>}
+          </div>
+          <label>حجم الجزء المنسوخ <input type="range" min={0.03} max={0.5} step={0.01} value={stampSize} onChange={(e) => setStampSize(+e.target.value)} className="w-full" /></label>
+        </div>
+      )}
       {src && <Button className="w-full" onClick={download}>⬇️ تنزيل الكرت</Button>}
     </div>
   );
@@ -157,32 +183,59 @@ function toHex(c: string) {
   return "#" + m.slice(0, 3).map((n) => (+n).toString(16).padStart(2, "0")).join("");
 }
 
-function inpaint(ctx: CanvasRenderingContext2D, W: number, H: number, b: { x: number; y: number; w: number; h: number }) {
-  const x0 = Math.max(1, Math.round(b.x * W)), y0 = Math.max(1, Math.round(b.y * H));
-  const x1 = Math.min(W - 2, Math.round((b.x + b.w) * W)), y1 = Math.min(H - 2, Math.round((b.y + b.h) * H));
+function rgb(c?: string) { if (!c) return null; if (c.startsWith("#")) return [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16)); const m = c.match(/\d+/g); return m ? m.slice(0, 3).map(Number) : null; }
+
+/** Erase only the text strokes (ink-coloured pixels); every other pixel (patterns, logos) stays untouched. */
+function inpaint(ctx: CanvasRenderingContext2D, W: number, H: number, b: { x: number; y: number; w: number; h: number; ink?: string; bg?: string }) {
+  const x0 = Math.max(0, Math.round(b.x * W)), y0 = Math.max(0, Math.round(b.y * H));
+  const x1 = Math.min(W, Math.round((b.x + b.w) * W)), y1 = Math.min(H, Math.round((b.y + b.h) * H));
   const w = x1 - x0, h = y1 - y0; if (w < 2 || h < 2) return;
-  const pad = 3;
-  const ax = x0 - pad, ay = y0 - pad, aw = w + pad * 2, ah = h + pad * 2;
-  const sx = Math.max(0, ax), sy = Math.max(0, ay);
-  const data = ctx.getImageData(sx, sy, Math.min(W - sx, aw), Math.min(H - sy, ah));
-  const dw = data.width, dh = data.height, d = data.data;
-  const at = (x: number, y: number) => ((Math.max(0, Math.min(dh - 1, y)) * dw + Math.max(0, Math.min(dw - 1, x))) * 4);
-  const L = x0 - sx - 1, R = x1 - sx, T = y0 - sy - 1, B = y1 - sy;
-  const out = new Uint8ClampedArray(d);
-  for (let y = T + 1; y < B; y++) for (let x = L + 1; x < R; x++) {
-    const wl = 1 / (x - L), wr = 1 / (R - x), wt = 1 / (y - T), wb = 1 / (B - y);
-    const pl = at(L, y), pr = at(R, y), pt = at(x, T), pb = at(x, B);
-    const ws = wl + wr + wt + wb, o = at(x, y);
-    for (let k = 0; k < 3; k++) out[o + k] = (d[pl + k]! * wl + d[pr + k]! * wr + d[pt + k]! * wt + d[pb + k]! * wb) / ws;
-    out[o + 3] = 255;
+  const data = ctx.getImageData(x0, y0, w, h); const d = data.data;
+  const ink = rgb(b.ink), bg = rgb(b.bg);
+  const dist = (o: number, c: number[]) => Math.abs(d[o]! - c[0]!) + Math.abs(d[o + 1]! - c[1]!) + Math.abs(d[o + 2]! - c[2]!);
+  const mask = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) {
+    const o = i * 4;
+    if (!ink) { mask[i] = 1; continue; }
+    const di = dist(o, ink); const db = bg ? dist(o, bg) : 999;
+    if (di < 90 && di < db) mask[i] = 1;
   }
-  // light blur inside for a natural texture-free blend
-  const res = new Uint8ClampedArray(out);
-  for (let y = T + 1; y < B; y++) for (let x = L + 1; x < R; x++) {
-    const o = at(x, y);
-    for (let k = 0; k < 3; k++) { let s = 0; for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) s += out[at(x + i, y + j) + k]!; res[o + k] = s / 9; }
+  // dilate 2px to remove anti-aliased edges
+  for (let pass = 0; pass < 2; pass++) {
+    const m2 = mask.slice();
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (!mask[y * w + x]) {
+      if ((x > 0 && mask[y * w + x - 1]) || (x < w - 1 && mask[y * w + x + 1]) || (y > 0 && mask[(y - 1) * w + x]) || (y < h - 1 && mask[(y + 1) * w + x])) m2[y * w + x] = 1;
+    }
+    mask.set(m2);
   }
-  data.data.set(res); ctx.putImageData(data, sx, sy);
+  // fill masked pixels from known neighbours, layer by layer
+  let left = mask.reduce((a, v) => a + v, 0), guard = 0;
+  while (left > 0 && guard++ < 400) {
+    const fill: [number, number, number, number][] = [];
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = y * w + x; if (!mask[i]) continue;
+      let r = 0, g = 0, bb = 0, n = 0;
+      for (let j = -1; j <= 1; j++) for (let k = -1; k <= 1; k++) {
+        const xx = x + k, yy = y + j; if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+        const ii = yy * w + xx; if (mask[ii]) continue; const o = ii * 4; r += d[o]!; g += d[o + 1]!; bb += d[o + 2]!; n++;
+      }
+      if (n) fill.push([i, r / n, g / n, bb / n]);
+    }
+    if (!fill.length) break;
+    for (const [i, r, g, bb] of fill) { const o = i * 4; d[o] = r; d[o + 1] = g; d[o + 2] = bb; d[o + 3] = 255; mask[i] = 0; left--; }
+  }
+  ctx.putImageData(data, x0, y0);
+}
+
+/** Height of the original text (fraction of image width) measured from ink-coloured rows. */
+function textHeight(img: HTMLImageElement, x: number, y: number, w: number, h: number, ink: string, bg: string) {
+  const W = img.naturalWidth, H = img.naturalHeight; const c = document.createElement("canvas");
+  const pw = Math.max(1, Math.round(w * W)), ph = Math.max(1, Math.round(h * H)); c.width = pw; c.height = ph;
+  const ctx = c.getContext("2d")!; ctx.drawImage(img, x * W, y * H, pw, ph, 0, 0, pw, ph);
+  const d = ctx.getImageData(0, 0, pw, ph).data; const ic = rgb(ink), bc = rgb(bg); if (!ic || !bc) return 0;
+  let top = -1, bot = -1;
+  for (let yy = 0; yy < ph; yy++) { let hit = 0; for (let xx = 0; xx < pw; xx++) { const o = (yy * pw + xx) * 4; const di = Math.abs(d[o]! - ic[0]!) + Math.abs(d[o + 1]! - ic[1]!) + Math.abs(d[o + 2]! - ic[2]!); const db = Math.abs(d[o]! - bc[0]!) + Math.abs(d[o + 1]! - bc[1]!) + Math.abs(d[o + 2]! - bc[2]!); if (di < 90 && di < db) hit++; } if (hit > 1) { if (top < 0) top = yy; bot = yy; } }
+  return top < 0 ? 0 : (bot - top + 1) / W;
 }
 
 function textColor(img: HTMLImageElement, x: number, y: number, w: number, h: number, bg: string) {
