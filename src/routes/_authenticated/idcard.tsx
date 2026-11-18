@@ -71,9 +71,9 @@ function draw(c: HTMLCanvasElement, f: F, photo: HTMLImageElement | null) {
   // header right
   x.textAlign = "right"; x.fillStyle = "#1a7a43";
   x.font = "bold 46px 'Noto Kufi Arabic', Tahoma, sans-serif";
-  x.fillText("أم ندى", W - 230, 130);
-  x.font = "32px 'Noto Kufi Arabic', Tahoma, sans-serif"; x.fillStyle = "#3a6b4f";
-  x.fillText("خطابة أم ندى", W - 230, 185);
+  x.fillText("أم نـدى", W - 230, 130);
+  x.font = "bold 36px 'Noto Kufi Arabic', Tahoma, sans-serif"; x.fillStyle = "#3a6b4f";
+  x.fillText("الخطابة أم ندى", W - 230, 190);
   // emblem
   x.font = "120px serif"; x.textAlign = "center"; x.fillText("🌴", W - 140, 200);
   x.fillStyle = "#1a7a43"; x.font = "bold 34px serif"; x.fillText("⚔", W - 140, 225);
@@ -108,7 +108,7 @@ function draw(c: HTMLCanvasElement, f: F, photo: HTMLImageElement | null) {
     if (corner || (seed >> 16) & 1) x.fillRect(px + 10 + i * 10, qy + 10 + j * 10, 10, 10);
   }
   x.fillStyle = "#1a3b2a"; x.font = "bold 24px Tahoma"; x.textAlign = "right"; x.direction = "rtl";
-  ["تم التحقق من", "الهوية والجدية", "خطابة أم ندى"].forEach((t, i) => x.fillText(t, px + pw, qy + 40 + i * 36));
+  ["يجب التحقق", "من الرمز السريع", "قبل اعتماد", "التعامل مع الهوية"].forEach((t, i) => x.fillText(t, px + pw, qy + 32 + i * 30));
   // barcode
   for (let i = 0, bx = px; bx < px + pw; i++) {
     seed = (seed * 1103515245 + 12345) & 0x7fffffff;
@@ -141,8 +141,6 @@ function draw(c: HTMLCanvasElement, f: F, photo: HTMLImageElement | null) {
   x.direction = "rtl"; x.textAlign = "right";
   x.font = "32px Tahoma"; x.fillStyle = "#555"; x.fillText("مكان الميلاد:", W - 100, 755);
   x.font = "bold 36px Tahoma"; x.fillStyle = "#111"; x.fillText(f.place || "—", W - 340, 755);
-  x.font = "32px Tahoma"; x.fillStyle = "#555"; x.fillText("الجنسية:", W - 100, 840);
-  x.font = "bold 36px Tahoma"; x.fillStyle = "#111"; x.fillText(f.nationality || "—", W - 340, 840);
   // footer note
   x.font = "22px Tahoma"; x.fillStyle = "#6b8a77";
   x.fillText("بطاقة توثيق داخلية لمنصة خطابة أم ندى — ليست وثيقة حكومية", W - 100, 915);
