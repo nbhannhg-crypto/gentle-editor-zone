@@ -63,6 +63,8 @@ function CardEditor() {
     w = Math.min(w, W - x); h = Math.min(h, H - y); return { x, y, w, h };
   }
   const [tapCut, setTapCut] = useState(false);
+  const [z1, setZ1] = useState(1); const [z2, setZ2] = useState(1);
+  const [pan1, setPan1] = useState(false); const [pan2, setPan2] = useState(false);
   function cropRect(e: React.PointerEvent) {
     const s0 = sel2; sd.current = false; if (!s0) return;
     const im = img2Ref.current; if (!im) return; const r = rectOf(s0);
@@ -189,8 +191,17 @@ function CardEditor() {
         <input type="file" accept="image/*" className="hidden" onChange={(e) => load(e.target.files?.[0])} />
       </label>
       {src && <p className="text-xs text-muted-foreground">اضغط فوق أي كلام بالكرت ⬅️ ينمسح ويطلع لك مربع تكتب فيه. اسحب المربع لتحريكه.</p>}
+      {src && (<div className="flex flex-wrap items-center gap-1 text-xs">تكبير:
+            <Button size="sm" variant="outline" onClick={() => setZ1((v) => Math.max(1, +(v - 0.25).toFixed(2)))}>➖</Button>
+            <span className="w-10 text-center">{Math.round(z1 * 100)}%</span>
+            <Button size="sm" variant="outline" onClick={() => setZ1((v) => Math.min(5, +(v + 0.25).toFixed(2)))}>➕</Button>
+            <Button size="sm" variant="outline" onClick={() => setZ1(1)}>↺</Button>
+            <Button size="sm" variant={pan1 ? "default" : "outline"} onClick={() => setPan1((v) => !v)}>{pan1 ? "✋ وضع التحريك شغال (اضغط للتعديل)" : "✋ تحريك الصفحة"}</Button>
+          </div>
+          )}
       {src && (
-        <div style={{ containerType: "inline-size" }} className="relative select-none touch-none" onPointerMove={onMove} onPointerUp={() => { drag.current = null; odrag.current = null; }}>
+        <div className="max-h-[75vh] overflow-auto rounded-lg border" style={{ touchAction: pan1 ? "auto" : "none" }}>
+        <div style={{ containerType: "inline-size", width: `${z1 * 100}%`, pointerEvents: pan1 ? "none" : undefined }} className="relative select-none touch-none" onPointerMove={onMove} onPointerUp={() => { drag.current = null; odrag.current = null; }}>
           <img ref={imgRef} src={src} alt="" className="hidden" onLoad={() => { const c = compose(); if (c) setView(c.toDataURL("image/png")); }} />
           <img ref={viewRef} src={view || src} alt="الكرت" className="w-full rounded-lg" onClick={onImgClick} draggable={false} />
           {ovs.map((o) => (
@@ -211,6 +222,7 @@ function CardEditor() {
               {b.text}
             </div>
           ))}
+        </div>
         </div>
       )}
           {curOv && <div onClick={(e) => e.stopPropagation()} className="space-y-2 rounded-xl border bg-card p-3 text-xs">
@@ -279,12 +291,21 @@ function CardEditor() {
           </label>
           {src2 && <>
             <p className="text-muted-foreground">اسحب بإصبعك مربع حول الشعار، تأكد من التحديد، ثم اضغط «✂️ قص وإضافة للكرت». اللمس لحاله ما ينسخ شي.</p>
-            <div className="relative touch-none select-none"
+            <div className="flex flex-wrap items-center gap-1 text-xs">تكبير:
+            <Button size="sm" variant="outline" onClick={() => setZ2((v) => Math.max(1, +(v - 0.25).toFixed(2)))}>➖</Button>
+            <span className="w-10 text-center">{Math.round(z2 * 100)}%</span>
+            <Button size="sm" variant="outline" onClick={() => setZ2((v) => Math.min(5, +(v + 0.25).toFixed(2)))}>➕</Button>
+            <Button size="sm" variant="outline" onClick={() => setZ2(1)}>↺</Button>
+            <Button size="sm" variant={pan2 ? "default" : "outline"} onClick={() => setPan2((v) => !v)}>{pan2 ? "✋ وضع التحريك شغال (اضغط للتعديل)" : "✋ تحريك الصفحة"}</Button>
+          </div>
+          <div className="max-h-[70vh] overflow-auto rounded border" style={{ touchAction: pan2 ? "auto" : "none" }}>
+            <div className="relative touch-none select-none" style={{ width: `${z2 * 100}%`, pointerEvents: pan2 ? "none" : undefined }}
               onPointerDown={(e) => { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); sd.current = true; const q = p2(e); setSel2({ x0: q.x, y0: q.y, x1: q.x, y1: q.y }); }}
               onPointerMove={(e) => { if (!sd.current) return; const q = p2(e); setSel2((v) => (v ? { ...v, x1: q.x, y1: q.y } : v)); }}
               onPointerUp={cropRect}>
               <img ref={img2Ref} src={src2} alt="الصورة الثانية" draggable={false} className="w-full cursor-crosshair rounded" />
               {sel2 && img2Ref.current && (() => { const im = img2Ref.current!; const r = rectOf(sel2); return <div className="pointer-events-none absolute border-2 border-dashed border-primary bg-primary/20" style={{ left: `${(r.x / im.naturalWidth) * 100}%`, top: `${(r.y / im.naturalHeight) * 100}%`, width: `${(r.w / im.naturalWidth) * 100}%`, height: `${(r.h / im.naturalHeight) * 100}%` }} />; })()}
+            </div>
             </div>
             <div className="flex flex-wrap gap-1">شكل القص:
               {([["free", "حر ✋"], ["sq", "مربع ⬛"], ["wide", "مستطيل عرضي ▬"], ["tall", "مستطيل طولي ▮"]] as const).map(([k, l]) => <Button key={k} size="sm" variant={shape === k ? "default" : "outline"} onClick={() => setShape(k)}>{l}</Button>)}
