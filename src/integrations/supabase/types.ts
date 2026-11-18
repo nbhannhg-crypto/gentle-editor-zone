@@ -671,6 +671,8 @@ export type Database = {
       }
       marriage_wa_settings: {
         Row: {
+          card_customer: boolean
+          card_note: string
           enabled: boolean
           instance: string
           learned: Json
@@ -681,6 +683,8 @@ export type Database = {
           welcome: string
         }
         Insert: {
+          card_customer?: boolean
+          card_note?: string
           enabled?: boolean
           instance?: string
           learned?: Json
@@ -691,6 +695,8 @@ export type Database = {
           welcome?: string
         }
         Update: {
+          card_customer?: boolean
+          card_note?: string
           enabled?: boolean
           instance?: string
           learned?: Json
@@ -1358,6 +1364,7 @@ export type Database = {
         }[]
       }
       ensure_wallet: { Args: { _store: string }; Returns: number }
+      get_marriage_card_setting: { Args: { _store: string }; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

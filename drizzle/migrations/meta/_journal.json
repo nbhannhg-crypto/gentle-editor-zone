@@ -162,6 +162,13 @@
       "when": 1794767415166,
       "tag": "0022_marriage_trash_and_pause",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1794964416917,
+      "tag": "0023_marriage_card_settings",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { MarriageWaPanel } from "@/components/MarriageWaPanel";
+import { MarriageCardView } from "@/components/MarriageCard";
+import { CardSettings } from "@/components/MarriageCardSettings";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { M_ALL, M_CORE, M_SECTIONS, M_SOURCE, M_STATUS, publicCardText } from "@/lib/marriage";
@@ -101,6 +103,7 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
         ))}
       </div>
 
+      {storeId && <CardSettings storeId={storeId} />}
       <details className="rounded-2xl border bg-card p-3">
         <summary className="cursor-pointer font-semibold">📥 لصق وفرز رسالة عميل (للي يخافون من الروابط)</summary>
         <p className="mt-1 text-xs text-muted-foreground">الصق كلام العميل كامل مثل ما أرسله بالواتساب أو تيك توك، والنظام يرتبه في الاستمارة.</p>
@@ -193,7 +196,8 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
 
       {card && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/50 p-3" onClick={() => setCard(null)}>
-          <div dir="rtl" className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+          <div dir="rtl" className="max-h-[95vh] w-full max-w-md overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-3 rounded-3xl bg-background p-3"><b className="mb-2 block text-center text-sm text-primary">👑 الكرت الملكي</b><MarriageCardView code={card.code} gender={card.gender} data={card.data} /></div>
             <div className="rounded-3xl border-4 border-gold bg-royal p-5 text-primary-foreground shadow-soft">
               <div className="text-center text-3xl">👑</div>
               <h3 className="text-center font-display text-xl">{card.gender === "female" ? "عروس للزواج" : "عريس للزواج"}</h3>

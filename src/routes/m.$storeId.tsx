@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { MarriageCardView } from "@/components/MarriageCard";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { M_SECTIONS } from "@/lib/marriage";
@@ -33,6 +34,8 @@ function FormPage() {
   const [busy, setBusy] = useState(false);
   const [code, setCode] = useState("");
   const [agree, setAgree] = useState(false);
+  const [cardCfg, setCardCfg] = useState<{ allow: boolean; note: string } | null>(null);
+  useEffect(() => { if (!code) return; void supabase.rpc("get_marriage_card_setting", { _store: storeId }).then(({ data }) => setCardCfg((data as { allow: boolean; note: string } | null) ?? { allow: true, note: "" })); }, [code, storeId]);
   const sec = M_SECTIONS[step] ?? M_SECTIONS[0]!;
   const last = step === M_SECTIONS.length - 1;
   const set = (k: string, v: string) => setD((p) => ({ ...p, [k]: v.slice(0, 600) }));
@@ -78,6 +81,15 @@ function FormPage() {
             <p className="mt-4 text-sm leading-7">سوف يتم التواصل معك قريباً بإذن الله عبر <b>الواتساب</b> أو عن طريق <b>حساب المنصة</b> التي سجلت منها.</p>
             <p className="mt-2 text-xs text-muted-foreground">لا حاجة لإرسال الطلب مرة ثانية • بياناتك الخاصة ما تنشر أبداً 🤍</p>
           </div>
+        ) : null}
+        {code && cardCfg?.allow ? (
+          <div className="mt-4 rounded-3xl border-2 border-gold bg-card p-3 shadow-soft">
+            <p className="mb-2 text-center text-sm font-bold text-primary">👑 كرت طلبك الرسمي — احفظه عندك</p>
+            <MarriageCardView code={code} gender={gender} data={d} note={cardCfg.note} allowPrivate defaultMode="private" />
+          </div>
+        ) : null}
+        {code ? null : false ? (
+          <div />
         ) : (
           <div className="mt-5 rounded-3xl border bg-card p-4 shadow-soft sm:p-6">
             <div className="mb-4 flex gap-1">{M_SECTIONS.map((_, i) => <div key={i} className={`h-1.5 flex-1 rounded-full ${i <= step ? "bg-primary" : "bg-muted"}`} />)}</div>
