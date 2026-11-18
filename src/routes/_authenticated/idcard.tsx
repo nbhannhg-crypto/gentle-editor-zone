@@ -103,7 +103,7 @@ function draw(c: HTMLCanvasElement, f: F, photo: HTMLImageElement | null) {
   for (let i = 0; i < 12; i++) for (let j = 0; j < 12; j++) {
     seed = (seed * 1103515245 + 12345) & 0x7fffffff;
     const corner = (i < 3 && j < 3) || (i > 8 && j < 3) || (i < 3 && j > 8);
-    if (corner || seed % 2) x.fillRect(px + 10 + i * 10, qy + 10 + j * 10, 10, 10);
+    if (corner || (seed >> 16) & 1) x.fillRect(px + 10 + i * 10, qy + 10 + j * 10, 10, 10);
   }
   x.fillStyle = "#1a3b2a"; x.font = "bold 24px Tahoma"; x.textAlign = "right"; x.direction = "rtl";
   ["تم التحقق من", "الهوية والجدية", "خطابة أم ندى"].forEach((t, i) => x.fillText(t, px + pw, qy + 40 + i * 36));
