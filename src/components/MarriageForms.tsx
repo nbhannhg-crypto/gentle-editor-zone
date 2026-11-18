@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { MarriageWaPanel } from "@/components/MarriageWaPanel";
 import { MarriageCardView } from "@/components/MarriageCard";
-import { CardSettings } from "@/components/MarriageCardSettings";
+import { CardSettings, loadCardCfg } from "@/components/MarriageCardSettings";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { M_ALL, M_CORE, M_SECTIONS, M_SOURCE, M_STATUS, publicCardText } from "@/lib/marriage";
@@ -17,6 +17,8 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
   const [st, setSt] = useState("all");
   const [open, setOpen] = useState<Row | null>(null);
   const [card, setCard] = useState<Row | null>(null);
+  const [cardCfg, setCardCfg] = useState<Awaited<ReturnType<typeof loadCardCfg>> | null>(null);
+  useEffect(() => { if (storeId) void loadCardCfg(storeId).then(setCardCfg); }, [storeId, card]);
   const [all, setAll] = useState(false);
   const [paste, setPaste] = useState("");
   const [parsed, setParsed] = useState<{ gender: string; fields: Record<string, string> } | null>(null);
@@ -197,7 +199,7 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
       {card && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/50 p-3" onClick={() => setCard(null)}>
           <div dir="rtl" className="max-h-[95vh] w-full max-w-md overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="mb-3 rounded-3xl bg-background p-3"><b className="mb-2 block text-center text-sm text-primary">👑 الكرت الملكي</b><MarriageCardView code={card.code} gender={card.gender} data={card.data} /></div>
+            <div className="mb-3 rounded-3xl bg-background p-3"><b className="mb-2 block text-center text-sm text-primary">👑 الكرت الملكي</b><MarriageCardView code={card.code} gender={card.gender} data={card.data} note={cardCfg?.note} opts={cardCfg?.opts} /></div>
             <div className="rounded-3xl border-4 border-gold bg-royal p-5 text-primary-foreground shadow-soft">
               <div className="text-center text-3xl">👑</div>
               <h3 className="text-center font-display text-xl">{card.gender === "female" ? "عروس للزواج" : "عريس للزواج"}</h3>

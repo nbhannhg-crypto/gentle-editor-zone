@@ -34,7 +34,7 @@ function FormPage() {
   const [busy, setBusy] = useState(false);
   const [code, setCode] = useState("");
   const [agree, setAgree] = useState(false);
-  const [cardCfg, setCardCfg] = useState<{ allow: boolean; note: string } | null>(null);
+  const [cardCfg, setCardCfg] = useState<{ allow: boolean; note: string; opts?: import("@/components/MarriageCard").CardOpts } | null>(null);
   useEffect(() => { if (!code) return; void supabase.rpc("get_marriage_card_setting", { _store: storeId }).then(({ data }) => setCardCfg((data as { allow: boolean; note: string } | null) ?? { allow: true, note: "" })); }, [code, storeId]);
   const sec = M_SECTIONS[step] ?? M_SECTIONS[0]!;
   const last = step === M_SECTIONS.length - 1;
@@ -85,7 +85,7 @@ function FormPage() {
         {code && cardCfg?.allow ? (
           <div className="mt-4 rounded-3xl border-2 border-gold bg-card p-3 shadow-soft">
             <p className="mb-2 text-center text-sm font-bold text-primary">👑 كرت طلبك الرسمي — احفظه عندك</p>
-            <MarriageCardView code={code} gender={gender} data={d} note={cardCfg.note} allowPrivate defaultMode="private" />
+            <MarriageCardView code={code} gender={gender} data={d} note={cardCfg.note} opts={cardCfg.opts} allowPrivate defaultMode="private" />
           </div>
         ) : null}
         {code ? null : false ? (
