@@ -50,7 +50,7 @@ function CardEditor() {
     const w = 0.4, h = 0.07;
     const x = Math.max(0, Math.min(1 - w, fx - w / 2)), y = Math.max(0, Math.min(1 - h, fy - h / 2));
     const s = sample(x > 0.02 ? x - 0.01 : x + w + 0.005, fy);
-    const b: Box = { id: crypto.randomUUID(), x, y, w, h, text: "", bg: s.bg, color: s.color, size: 5, erase: true };
+    const b: Box = { id: crypto.randomUUID(), x, y, w, h, text: "", bg: s.bg, color: s.color, size: 3.5, erase: true };
     setBoxes((bs) => [...bs, b]); setSel(b.id);
   }
 
