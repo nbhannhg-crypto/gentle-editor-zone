@@ -316,7 +316,11 @@ function textColor(img: HTMLImageElement, x: number, y: number, w: number, h: nu
 function cleanBg(ctx: CanvasRenderingContext2D, w: number, h: number) {
   const im = ctx.getImageData(0, 0, w, h), d = im.data;
   const cs = [0, (w - 1) * 4, (h - 1) * w * 4, ((h - 1) * w + w - 1) * 4];
-  const bg = [0, 1, 2].map((k) => cs.reduce((a, o) => a + d[o + k]!, 0) / 4);
+  const cd = (a: number, b: number) => Math.abs(d[a]! - d[b]!) + Math.abs(d[a + 1]! - d[b + 1]!) + Math.abs(d[a + 2]! - d[b + 2]!);
+  const best = cs.reduce((p, o) => (cs.filter((q) => cd(o, q) < 40).length > cs.filter((q) => cd(p, q) < 40).length ? o : p), cs[0]!);
+  const bg = [d[best]!, d[best + 1]!, d[best + 2]!];
+  let gone = 0; for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i]! - bg[0]!) + Math.abs(d[i + 1]! - bg[1]!) + Math.abs(d[i + 2]! - bg[2]!) < 40) gone++;
+  if (gone > (d.length / 4) * 0.99) return; // crop is all logo — keep it as is
   for (let i = 0; i < d.length; i += 4) {
     const df = Math.abs(d[i]! - bg[0]!) + Math.abs(d[i + 1]! - bg[1]!) + Math.abs(d[i + 2]! - bg[2]!);
     if (df < 40) d[i + 3] = 0; else if (df < 90) d[i + 3] = Math.round(((df - 40) / 50) * d[i + 3]!);
