@@ -7,6 +7,7 @@ import roseUrl from "@/assets/card-rose.png";
 type D = Record<string, string | undefined>;
 const W = 1080;
 const C = { navy: "#0b1f4d", royal: "#14337a", sky: "#e8efff", gold: "#d4a537", gold2: "#f3d27a", green: "#006c35", white: "#ffffff", ink: "#0b1f4d" };
+export const EXTRA_KEYS = new Set(["skin", "religion", "traits", "housing", "after", "moveCity", "pNationality", "pMarital", "pEdu", "pLooks", "pNo", "tribe", "prev", "jobStatus", "hobbies", "abroad", "extra"]);
 const PRIVATE = new Set(["name", "phone", "phone2", "handle", "district", "tribe"]);
 
 const SECTIONS: { t: string; f: [string, string][] }[] = [
@@ -28,9 +29,9 @@ function wrap(x: CanvasRenderingContext2D, t: string, max: number, lines: number
   return out;
 }
 
-export type CardOpts = { terms?: boolean; socials?: boolean; tagline?: string; badge?: string; live?: string; footer?: string; handle?: string; whatsapp?: string; termsText?: string; style?: "royal" | "classic"; customer?: "save" | "view" };
+export type CardOpts = { terms?: boolean; socials?: boolean; tagline?: string; badge?: string; live?: string; footer?: string; handle?: string; whatsapp?: string; termsText?: string; extras?: boolean; style?: "royal" | "classic"; customer?: "save" | "view" };
 export const CARD_DEFAULTS: Required<CardOpts> = {
-  terms: true, socials: true, style: "royal", customer: "save",
+  terms: true, socials: true, extras: true, style: "royal", customer: "save",
   tagline: "كل شيء بالحلال وبالتسهيل",
   badge: "خدمتنا لكم بكل ثقة",
   live: "نفتح بث مباشر يومياً على تيك توك 🔴 تابعنا",
@@ -161,7 +162,7 @@ function render(x: CanvasRenderingContext2D, H: number, o: { code: string; gende
 
   let y = 500; const pad = 56, gap = 16, colW = (W - pad * 2 - gap) / 2, rowH = 44;
   SECTIONS.forEach((s, si) => {
-    const items = s.f.filter(([k]) => !(o.mode === "public" && PRIVATE.has(k)));
+    const items = s.f.filter(([k]) => !(o.mode === "public" && PRIVATE.has(k)) && !(!op.extras && EXTRA_KEYS.has(k)));
     if (!items.length) return;
     x.font = "800 27px Tajawal"; const tw = Math.min(W - 200, x.measureText(s.t).width + 110);
     navyBar(x, W / 2 - tw / 2, y, tw, 50); x.fillStyle = C.white; x.textAlign = "center"; x.fillText(s.t, W / 2 - 18, y + 35); iconDot(x, W / 2 + tw / 2 - 30, y + 25, 19, SEC_ICON[si] || "⭐"); y += 62;

@@ -7,7 +7,7 @@ const CANCEL = /^(الغاء|إلغاء|وقف|cancel)$/i;
 const SKIP = /^(تخطي|تخطى|سكب|-)$/;
 const BACK = /^(رجوع|ارجع|السابق)$/;
 
-export type WaStep = { k: string; q: string; opts?: string[]; hint?: string; why?: string };
+export type WaStep = { k: string; q: string; opts?: string[]; hint?: string; why?: string; x?: boolean };
 export const WA_STEPS: WaStep[] = [
   { k: "gender", q: "يا هلا ومسهلا فيك مع خطابة أم ندى 🤍\nهنا نسجل بياناتك عشان نبحث لك عن الشريك المناسب بإذن الله 💍\n🔒 كل معلوماتك سرية ومحفوظة عندنا، ما تنشر ولا تنعطى لأحد إلا بموافقتك.\n✅ خطابة موثوقة ونتعامل بوضوح وأمانة.\n⚠️ نرجو منك الجدية التامة وكتابة معلومات حقيقية بأمانة؛ لأنها أمانة ونبني عليها التوفيق بإذن الله.\n\nأول سؤال: أنت عريس ولا عروس؟", opts: ["عريس", "عروس"], hint: "اكتب 1 أو 2، أو اكتب: عريس / عروس", why: "عشان نعرف نبحث لك عن الطرف المناسب" },
   { k: "name", q: "الاسم الحقيقي والكنية (يبقى سري ولا ينشر) ✍️", hint: "اكتب اسمك الحقيقي مع الكنية، مثال: محمد عبدالله - أبو فهد / سارة أحمد - أم ريان", why: "الاسم الحقيقي للتوثيق والتعامل معك فقط وما ينشر أبد" },
@@ -30,6 +30,18 @@ export const WA_STEPS: WaStep[] = [
   { k: "pCity", q: "المدينة أو البلد المفضل للطرف الثاني؟", hint: "مثال: الرياض أو أي مدينة بالسعودية — أو: ما يهم", why: "عشان نحدد مكان البحث" },
   { k: "pTraits", q: "الصفات والمواصفات اللي تبحث عنها؟", hint: "اشرح وصف شريكة/شريك حياتك: الشكل (الطول، البشرة، الجسم)، الأخلاق، الالتزام، الطباع. مثال: متوسطة الطول، بيضاء، ملتزمة، هادية وحنونة، تحب الاستقرار", why: "عشان نبحث لك عن المواصفات اللي تبيها بالضبط" },
   { k: "pTerms", q: "شروطك الأساسية؟", hint: "مثال: سكن مستقل، تكمل دراستها — أو: لا يوجد", why: "الشروط نوضحها للطرف الثاني من البداية" },
+  { k: "skin", x: true, q: "لون البشرة؟", opts: ["أبيض", "حنطي فاتح", "حنطي", "أسمر"], hint: "اكتب الرقم، مثال: 2", why: "من المواصفات اللي يسأل عنها الطرف الثاني" },
+  { k: "religion", x: true, q: "مستوى الالتزام الديني؟", opts: ["ملتزم بالفرائض", "محافظ", "عادي"], hint: "اكتب الرقم، مثال: 1", why: "الالتزام مهم للتوافق" },
+  { k: "traits", x: true, q: "وش أقرب وصف لشخصيتك؟", opts: ["هادئ وحنون", "مرح واجتماعي", "بيتوتي مستقر"], hint: "اكتب الرقم أو اكتب صفاتك", why: "عشان الطرف الثاني يعرف طبعك" },
+  { k: "housing", x: true, q: "سكنك الحالي؟", opts: ["سكن ملك", "إيجار", "مع الأهل"], hint: "اكتب الرقم، مثال: 1", why: "الاستقرار السكني يطمن الطرف الثاني" },
+  { k: "after", x: true, q: "السكن بعد الزواج؟", opts: ["سكن مستقل", "مع العائلة", "حسب الاتفاق"], hint: "اكتب الرقم، مثال: 1", why: "عشان نوضحه للطرف الثاني من البداية" },
+  { k: "moveCity", x: true, q: "مستعد تنتقل لمدينة ثانية؟", opts: ["نعم مستعد", "لا", "حسب الظروف"], hint: "اكتب الرقم، مثال: 3", why: "يوسع فرص البحث لك" },
+  { k: "pNationality", x: true, q: "جنسية الطرف الثاني المطلوبة؟", opts: ["سعودي/ة", "مقيم/ة", "لا يهم"], hint: "اكتب الرقم، مثال: 3", why: "عشان نحدد البحث" },
+  { k: "pMarital", x: true, q: "الحالة الاجتماعية للطرف الثاني؟", opts: ["أعزب / عزباء", "مطلق / مطلقة", "أرمل / أرملة", "لا يهم"], hint: "اكتب الرقم، مثال: 4", why: "عشان نحدد البحث" },
+  { k: "pEdu", x: true, q: "التعليم المطلوب للطرف الثاني؟", opts: ["جامعي فأعلى", "ثانوي فأعلى", "لا يهم"], hint: "اكتب الرقم، مثال: 3", why: "بعض الناس تهتم بالتعليم" },
+  { k: "pLooks", x: true, q: "المواصفات الشكلية المطلوبة؟", opts: ["جميل/ة", "متوسط/ة ورشيق/ة", "لا يهم"], hint: "اكتب الرقم أو اكتب وصفك", why: "عشان نبحث لك بالضبط" },
+  { k: "pNo", x: true, q: "أمور ما تتنازل عنها؟", opts: ["لا يدخن", "تكمل دراستها / عملها", "لا يوجد"], hint: "اكتب الرقم أو اكتب شرطك", why: "نوضحها للطرف الثاني من البداية" },
+  { k: "tribe", x: true, q: "العائلة / القبيلة؟ (اختياري وسري) 🔒", hint: "اكتب اسم القبيلة أو اكتب: تخطي", why: "تبقى سرية ولا تنشر" },
   { k: "platform", q: "من أي منصة وصلت لنا؟ 📱", opts: ["تيك توك", "سناب شات", "إنستقرام", "إكس (تويتر)", "واتساب", "تلجرام", "فيسبوك", "يوتيوب", "أخرى"], hint: "اكتب رقم المنصة، مثال: 1 = تيك توك", why: "عشان نعرف من وين تواصلت معنا ونتابعك منها" },
   { k: "handle", q: "اسم حسابك في البرنامج اللي جيت منه؟ 🤍", hint: "مثل: محمد، أبو فهد، ندى — أي اسم مكتوب في صفحتك. إذا ما تعرف اكتب: ما أعرف", why: "بس عشان نعرف نتابعك من نفس البرنامج اللي شفتنا فيه، ما نطلب أي دخول لحسابك" },
   { k: "via", q: "كيف عرفتنا؟ شفت إعلان أو بث أو جيت عن طريق خطابة؟", opts: ["شفت إعلان", "بث مباشر", "عن طريق خطابة", "صديق أو قريب", "بحث بنفسي"], hint: "اكتب الرقم، مثال: 3 = عن طريق خطابة", why: "عشان نعرف المصدر ونخدمك أفضل" },
@@ -48,7 +60,7 @@ const norm = (s: string) => s.replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").re
 export function askText(st: WaStep, cfg: Settings | null, first: boolean, done: number): string {
   let q = (cfg?.questions?.[st.k] || "").trim() || st.q;
   if (first && cfg?.welcome?.trim() && st.k === "gender") q = `${cfg.welcome.trim()}\n\n${q.replace(/^[\s\S]*?\n\n/, "")}`;
-  const progress = done > 0 ? `(${done}/${WA_STEPS.length}) ` : "";
+  const total = WA_STEPS.filter((x) => !x.x || extrasOn(cfg)).length; const progress = done > 0 ? `(${Math.min(done, total)}/${total}) ` : "";
   const opts = st.opts?.length ? "\n\n" + st.opts.map((o, i) => `${i + 1}️⃣ ${o}`).join("\n") : "";
   const hint = st.hint ? `\n\n💡 ${st.hint}` : "";
   const help = first ? "\n\n(تقدر تكتب «تخطي» لأي سؤال، «رجوع» للسابق، «فهمني» للشرح، أو «الغاء» للإيقاف)" : "";
@@ -147,8 +159,10 @@ function quickNum(step: WaStep, t: string): string | null {
   return null;
 }
 
-const nextIdx = (from: number, data: Record<string, string>, gender: string) => {
+export const extrasOn = (cfg: { questions?: Record<string, string> } | null | undefined) => cfg?.questions?.["__extras"] !== "off";
+const nextIdx = (from: number, data: Record<string, string>, gender: string, cfg?: Settings | null) => {
   for (let i = from; i < WA_STEPS.length; i++) {
+    if (WA_STEPS[i]!.x && !extrasOn(cfg)) continue;
     const k = WA_STEPS[i]!.k;
     if (k === "gender" ? !gender : !(k in data)) return i;
   }
@@ -251,10 +265,10 @@ export async function handleMarriageWa(db: any, instance: string, number: string
       }
       if (!data[step.k]) {
         const xk = `_x_${step.k}`;
-        if (DUNNO.test(norm(t))) { data[step.k] = ""; delete data[xk]; const nx = nextIdx(s.step + 1, data, gender); if (nx < WA_STEPS.length) { await save(nx); return `ولا يهمك يا بعد راسي ما هي مشكلة 🤍\n\n${askText(WA_STEPS[nx]!, cfg, false, answered())}`; } }
+        if (DUNNO.test(norm(t))) { data[step.k] = ""; delete data[xk]; const nx = nextIdx(s.step + 1, data, gender, cfg); if (nx < WA_STEPS.length) { await save(nx); return `ولا يهمك يا بعد راسي ما هي مشكلة 🤍\n\n${askText(WA_STEPS[nx]!, cfg, false, answered())}`; } }
         const it = await fast(understand(step, t, !!cfg?.smart), understandLocal(step, t));
         const confused = it.kind === "explain" || it.kind === "question" || (it.kind === "answer" && INQ.test(norm(it.value || t)) && (it.value || t).length < 30);
-        if (confused && data[xk]) { data[step.k] = ""; delete data[xk]; const nx = nextIdx(s.step + 1, data, gender); if (nx < WA_STEPS.length) { await save(nx); return `ولا يهمك، نتخطاه ونكمل 🤍\n\n${askText(WA_STEPS[nx]!, cfg, false, answered())}`; } }
+        if (confused && data[xk]) { data[step.k] = ""; delete data[xk]; const nx = nextIdx(s.step + 1, data, gender, cfg); if (nx < WA_STEPS.length) { await save(nx); return `ولا يهمك، نتخطاه ونكمل 🤍\n\n${askText(WA_STEPS[nx]!, cfg, false, answered())}`; } }
         if (confused) { data[xk] = "1"; await save(s.step); }
         const again = askText(step, cfg, false, answered());
         if (it.kind === "answer" && INQ.test(norm(it.value || t)) && (it.value || t).length < 30) return `يا بعد راسي 🤍 ${step.why ?? "هالمعلومة تساعدنا نوفق لك صح"}.\n\n↩️ ${again}`;
@@ -267,8 +281,9 @@ export async function handleMarriageWa(db: any, instance: string, number: string
     }
   }
 
-  const next = nextIdx(s.step + 1, data, gender);
+  const next = nextIdx(s.step + 1, data, gender, cfg);
   if (next >= WA_STEPS.length) {
+    if (!data["prev"] && data["marital"]) data["prev"] = /أعزب|عزباء/.test(data["marital"]) ? "لا" : "نعم";
     if (!data["platform"]) data["platform"] = "واتساب"; if (!data["phone"] || data["phone"].replace(/\D/g, "").length < 8) data["phone"] = phone; data["waPhone"] = phone; data["source"] = "تسجيل واتساب تفاعلي";
     for (const k of Object.keys(data)) if (data[k] === "" || k.startsWith("_x_")) delete data[k];
     if (sim) {

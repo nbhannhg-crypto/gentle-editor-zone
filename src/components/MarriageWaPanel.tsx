@@ -140,6 +140,10 @@ export function MarriageWaPanel({ storeId, copy }: { storeId?: string | undefine
         <label className="block text-xs"><span className="text-muted-foreground">👋 رسالة الترحيب (اختياري)</span>
           <textarea defaultValue={cfg.welcome} key={cfg.welcome} onBlur={(e) => e.target.value !== cfg.welcome && void save({ ...cfg, welcome: e.target.value })} rows={2} placeholder="مثال: يا هلا فيك مع خطابة أم ندى 🤍 بياناتك سرية تماماً" className="mt-0.5 w-full rounded-lg border bg-background p-2 text-sm" />
         </label>
+        <label className="flex items-center justify-between gap-2 rounded-xl border p-2 text-xs">
+          <span>➕ الأسئلة الإضافية بالأرقام (البشرة، الالتزام، السكن، مواصفات الشريك، القبيلة... 12 سؤال)</span>
+          <button onClick={() => { const q = { ...cfg.questions }; if (q["__extras"] === "off") delete q["__extras"]; else q["__extras"] = "off"; void save({ ...cfg, questions: q }); }} className={`rounded-full px-3 py-1 text-xs font-bold ${cfg.questions["__extras"] === "off" ? "bg-muted" : "bg-primary text-primary-foreground"}`}>{cfg.questions["__extras"] === "off" ? "مخفية" : "ظاهرة"}</button>
+        </label>
         <button onClick={() => copy("للتسجيل بسرية وبدون روابط، اكتب لنا بالواتساب كلمة: تسجيل 🤍")} className="rounded-xl border px-3 py-1.5 text-xs">📋 نسخ رسالة دعوة العميل</button>
       </div>}
 

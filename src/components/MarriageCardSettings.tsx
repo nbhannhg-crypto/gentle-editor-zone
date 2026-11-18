@@ -28,7 +28,7 @@ export function CardSettings({ storeId }: { storeId: string }) {
     setBusy(false); if (error) toast.error("ما انحفظ الإعداد"); else if (partial) toast.message("انحفظ التشغيل والرسالة، ونصوص الكرت تنحفظ بعد دقائق — جرّب مرة ثانية"); else toast.success("انحفظ ✅");
   };
   const set = <K extends keyof CardOpts>(k: K, v: Required<CardOpts>[K]) => setO((p) => ({ ...p, [k]: v }));
-  const Tg = ({ on, label, k }: { on: boolean; label: string; k: "terms" | "socials" }) => (
+  const Tg = ({ on, label, k }: { on: boolean; label: string; k: "terms" | "socials" | "extras" }) => (
     <label className="mt-2 flex items-center justify-between gap-2 text-sm"><span>{label}</span>
       <button disabled={busy} onClick={() => { const n = { ...o, [k]: !on }; setO(n); void save(allow, n); }} className={`rounded-full px-4 py-1 text-xs font-bold ${on ? "bg-primary text-primary-foreground" : "bg-muted"}`}>{on ? "ظاهر" : "مخفي"}</button></label>
   );
@@ -49,6 +49,7 @@ export function CardSettings({ storeId }: { storeId: string }) {
         <div className="mt-1 grid grid-cols-2 gap-1">{([["royal", "👑 الملكي الفاخر"], ["classic", "📜 الكلاسيكي"]] as const).map(([id, l]) => <button key={id} disabled={busy} onClick={() => { const n = { ...o, style: id }; setO(n); void save(allow, n); }} className={`rounded-xl border px-1 py-2 text-xs font-bold ${o.style === id ? "bg-gold text-accent-foreground" : "bg-background"}`}>{l}</button>)}</div></div>
       <Tg on={o.terms} label="🤝 مربع «شروطنا الواضحة بالحلال»" k="terms" />
       <Tg on={o.socials} label="📱 أيقونات منصات التواصل أسفل الكرت" k="socials" />
+      <Tg on={o.extras} label="➕ الخانات الإضافية (البشرة، الالتزام، السكن، مواصفات الشريك...)" k="extras" />
       <div className="mt-3 rounded-xl bg-muted/40 p-2">
         <b className="text-xs">✍️ نصوص الكرت (تقدر تغيّرها)</b>
         {F({ k: "live", label: "سطر إعلان مميز (مثل البث المباشر)", ph: "نفتح بث مباشر يومياً" })}
@@ -62,7 +63,7 @@ export function CardSettings({ storeId }: { storeId: string }) {
           <input value={note} maxLength={160} onChange={(e) => setNote(e.target.value)} className="mt-1 w-full rounded-lg border bg-background p-2 text-sm text-foreground" /></label>
         <div className="mt-2 flex gap-2">
           <button disabled={busy} onClick={() => void save()} className="flex-1 rounded-xl bg-primary px-4 py-2 text-sm text-primary-foreground">💾 حفظ النصوص</button>
-          <button onClick={() => setO({ ...CARD_DEFAULTS, terms: o.terms, socials: o.socials, style: o.style, customer: o.customer })} className="rounded-xl border px-3 py-2 text-xs">↩️ الافتراضي</button>
+          <button onClick={() => setO({ ...CARD_DEFAULTS, terms: o.terms, socials: o.socials, extras: o.extras, style: o.style, customer: o.customer })} className="rounded-xl border px-3 py-2 text-xs">↩️ الافتراضي</button>
         </div>
       </div>
       <details className="mt-3"><summary className="cursor-pointer text-sm font-bold text-primary">👁️ معاينة الكرت</summary>
