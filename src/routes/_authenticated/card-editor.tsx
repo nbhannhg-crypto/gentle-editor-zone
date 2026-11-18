@@ -37,10 +37,10 @@ function CardEditor() {
     const ctx = c.getContext("2d")!; ctx.drawImage(img, 0, 0);
     const px = Math.max(0, Math.min(c.width - 1, Math.round(fx * c.width)));
     const py = Math.max(0, Math.min(c.height - 1, Math.round(fy * c.height)));
-    const d = ctx.getImageData(px, py, 1, 1).data;
+    const d = Array.from(ctx.getImageData(px, py, 1, 1).data) as number[]; const [r0 = 0, g0 = 0, b0 = 0] = d;
     // pick text color as contrast
-    const lum = 0.299 * d[0] + 0.587 * d[1] + 0.114 * d[2];
-    return { bg: `rgb(${d[0]},${d[1]},${d[2]})`, color: lum > 140 ? "#1a1a1a" : "#ffffff" };
+    const lum = 0.299 * r0 + 0.587 * g0 + 0.114 * b0;
+    return { bg: `rgb(${r0},${g0},${b0})`, color: lum > 140 ? "#1a1a1a" : "#ffffff" };
   }
 
   function onImgClick(e: React.MouseEvent) {
