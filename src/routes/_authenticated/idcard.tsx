@@ -34,6 +34,31 @@ const LABELS: [keyof F, string, string][] = [
 const AR = (s: string) => s.replace(/\d/g, (d) => "٠١٢٣٤٥٦٧٨٩"[+d] ?? d);
 const W = 1600, H = 1000;
 
+function emblem(x: CanvasRenderingContext2D, cx: number, cy: number, r: number, col: string, lw: number) {
+  x.save(); x.strokeStyle = col; x.fillStyle = col; x.lineWidth = lw;
+  x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.stroke();
+  x.beginPath(); x.arc(cx, cy, r * 0.86, 0, Math.PI * 2); x.stroke();
+  // laurel wreath
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < 9; i++) {
+      const a = Math.PI / 2 + side * (0.35 + i * 0.27);
+      const lx = cx + Math.cos(a) * r * 0.68, ly = cy + Math.sin(a) * r * 0.68;
+      x.save(); x.translate(lx, ly); x.rotate(a + side * 0.6);
+      x.beginPath(); x.ellipse(0, 0, r * 0.11, r * 0.045, 0, 0, Math.PI * 2); x.fill(); x.restore();
+    }
+  }
+  // crossed lines (abstract) + heart center
+  x.lineWidth = lw * 1.2;
+  x.beginPath(); x.moveTo(cx - r * 0.45, cy + r * 0.25); x.quadraticCurveTo(cx, cy + r * 0.05, cx + r * 0.45, cy + r * 0.25); x.stroke();
+  x.beginPath(); x.moveTo(cx + r * 0.45, cy + r * 0.32); x.quadraticCurveTo(cx, cy + r * 0.12, cx - r * 0.45, cy + r * 0.32); x.stroke();
+  const h = r * 0.28; x.beginPath();
+  x.moveTo(cx, cy - h * 0.1);
+  x.bezierCurveTo(cx - h, cy - h * 1.1, cx - h * 1.2, cy - h * 0.05, cx, cy + h * 0.5);
+  x.bezierCurveTo(cx + h * 1.2, cy - h * 0.05, cx + h, cy - h * 1.1, cx, cy - h * 0.1);
+  x.fill();
+  x.restore();
+}
+
 function draw(c: HTMLCanvasElement, f: F, photo: HTMLImageElement | null) {
   const x = c.getContext("2d")!;
   c.width = W; c.height = H;
@@ -56,11 +81,7 @@ function draw(c: HTMLCanvasElement, f: F, photo: HTMLImageElement | null) {
     x.stroke();
   }
   // watermark palm + swords
-  x.globalAlpha = 0.10; x.strokeStyle = "#1e7a46"; x.lineWidth = 6;
-  for (const r of [260, 230, 120]) { x.beginPath(); x.arc(980, 640, r, 0, Math.PI * 2); x.stroke(); }
-  x.fillStyle = "#1e7a46"; x.textAlign = "center";
-  x.font = "300px serif"; x.fillText("🌴", 980, 720);
-  x.globalAlpha = 1;
+  x.globalAlpha = 0.12; emblem(x, 980, 600, 270, "#1e7a46", 6); x.globalAlpha = 1;
   // top band
   x.fillStyle = "rgba(30,140,80,0.08)"; x.fillRect(0, 40, W, 200);
   x.restore();
@@ -75,8 +96,7 @@ function draw(c: HTMLCanvasElement, f: F, photo: HTMLImageElement | null) {
   x.font = "bold 36px 'Noto Kufi Arabic', Tahoma, sans-serif"; x.fillStyle = "#3a6b4f";
   x.fillText("الخطابة أم ندى", W - 230, 190);
   // emblem
-  x.font = "120px serif"; x.textAlign = "center"; x.fillText("🌴", W - 140, 200);
-  x.fillStyle = "#1a7a43"; x.font = "bold 34px serif"; x.fillText("⚔", W - 140, 225);
+  emblem(x, W - 140, 155, 75, "#1a7a43", 3);
   // header left
   x.textAlign = "left"; x.direction = "rtl";
   x.font = "bold 58px 'Noto Kufi Arabic', Tahoma, sans-serif"; x.fillStyle = "#22a05a";
