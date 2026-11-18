@@ -18,7 +18,7 @@ export const Route = createFileRoute("/_authenticated/card-editor")({
 });
 
 type Box = { id: string; x: number; y: number; w: number; h: number; text: string; color: string; bg: string; size: number; erase: boolean; ink?: string };
-type Ov = { id: string; src: string; x: number; y: number; w: number; ar: number };
+type Ov = { id: string; src: string; x: number; y: number; w: number; ar: number; op?: number; fe?: number; rot?: number };
 type Stamp = { id: string; sx: number; sy: number; w: number; h: number; x: number; y: number };
 const FONT = "Tajawal, Cairo, sans-serif";
 
@@ -44,6 +44,10 @@ function CardEditor() {
   const [noBg, setNoBg] = useState(true);
   const odrag = useRef<{ id: string; sx: number; sy: number; bx: number; by: number } | null>(null);
   const curOv = ovs.find((o) => o.id === osel);
+  const rs = useRef<{ sx: number; w: number } | null>(null);
+  const updOv = (p: Partial<Ov>) => setOvs((a) => a.map((o) => (o.id === osel ? { ...o, ...p } : o)));
+  const nudge = (dx: number, dy: number) => curOv && updOv({ x: curOv.x + dx, y: curOv.y + dy });
+  function eraseUnder() { const im = imgRef.current; if (!curOv || !im) return; const h = (curOv.w * im.naturalWidth / im.naturalHeight) / curOv.ar; const b: Box = { id: crypto.randomUUID(), x: curOv.x, y: curOv.y, w: curOv.w, h, text: "", color: "#000", bg: "", size: 3, erase: true }; setBoxes((bs) => [...bs, b]); }
   function addOv(dataUrl: string, ar: number) {
     const o: Ov = { id: crypto.randomUUID(), src: dataUrl, x: 0.35, y: 0.35, w: 0.3, ar };
     setOvs((a) => [...a, o]); setOsel(o.id);
@@ -107,10 +111,12 @@ function CardEditor() {
       setStamps((ss) => [...ss, { id: crypto.randomUUID(), sx: p.sx, sy: p.sy, w, h, x: Math.max(0, Math.min(1 - w, fx - w / 2)), y: Math.max(0, Math.min(1 - h, fy - h / 2)) }]);
       pending.current = null; setMode("text"); return;
     }
-    const w = 0.4, h = 0.07;
-    const x = Math.max(0, Math.min(1 - w, fx - w / 2)), y = Math.max(0, Math.min(1 - h, fy - h / 2));
+    let w = 0.6, h = 0.08;
+    let x = Math.max(0, Math.min(1 - w, fx - w / 2)), y = Math.max(0, Math.min(1 - h, fy - h / 2));
     const s = sample(x > 0.02 ? x - 0.01 : x + w + 0.005, fy);
     const tc = textColor(imgRef.current!, x, y, w, h, s.bg); if (tc) s.color = tc;
+    const fit = inkBounds(imgRef.current!, x, y, w, h, s.color, s.bg, fx);
+    if (fit) { x = fit.x; y = fit.y; w = fit.w; h = fit.h; }
     const th = textHeight(imgRef.current!, x, y, w, h, s.color, s.bg);
     const size = th ? Math.max(1, Math.min(15, +(th * 100 * 1.25).toFixed(1))) : 3.5;
     const b: Box = { id: crypto.randomUUID(), x, y, w, h, text: "", bg: s.bg, color: s.color, ink: s.color, size, erase: true };
@@ -141,7 +147,7 @@ function CardEditor() {
     const c = compose(); if (!c) return;
     const W = c.width, H = c.height; const ctx = c.getContext("2d")!;
     const IA = W / H;
-    for (const o of ovs) { const im = document.querySelector<HTMLImageElement>(`img[data-ov="${o.id}"]`); if (im) ctx.drawImage(im, o.x * W, o.y * H, o.w * W, (o.w * W) / o.ar); void IA; }
+    for (const o of ovs) { const im = document.querySelector<HTMLImageElement>(`img[data-ov="${o.id}"]`); if (im) { const ow = o.w * W, oh = ow / o.ar; ctx.save(); ctx.globalAlpha = o.op ?? 1; ctx.translate(o.x * W + ow / 2, o.y * H + oh / 2); ctx.rotate(((o.rot ?? 0) * Math.PI) / 180); ctx.drawImage(feather(im, o.fe ?? 0), -ow / 2, -oh / 2, ow, oh); ctx.restore(); } void IA; }
     for (const b of boxes) {
       ctx.fillStyle = b.color; ctx.direction = "rtl"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
       const fs = (b.size / 100) * W; ctx.font = `bold ${fs}px ${FONT}`;
@@ -170,8 +176,13 @@ function CardEditor() {
             <img key={o.id} data-ov={o.id} src={o.src} alt="" draggable={false} onClick={(e) => e.stopPropagation()}
               onPointerDown={(e) => { e.stopPropagation(); setOsel(o.id); setSel(null); (e.target as HTMLElement).setPointerCapture(e.pointerId); odrag.current = { id: o.id, sx: e.clientX, sy: e.clientY, bx: o.x, by: o.y }; }}
               className={`absolute ${osel === o.id ? "outline outline-2 outline-dashed outline-primary" : ""}`}
-              style={{ left: `${o.x * 100}%`, top: `${o.y * 100}%`, width: `${o.w * 100}%` }} />
+              style={{ left: `${o.x * 100}%`, top: `${o.y * 100}%`, width: `${o.w * 100}%`, opacity: o.op ?? 1, transform: `rotate(${o.rot ?? 0}deg)`, WebkitMaskImage: o.fe ? `radial-gradient(closest-side, #000 ${100 - o.fe}%, transparent)` : undefined, maskImage: o.fe ? `radial-gradient(closest-side, #000 ${100 - o.fe}%, transparent)` : undefined }} />
           ))}
+          {curOv && <div onClick={(e) => e.stopPropagation()} onPointerDown={(e) => { e.stopPropagation(); (e.target as HTMLElement).setPointerCapture(e.pointerId); rs.current = { sx: e.clientX, w: curOv.w }; }}
+            onPointerMove={(e) => { const r0 = rs.current; if (!r0 || !viewRef.current) return; e.stopPropagation(); const dw = (e.clientX - r0.sx) / viewRef.current.getBoundingClientRect().width; setOvs((a) => a.map((o) => (o.id === osel ? { ...o, w: Math.max(0.02, Math.min(1.5, r0.w + dw)) } : o))); }}
+            onPointerUp={() => { rs.current = null; }}
+            className="absolute h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-primary shadow"
+            style={{ left: `${(curOv.x + curOv.w) * 100}%`, top: `calc(${curOv.y * 100}% + ${curOv.w * 100 / curOv.ar}cqw)` }} />}
           {boxes.map((b) => (
             <div key={b.id} onPointerDown={(e) => onDown(e, b)} onClick={(e) => e.stopPropagation()}
               className={`absolute flex items-center justify-center overflow-visible whitespace-pre text-center font-bold leading-tight ${sel === b.id ? "outline outline-2 outline-primary" : ""}`}
@@ -224,7 +235,17 @@ function CardEditor() {
             <Button size="sm" variant="outline" onClick={addWhole2}>➕ أضف الصورة كاملة للكرت</Button>
           </>}
           {curOv && <div className="space-y-2 border-t pt-2">
-            <label>حجم الصورة في الكرت <input type="range" min={0.03} max={1} step={0.01} value={curOv.w} onChange={(e) => setOvs((a) => a.map((o) => (o.id === osel ? { ...o, w: +e.target.value } : o)))} className="w-full" /></label>
+            <label>حجم الصورة في الكرت (أو اسحب النقطة بالزاوية) <input type="range" min={0.02} max={1.5} step={0.005} value={curOv.w} onChange={(e) => updOv({ w: +e.target.value })} className="w-full" /></label>
+            <label>تدوير <input type="range" min={-180} max={180} step={1} value={curOv.rot ?? 0} onChange={(e) => updOv({ rot: +e.target.value })} className="w-full" /></label>
+            <label>الشفافية <input type="range" min={0.1} max={1} step={0.02} value={curOv.op ?? 1} onChange={(e) => updOv({ op: +e.target.value })} className="w-full" /></label>
+            <label>نعومة الحواف (دمج) <input type="range" min={0} max={40} step={1} value={curOv.fe ?? 0} onChange={(e) => updOv({ fe: +e.target.value })} className="w-full" /></label>
+            <div className="flex flex-wrap items-center gap-1">تحريك دقيق:
+              <Button size="sm" variant="outline" onClick={() => nudge(0, -0.003)}>⬆️</Button>
+              <Button size="sm" variant="outline" onClick={() => nudge(0, 0.003)}>⬇️</Button>
+              <Button size="sm" variant="outline" onClick={() => nudge(0.003, 0)}>➡️</Button>
+              <Button size="sm" variant="outline" onClick={() => nudge(-0.003, 0)}>⬅️</Button>
+            </div>
+            <Button size="sm" variant="outline" onClick={eraseUnder}>🧽 امسح الشعار القديم اللي تحته</Button>
             <div className="flex gap-2">
               <Button size="sm" variant="destructive" onClick={() => { setOvs((a) => a.filter((o) => o.id !== osel)); setOsel(null); }}>🗑️ حذف الصورة</Button>
               <Button size="sm" variant="secondary" onClick={() => setOsel(null)}>تم</Button>
@@ -258,10 +279,10 @@ function inpaint(ctx: CanvasRenderingContext2D, W: number, H: number, b: { x: nu
     const o = i * 4;
     if (!ink) { mask[i] = 1; continue; }
     const di = dist(o, ink); const db = bg ? dist(o, bg) : 999;
-    if ((di < 120 && di < db) || (db > 90 && di < db * 1.3)) mask[i] = 1;
+    if (di < 85 && di < db * 0.8) mask[i] = 1;
   }
   // dilate 2px to remove anti-aliased edges
-  for (let pass = 0; pass < 3; pass++) {
+  for (let pass = 0; pass < 2; pass++) {
     const m2 = mask.slice();
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (!mask[y * w + x]) {
       if ((x > 0 && mask[y * w + x - 1]) || (x < w - 1 && mask[y * w + x + 1]) || (y > 0 && mask[(y - 1) * w + x]) || (y < h - 1 && mask[(y + 1) * w + x])) m2[y * w + x] = 1;
@@ -326,4 +347,31 @@ function cleanBg(ctx: CanvasRenderingContext2D, w: number, h: number) {
     if (df < 40) d[i + 3] = 0; else if (df < 90) d[i + 3] = Math.round(((df - 40) / 50) * d[i + 3]!);
   }
   ctx.putImageData(im, 0, 0);
+}
+
+/** Tight bounding box of the ink-coloured text line around the tap point. */
+function inkBounds(img: HTMLImageElement, x: number, y: number, w: number, h: number, ink: string, bg: string, fx: number) {
+  const W = img.naturalWidth, H = img.naturalHeight; const pw = Math.max(1, Math.round(w * W)), ph = Math.max(1, Math.round(h * H));
+  const c = document.createElement("canvas"); c.width = pw; c.height = ph; const ctx = c.getContext("2d")!;
+  ctx.drawImage(img, x * W, y * H, pw, ph, 0, 0, pw, ph); const d = ctx.getImageData(0, 0, pw, ph).data;
+  const ic = rgb(ink), bc = rgb(bg); if (!ic || !bc) return null;
+  const col = new Uint32Array(pw), row = new Uint32Array(ph);
+  for (let yy = 0; yy < ph; yy++) for (let xx = 0; xx < pw; xx++) { const o = (yy * pw + xx) * 4; const di = Math.abs(d[o]! - ic[0]!) + Math.abs(d[o + 1]! - ic[1]!) + Math.abs(d[o + 2]! - ic[2]!); const db = Math.abs(d[o]! - bc[0]!) + Math.abs(d[o + 1]! - bc[1]!) + Math.abs(d[o + 2]! - bc[2]!); if (di < 85 && di < db * 0.8) { col[xx]!++; row[yy]!++; } }
+  // grow horizontally from tap point; stop at a gap wider than ~1.5 text heights
+  let t = -1, b = -1; for (let yy = 0; yy < ph; yy++) if (row[yy]! > 1) { if (t < 0) t = yy; b = yy; }
+  if (t < 0) return null; const th = b - t + 1, gap = Math.max(6, th * 1.5);
+  const cx = Math.max(0, Math.min(pw - 1, Math.round((fx - x) * W)));
+  let l = cx, r = cx, miss = 0; for (let xx = cx; xx >= 0; xx--) { if (col[xx]) { l = xx; miss = 0; } else if (++miss > gap) break; }
+  miss = 0; for (let xx = cx; xx < pw; xx++) { if (col[xx]) { r = xx; miss = 0; } else if (++miss > gap) break; }
+  if (r - l < 3) return null; const pad = Math.max(3, th * 0.25);
+  const X = x * W + l - pad, Y = y * H + t - pad;
+  return { x: Math.max(0, X / W), y: Math.max(0, Y / H), w: (r - l + 1 + pad * 2) / W, h: (th + pad * 2) / H };
+}
+
+/** Soften logo edges so it blends into the card. */
+function feather(im: HTMLImageElement, fe: number): CanvasImageSource {
+  if (!fe) return im; const w = im.naturalWidth, h = im.naturalHeight; const c = document.createElement("canvas"); c.width = w; c.height = h;
+  const ctx = c.getContext("2d")!; ctx.drawImage(im, 0, 0); ctx.globalCompositeOperation = "destination-in";
+  const g = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.min(w, h) / 2); g.addColorStop(Math.max(0, 1 - fe / 100), "#000"); g.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, w, h); return c;
 }
