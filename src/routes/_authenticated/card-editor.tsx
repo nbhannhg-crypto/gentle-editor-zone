@@ -196,28 +196,28 @@ function CardEditor() {
             <span className="w-10 text-center">{Math.round(z1 * 100)}%</span>
             <Button size="sm" variant="outline" onClick={() => setZ1((v) => Math.min(5, +(v + 0.25).toFixed(2)))}>➕</Button>
             <Button size="sm" variant="outline" onClick={() => setZ1(1)}>↺</Button>
-            <Button size="sm" variant={pan1 ? "default" : "outline"} onClick={() => setPan1((v) => !v)}>{pan1 ? "✋ وضع التحريك شغال (اضغط للتعديل)" : "✋ تحريك الصفحة"}</Button>
+            <Button size="sm" variant={pan1 ? "default" : "outline"} onClick={() => setPan1((v) => !v)}>{"✋ حرّك بإصبعك والتعديل شغال"}</Button>
           </div>
           )}
       {src && (
-        <div className="max-h-[75vh] overflow-auto rounded-lg border" style={{ touchAction: pan1 ? "auto" : "none" }}>
-        <div style={{ containerType: "inline-size", width: `${z1 * 100}%`, pointerEvents: pan1 ? "none" : undefined }} className="relative select-none touch-none" onPointerMove={onMove} onPointerUp={() => { drag.current = null; odrag.current = null; }}>
+        <div className="max-h-[75vh] overflow-auto rounded-lg border" style={{ touchAction: "pan-x pan-y" }}>
+        <div style={{ containerType: "inline-size", width: `${z1 * 100}%`, touchAction: "pan-x pan-y" }} className="relative select-none" onPointerMove={onMove} onPointerUp={() => { drag.current = null; odrag.current = null; }}>
           <img ref={imgRef} src={src} alt="" className="hidden" onLoad={() => { const c = compose(); if (c) setView(c.toDataURL("image/png")); }} />
           <img ref={viewRef} src={view || src} alt="الكرت" className="w-full rounded-lg" onClick={onImgClick} draggable={false} />
           {ovs.map((o) => (
             <img key={o.id} data-ov={o.id} src={o.src} alt="" draggable={false} onClick={(e) => e.stopPropagation()}
               onPointerDown={(e) => { e.stopPropagation(); setOsel(o.id); setSel(null); (e.target as HTMLElement).setPointerCapture(e.pointerId); odrag.current = { id: o.id, sx: e.clientX, sy: e.clientY, bx: o.x, by: o.y }; }}
-              className={`absolute ${osel === o.id ? "outline outline-2 outline-dashed outline-primary" : ""}`}
+              className={`absolute touch-none ${osel === o.id ? "outline outline-2 outline-dashed outline-primary" : ""}`}
               style={{ left: `${o.x * 100}%`, top: `${o.y * 100}%`, width: `${o.w * 100}%`, height: `${(o.w * 100) / o.ar}cqw`, objectFit: "fill", opacity: o.op ?? 1, transform: `rotate(${o.rot ?? 0}deg)`, WebkitMaskImage: o.fe ? `radial-gradient(closest-side, #000 ${100 - o.fe}%, transparent)` : undefined, maskImage: o.fe ? `radial-gradient(closest-side, #000 ${100 - o.fe}%, transparent)` : undefined }} />
           ))}
           {curOv && <div onClick={(e) => e.stopPropagation()} onPointerDown={(e) => { e.stopPropagation(); (e.target as HTMLElement).setPointerCapture(e.pointerId); rs.current = { sx: e.clientX, sy: e.clientY, w: curOv.w, ar: curOv.ar }; }}
             onPointerMove={(e) => { const r0 = rs.current; if (!r0 || !viewRef.current) return; e.stopPropagation(); const vw = viewRef.current.getBoundingClientRect().width; const nw = Math.max(0.02, Math.min(1.5, r0.w + (e.clientX - r0.sx) / vw)); const nh = Math.max(0.01, r0.w / r0.ar + (e.clientY - r0.sy) / vw); setOvs((a) => a.map((o) => (o.id === osel ? { ...o, w: nw, ar: nw / nh } : o))); }}
             onPointerUp={() => { rs.current = null; }}
-            className="absolute h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-primary shadow"
+            className="absolute touch-none h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-primary shadow"
             style={{ left: `${(curOv.x + curOv.w) * 100}%`, top: `calc(${curOv.y * 100}% + ${curOv.w * 100 / curOv.ar}cqw)` }} />}
           {boxes.map((b) => (
             <div key={b.id} onPointerDown={(e) => onDown(e, b)} onClick={(e) => e.stopPropagation()}
-              className={`absolute flex items-center justify-center overflow-visible whitespace-pre text-center font-bold leading-tight ${sel === b.id ? "outline outline-2 outline-primary" : ""}`}
+              className={`absolute touch-none flex items-center justify-center overflow-visible whitespace-pre text-center font-bold leading-tight ${sel === b.id ? "outline outline-2 outline-primary" : ""}`}
               style={{ left: `${b.x * 100}%`, top: `${b.y * 100}%`, width: `${b.w * 100}%`, height: `${b.h * 100}%`, background: "transparent", color: b.color, fontSize: `${b.size}cqw`, fontFamily: FONT }}>
               {b.text}
             </div>
