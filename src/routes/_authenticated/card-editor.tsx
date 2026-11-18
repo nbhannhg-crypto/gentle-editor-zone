@@ -18,6 +18,7 @@ export const Route = createFileRoute("/_authenticated/card-editor")({
 });
 
 type Box = { id: string; x: number; y: number; w: number; h: number; text: string; color: string; bg: string; size: number; erase: boolean; ink?: string };
+type Ov = { id: string; src: string; x: number; y: number; w: number; ar: number };
 type Stamp = { id: string; sx: number; sy: number; w: number; h: number; x: number; y: number };
 const FONT = "Tajawal, Cairo, sans-serif";
 
@@ -35,6 +36,32 @@ function CardEditor() {
   const [mode, setMode] = useState<"text" | "src" | "dst">("text");
   const [stampSize, setStampSize] = useState(0.2);
   const pending = useRef<{ sx: number; sy: number } | null>(null);
+  const [src2, setSrc2] = useState("");
+  const img2Ref = useRef<HTMLImageElement>(null);
+  const [ovs, setOvs] = useState<Ov[]>([]);
+  const [osel, setOsel] = useState<string | null>(null);
+  const [cut, setCut] = useState(0.3);
+  const [noBg, setNoBg] = useState(true);
+  const odrag = useRef<{ id: string; sx: number; sy: number; bx: number; by: number } | null>(null);
+  const curOv = ovs.find((o) => o.id === osel);
+  function addOv(dataUrl: string, ar: number) {
+    const o: Ov = { id: crypto.randomUUID(), src: dataUrl, x: 0.35, y: 0.35, w: 0.3, ar };
+    setOvs((a) => [...a, o]); setOsel(o.id);
+  }
+  function cropFrom2(e: React.MouseEvent) {
+    const im = img2Ref.current; if (!im) return;
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const W = im.naturalWidth, H = im.naturalHeight, s = Math.round(cut * Math.min(W, H));
+    const cx = ((e.clientX - r.left) / r.width) * W, cy = ((e.clientY - r.top) / r.height) * H;
+    const x = Math.max(0, Math.min(W - s, cx - s / 2)), y = Math.max(0, Math.min(H - s, cy - s / 2));
+    const c = document.createElement("canvas"); c.width = s; c.height = s; const ctx = c.getContext("2d")!;
+    ctx.drawImage(im, x, y, s, s, 0, 0, s, s); if (noBg) cleanBg(ctx, s, s); addOv(c.toDataURL("image/png"), 1);
+  }
+  function addWhole2() {
+    const im = img2Ref.current; if (!im) return; const W = im.naturalWidth, H = im.naturalHeight;
+    const c = document.createElement("canvas"); c.width = W; c.height = H; const ctx = c.getContext("2d")!; ctx.drawImage(im, 0, 0);
+    if (noBg) cleanBg(ctx, W, H); addOv(c.toDataURL("image/png"), W / H);
+  }
   const cur = boxes.find((b) => b.id === sel);
   const eraseKey = boxes.filter((b) => b.erase).map((b) => [b.x, b.y, b.w, b.h].map((n) => n.toFixed(3)).join(",")).join("|") + "#" + boxes.map((b) => b.ink).join(",") + "#" + stamps.map((t) => [t.sx, t.sy, t.w, t.h, t.x, t.y].join(",")).join("|");
   useEffect(() => {
@@ -96,6 +123,8 @@ function CardEditor() {
     drag.current = { id: b.id, sx: e.clientX, sy: e.clientY, bx: b.x, by: b.y };
   }
   function onMove(e: React.PointerEvent) {
+    const od = odrag.current;
+    if (od && viewRef.current) { const r = viewRef.current.getBoundingClientRect(); const dx = (e.clientX - od.sx) / r.width, dy = (e.clientY - od.sy) / r.height; if (Math.abs(dx) + Math.abs(dy) > 0.005) moved.current = true; setOvs((a) => a.map((o) => (o.id === od.id ? { ...o, x: od.bx + dx, y: od.by + dy } : o))); return; }
     const d = drag.current; if (!d || !viewRef.current) return;
     const r = viewRef.current.getBoundingClientRect();
     const dx = (e.clientX - d.sx) / r.width, dy = (e.clientY - d.sy) / r.height;
@@ -111,6 +140,8 @@ function CardEditor() {
   function download() {
     const c = compose(); if (!c) return;
     const W = c.width, H = c.height; const ctx = c.getContext("2d")!;
+    const IA = W / H;
+    for (const o of ovs) { const im = document.querySelector<HTMLImageElement>(`img[data-ov="${o.id}"]`); if (im) ctx.drawImage(im, o.x * W, o.y * H, o.w * W, (o.w * W) / o.ar); void IA; }
     for (const b of boxes) {
       ctx.fillStyle = b.color; ctx.direction = "rtl"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
       const fs = (b.size / 100) * W; ctx.font = `bold ${fs}px ${FONT}`;
@@ -132,9 +163,15 @@ function CardEditor() {
       </label>
       {src && <p className="text-xs text-muted-foreground">اضغط فوق أي كلام بالكرت ⬅️ ينمسح ويطلع لك مربع تكتب فيه. اسحب المربع لتحريكه.</p>}
       {src && (
-        <div style={{ containerType: "inline-size" }} className="relative select-none touch-none" onPointerMove={onMove} onPointerUp={() => (drag.current = null)}>
+        <div style={{ containerType: "inline-size" }} className="relative select-none touch-none" onPointerMove={onMove} onPointerUp={() => { drag.current = null; odrag.current = null; }}>
           <img ref={imgRef} src={src} alt="" className="hidden" onLoad={() => { const c = compose(); if (c) setView(c.toDataURL("image/png")); }} />
           <img ref={viewRef} src={view || src} alt="الكرت" className="w-full rounded-lg" onClick={onImgClick} draggable={false} />
+          {ovs.map((o) => (
+            <img key={o.id} data-ov={o.id} src={o.src} alt="" draggable={false} onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => { e.stopPropagation(); setOsel(o.id); setSel(null); (e.target as HTMLElement).setPointerCapture(e.pointerId); odrag.current = { id: o.id, sx: e.clientX, sy: e.clientY, bx: o.x, by: o.y }; }}
+              className={`absolute ${osel === o.id ? "outline outline-2 outline-dashed outline-primary" : ""}`}
+              style={{ left: `${o.x * 100}%`, top: `${o.y * 100}%`, width: `${o.w * 100}%` }} />
+          ))}
           {boxes.map((b) => (
             <div key={b.id} onPointerDown={(e) => onDown(e, b)} onClick={(e) => e.stopPropagation()}
               className={`absolute flex items-center justify-center overflow-visible whitespace-pre text-center font-bold leading-tight ${sel === b.id ? "outline outline-2 outline-primary" : ""}`}
@@ -173,6 +210,28 @@ function CardEditor() {
           <label>حجم الجزء المنسوخ <input type="range" min={0.03} max={0.5} step={0.01} value={stampSize} onChange={(e) => setStampSize(+e.target.value)} className="w-full" /></label>
         </div>
       )}
+      {src && (
+        <div className="space-y-2 rounded-xl border bg-card p-3 text-xs">
+          <p className="font-bold">🖼️ صورة ثانية (شعار أو نقشة تنسخ منها)</p>
+          <label className="block cursor-pointer rounded-lg border border-dashed p-2 text-center">📤 {src2 ? "تغيير الصورة الثانية" : "ارفع الصورة الثانية"}
+            <input type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => setSrc2(String(rd.result)); rd.readAsDataURL(f); }} />
+          </label>
+          {src2 && <>
+            <p className="text-muted-foreground">اضغط على الشعار بالصورة الثانية ⬅️ ينحط في الكرت، وبعدها اسحبه لمكانه.</p>
+            <img ref={img2Ref} src={src2} alt="الصورة الثانية" className="w-full cursor-crosshair rounded" onClick={cropFrom2} />
+            <label>حجم القص <input type="range" min={0.05} max={1} step={0.01} value={cut} onChange={(e) => setCut(+e.target.value)} className="w-full" /></label>
+            <label className="flex items-center gap-2"><input type="checkbox" checked={noBg} onChange={(e) => setNoBg(e.target.checked)} /> شيل خلفية الشعار عشان يندمج</label>
+            <Button size="sm" variant="outline" onClick={addWhole2}>➕ أضف الصورة كاملة للكرت</Button>
+          </>}
+          {curOv && <div className="space-y-2 border-t pt-2">
+            <label>حجم الصورة في الكرت <input type="range" min={0.03} max={1} step={0.01} value={curOv.w} onChange={(e) => setOvs((a) => a.map((o) => (o.id === osel ? { ...o, w: +e.target.value } : o)))} className="w-full" /></label>
+            <div className="flex gap-2">
+              <Button size="sm" variant="destructive" onClick={() => { setOvs((a) => a.filter((o) => o.id !== osel)); setOsel(null); }}>🗑️ حذف الصورة</Button>
+              <Button size="sm" variant="secondary" onClick={() => setOsel(null)}>تم</Button>
+            </div>
+          </div>}
+        </div>
+      )}
       {src && <Button className="w-full" onClick={download}>⬇️ تنزيل الكرت</Button>}
     </div>
   );
@@ -199,10 +258,10 @@ function inpaint(ctx: CanvasRenderingContext2D, W: number, H: number, b: { x: nu
     const o = i * 4;
     if (!ink) { mask[i] = 1; continue; }
     const di = dist(o, ink); const db = bg ? dist(o, bg) : 999;
-    if (di < 90 && di < db) mask[i] = 1;
+    if ((di < 120 && di < db) || (db > 90 && di < db * 1.3)) mask[i] = 1;
   }
   // dilate 2px to remove anti-aliased edges
-  for (let pass = 0; pass < 2; pass++) {
+  for (let pass = 0; pass < 3; pass++) {
     const m2 = mask.slice();
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (!mask[y * w + x]) {
       if ((x > 0 && mask[y * w + x - 1]) || (x < w - 1 && mask[y * w + x + 1]) || (y > 0 && mask[(y - 1) * w + x]) || (y < h - 1 && mask[(y + 1) * w + x])) m2[y * w + x] = 1;
@@ -247,5 +306,20 @@ function textColor(img: HTMLImageElement, x: number, y: number, w: number, h: nu
   const d = ctx.getImageData(0, 0, pw, ph).data; const m = bg.match(/\d+/g)?.map(Number) || [0, 0, 0];
   let best = -1, col = "";
   for (let i = 0; i < d.length; i += 16) { const diff = Math.abs(d[i]! - m[0]!) + Math.abs(d[i + 1]! - m[1]!) + Math.abs(d[i + 2]! - m[2]!); if (diff > best) { best = diff; col = `rgb(${d[i]!},${d[i + 1]!},${d[i + 2]!})`; } }
-  return best > 60 ? col : "";
+  if (best <= 60) return "";
+  const t = rgb(col)!; let R = 0, G = 0, B = 0, n = 0;
+  for (let i = 0; i < d.length; i += 4) { const dt = Math.abs(d[i]! - t[0]!) + Math.abs(d[i + 1]! - t[1]!) + Math.abs(d[i + 2]! - t[2]!); const db = Math.abs(d[i]! - m[0]!) + Math.abs(d[i + 1]! - m[1]!) + Math.abs(d[i + 2]! - m[2]!); if (dt < 60 && db > best * 0.7) { R += d[i]!; G += d[i + 1]!; B += d[i + 2]!; n++; } }
+  return n ? `rgb(${Math.round(R / n)},${Math.round(G / n)},${Math.round(B / n)})` : col;
+}
+
+/** Make pixels similar to the corner colour transparent, with soft edges, so a pasted logo blends in. */
+function cleanBg(ctx: CanvasRenderingContext2D, w: number, h: number) {
+  const im = ctx.getImageData(0, 0, w, h), d = im.data;
+  const cs = [0, (w - 1) * 4, (h - 1) * w * 4, ((h - 1) * w + w - 1) * 4];
+  const bg = [0, 1, 2].map((k) => cs.reduce((a, o) => a + d[o + k]!, 0) / 4);
+  for (let i = 0; i < d.length; i += 4) {
+    const df = Math.abs(d[i]! - bg[0]!) + Math.abs(d[i + 1]! - bg[1]!) + Math.abs(d[i + 2]! - bg[2]!);
+    if (df < 40) d[i + 3] = 0; else if (df < 90) d[i + 3] = Math.round(((df - 40) / 50) * d[i + 3]!);
+  }
+  ctx.putImageData(im, 0, 0);
 }
