@@ -120,6 +120,7 @@ export const manageMarriageSession = createServerFn({ method: "POST" })
     action: z.enum(["save", "skip", "send_question", "send_text", "finish"]),
     data: z.record(z.string(), z.string().max(1000)).optional(),
     step: z.number().int().min(0).max(100).optional(),
+    gender: z.enum(["male", "female"]).optional(),
     text: z.string().trim().max(2000).optional(),
   }).parse(d))
   .handler(async ({ data: d, context }) => {
@@ -133,12 +134,13 @@ export const manageMarriageSession = createServerFn({ method: "POST" })
     const sess = s as { instance: string; phone: string; step: number; gender: string; data: Record<string, string> };
     const merged: Record<string, string> = { ...(sess.data ?? {}), ...(d.data ?? {}) };
     let step = d.step ?? sess.step;
+    if (d.gender) sess.gender = d.gender;
     const send = async (text: string) => {
       const { evoSend } = await import("@/lib/autoreply.server");
       await evoSend(`/message/sendText/${encodeURIComponent(sess.instance)}`, { number: sess.phone, text });
     };
     const answered = () => WA_STEPS.filter((x) => (x.k === "gender" ? !!sess.gender : !!merged[x.k])).length;
-    const upd = async (extra: Record<string, unknown> = {}) => supabaseAdmin.from("marriage_wa_sessions").update({ data: merged, step, updated_at: new Date().toISOString(), ...extra } as never).eq("id", d.sessionId);
+    const upd = async (extra: Record<string, unknown> = {}) => supabaseAdmin.from("marriage_wa_sessions").update({ data: merged, step, updated_at: new Date().toISOString(), ...(d.gender ? { gender: d.gender } : {}), ...extra } as never).eq("id", d.sessionId);
 
     if (d.action === "skip") {
       const k = WA_STEPS[step]?.k; if (k && k !== "gender" && !(k in merged)) merged[k] = "";

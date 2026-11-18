@@ -169,6 +169,8 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
               <button onClick={() => setCard(open)} className="rounded-xl bg-gold px-3 py-2 text-sm text-accent-foreground">🪪 كرت للنشر</button>
               <button onClick={() => void del(open)} className="rounded-xl border border-destructive px-3 py-2 text-sm text-destructive">🗑️ حذف</button>
             </div>
+            {edit && <div className="mt-3 flex gap-2 rounded-2xl border border-primary/40 p-2 text-sm"><span className="self-center text-muted-foreground">نوع الطلب:</span>
+              {([["male", "🤵 عريس"], ["female", "👰 عروس"]] as const).map(([k, l]) => <button key={k} onClick={() => open.gender !== k && void upd(open, { gender: k })} className={`rounded-full border px-3 py-1 ${open.gender === k ? "border-primary bg-primary text-primary-foreground" : ""}`}>{l}</button>)}</div>}
             {M_SECTIONS.map((s) => (
               <div key={s.t} className="mt-3 rounded-2xl border p-3"><b className="text-sm text-primary">{s.t}</b>
                 {edit ? s.fields.filter((f) => f.k !== "phone2").map((f) => <label key={f.k} className="mt-1 block text-xs"><span className={open.data[f.k] ? "text-muted-foreground" : "text-destructive"}>{f.l}{open.data[f.k] ? "" : " (ناقص)"}</span>

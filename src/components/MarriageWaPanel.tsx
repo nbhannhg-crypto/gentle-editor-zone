@@ -27,14 +27,14 @@ export function MarriageWaPanel({ storeId, copy }: { storeId?: string | undefine
   const getSteps = useServerFn(marriageWaSteps);
   const startManual = useServerFn(startMarriageWaManual);
   const manage = useServerFn(manageMarriageSession);
-  const [edit, setEdit] = useState<{ id: string; step: number; data: Record<string, string>; text: string } | null>(null);
+  const [edit, setEdit] = useState<{ id: string; step: number; gender: string; data: Record<string, string>; text: string } | null>(null);
   const [eBusy, setEBusy] = useState(false);
   const act = async (action: "save" | "skip" | "send_question" | "send_text" | "finish") => {
     if (!edit || !storeId) return;
     if (action === "finish" && !confirm("تعتمد الطلب الحين ويوصله رقم الطلب بالواتساب؟")) return;
     setEBusy(true);
     try {
-      const r = await manage({ data: { storeId, sessionId: edit.id, action, data: edit.data, step: edit.step, text: edit.text } });
+      const r = await manage({ data: { storeId, sessionId: edit.id, action, data: edit.data, step: edit.step, gender: edit.gender || undefined, text: edit.text } });
       const msgs = { save: "انحفظ ✅", skip: "تخطينا وانرسل السؤال اللي بعده ✅", send_question: "انرسل السؤال للعميل ✅", send_text: "انرسلت رسالتك ✅", finish: "اعتمد الطلب ✅" } as const;
       toast.success(msgs[action] + ("code" in r && r.code ? ` رقم الطلب ${r.code}` : ""));
       setEdit(action === "finish" ? null : { ...edit, step: r.step, text: action === "send_text" ? "" : edit.text });
@@ -172,7 +172,7 @@ export function MarriageWaPanel({ storeId, copy }: { storeId?: string | undefine
           <div><b dir="ltr">+{s.phone}</b> {s.gender === "female" ? "👰" : s.gender === "male" ? "🤵" : ""} {s.data?.["name"] ?? ""}
             <div className="text-muted-foreground">{s.done ? "✅ اكتمل" : `⏳ واقف عند سؤال ${Math.min(s.step + 1, total)}/${total}: ${steps[s.step]?.q.split("\n").pop() ?? ""}`} • {new Date(s.updated_at).toLocaleString("ar")}</div></div>
           <div className="flex gap-1">
-            <button onClick={() => setEdit(edit?.id === s.id ? null : { id: s.id, step: s.step, data: { ...(s.data ?? {}) }, text: "" })} className="rounded-lg border border-primary px-2 py-1 text-primary">✏️ تعديل</button>
+            <button onClick={() => setEdit(edit?.id === s.id ? null : { id: s.id, step: s.step, gender: s.gender ?? "", data: { ...(s.data ?? {}) }, text: "" })} className="rounded-lg border border-primary px-2 py-1 text-primary">✏️ تعديل</button>
             <button onClick={() => void setPaused(s.phone, !s.paused)} className={`rounded-lg border px-2 py-1 ${s.paused ? "border-destructive text-destructive" : ""}`}>{s.paused ? "▶️ تشغيل" : "⏸️ إطفاء"}</button>
             <a href={`https://wa.me/${s.phone}`} target="_blank" rel="noreferrer" className="rounded-lg border px-2 py-1">💬</a>
             <button onClick={async () => { if (!confirm("تنقل الجلسة لسلة المحذوفات؟ (تقدر ترجعها)")) return; await supabase.from("marriage_wa_sessions").delete().eq("id", s.id); void loadSess(); }} className="rounded-lg border px-2 py-1">🗑️</button>
@@ -182,6 +182,9 @@ export function MarriageWaPanel({ storeId, copy }: { storeId?: string | undefine
             <select value={edit.step} onChange={(e) => setEdit({ ...edit, step: +e.target.value })} className="w-full rounded-lg border bg-background p-1.5">
               {steps.map((st, i) => <option key={st.k} value={i}>{i + 1}. {st.q.split("\n").pop()}</option>)}
             </select>
+            <div className="flex gap-2"><span className="self-center text-muted-foreground">نوع الطلب:</span>
+              {([["male", "🤵 عريس"], ["female", "👰 عروس"]] as const).map(([k, l]) => <button key={k} onClick={() => setEdit({ ...edit, gender: k })} className={`rounded-full border px-3 py-1 ${edit.gender === k ? "border-primary bg-primary text-primary-foreground" : ""}`}>{l}</button>)}
+              <span className="self-center text-muted-foreground">(اضغط 💾 حفظ)</span></div>
             <div className="max-h-72 space-y-1 overflow-y-auto">
               {steps.filter((st) => st.k !== "gender").map((st) => <label key={st.k} className="block">
                 <span className="text-muted-foreground">{st.q.split("\n").pop()}</span>
