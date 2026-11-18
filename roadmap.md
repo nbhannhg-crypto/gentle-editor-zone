@@ -46,3 +46,4 @@
 - [x] Make WhatsApp auto-replies obey the usage toggles
 - [ ] Phase 3: voice/video library, design library, WhatsApp connect (branded name, chats, voice-to-text)
 - [ ] Phase 4: mic on inputs, voice commands, complaints office, full test
+- محرر الكروت: مسح ناعم بدون ترقيع + رفع من المعرض
