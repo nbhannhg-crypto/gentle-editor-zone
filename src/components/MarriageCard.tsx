@@ -28,9 +28,9 @@ function wrap(x: CanvasRenderingContext2D, t: string, max: number, lines: number
   return out;
 }
 
-export type CardOpts = { terms?: boolean; socials?: boolean; tagline?: string; badge?: string; live?: string; footer?: string; handle?: string; whatsapp?: string; termsText?: string };
+export type CardOpts = { terms?: boolean; socials?: boolean; tagline?: string; badge?: string; live?: string; footer?: string; handle?: string; whatsapp?: string; termsText?: string; style?: "royal" | "classic"; customer?: "save" | "view" };
 export const CARD_DEFAULTS: Required<CardOpts> = {
-  terms: true, socials: true,
+  terms: true, socials: true, style: "royal", customer: "save",
   tagline: "كل شيء بالحلال وبالتسهيل",
   badge: "خدمتنا لكم بكل ثقة",
   live: "نفتح بث مباشر يومياً على تيك توك 🔴 تابعنا",
@@ -132,7 +132,7 @@ function render(x: CanvasRenderingContext2D, H: number, o: { code: string; gende
   // frame
   x.strokeStyle = C.gold; x.lineWidth = 10; rr(x, 12, 12, W - 24, H - 24, 34); x.stroke(); x.strokeStyle = C.navy; x.lineWidth = 3; rr(x, 26, 26, W - 52, H - 52, 28); x.stroke();
   x.strokeStyle = C.gold2; x.lineWidth = 1.5; rr(x, 34, 34, W - 68, H - 68, 24); x.stroke();
-  if (o.rose) {
+  if (o.rose && o.opts.style !== "classic") {
     const rs = 250; x.drawImage(o.rose, 20, 120, rs, rs);
     x.save(); x.translate(W - 20, 120); x.scale(-1, 1); x.drawImage(o.rose, 0, 0, rs, rs); x.restore();
     x.save(); x.translate(20, H - 20); x.scale(1, -1); x.drawImage(o.rose, 0, 0, 220, 220); x.restore();
@@ -217,14 +217,17 @@ export async function drawMarriageCard(cv: HTMLCanvasElement, o: { code: string;
   try { await Promise.all(["700 30px Tajawal", "800 30px Tajawal", "500 24px 'IBM Plex Sans Arabic'", "700 40px 'Reem Kufi'", "700 20px Amiri"].map((f) => document.fonts.load(f))); } catch { /* ignore */ }
   const rose = await loadRose(); const opts = cardOpts(o.opts);
   const tmp = document.createElement("canvas"); tmp.width = W; tmp.height = 4000;
-  const h = Math.ceil(render(tmp.getContext("2d")!, 4000, { ...o, opts, rose }));
-  cv.width = W; cv.height = h; render(cv.getContext("2d")!, h, { ...o, opts, rose });
+  const h = Math.ceil(render(tmp.getContext("2d")!, 4000, { ...o, opts: { ...opts, socials: opts.style === "classic" ? false : opts.socials }, rose }));
+  cv.width = W; cv.height = h; render(cv.getContext("2d")!, h, { ...o, opts: { ...opts, socials: opts.style === "classic" ? false : opts.socials }, rose });
 }
 
-export function MarriageCardView({ code, gender, data, note, opts, allowPrivate = true, defaultMode = "public" }: { code: string; gender: string; data: D; note?: string | undefined; opts?: CardOpts | null | undefined; allowPrivate?: boolean; defaultMode?: "public" | "private" }) {
+export function MarriageCardView({ code, gender, data, note, opts: opts0, allowPrivate = true, defaultMode = "public", viewOnly = false, styleSwitch = true }: { code: string; gender: string; data: D; note?: string | undefined; opts?: CardOpts | null | undefined; allowPrivate?: boolean; defaultMode?: "public" | "private"; viewOnly?: boolean; styleSwitch?: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const [mode, setMode] = useState<"public" | "private">(allowPrivate ? defaultMode : "public");
-  useEffect(() => { if (ref.current) void drawMarriageCard(ref.current, { code, gender, data, mode, note, opts }); }, [code, gender, data, mode, note, opts]);
+  const [style, setStyle] = useState<"royal" | "classic">(opts0?.style === "classic" ? "classic" : "royal");
+  useEffect(() => { setStyle(opts0?.style === "classic" ? "classic" : "royal"); }, [opts0?.style]);
+  const opts = { ...(opts0 || {}), style };
+  useEffect(() => { if (ref.current) void drawMarriageCard(ref.current, { code, gender, data, mode, note, opts }); }, [code, gender, data, mode, note, opts0, style]);
   const blob = () => new Promise<Blob>((res, rej) => ref.current!.toBlob((b) => (b ? res(b) : rej(new Error("x"))), "image/png"));
   const name = `ام-ندى-${code}-${mode === "public" ? "نشر" : "خاص"}.png`;
   const dl = async () => { const u = URL.createObjectURL(await blob()); const a = document.createElement("a"); a.href = u; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(u), 3000); };
@@ -232,8 +235,12 @@ export function MarriageCardView({ code, gender, data, note, opts, allowPrivate 
   return (
     <div dir="rtl" className="space-y-2">
       {allowPrivate && <div className="grid grid-cols-2 gap-2">{([["public", "📢 نسخة النشر (محجوبة)"], ["private", "🔐 نسخة خاصة كاملة"]] as const).map(([m, l]) => <button key={m} onClick={() => setMode(m)} className={`rounded-xl border px-2 py-2 text-xs font-bold ${mode === m ? "border-primary bg-primary text-primary-foreground" : "bg-background"}`}>{l}</button>)}</div>}
-      <canvas ref={ref} className="h-auto w-full rounded-2xl shadow-soft" />
-      <div className="flex gap-2"><button onClick={() => void dl()} className="flex-1 rounded-xl bg-primary py-2 text-sm font-bold text-primary-foreground">📥 حفظ الكرت كصورة</button><button onClick={() => void share()} className="flex-1 rounded-xl border-2 border-gold bg-background py-2 text-sm font-bold">📤 مشاركة</button></div>
+      {styleSwitch && !viewOnly && <div className="grid grid-cols-2 gap-2">{([["royal", "👑 الملكي الفاخر"], ["classic", "📜 الكلاسيكي"]] as const).map(([m, l]) => <button key={m} onClick={() => setStyle(m)} className={`rounded-xl border px-2 py-2 text-xs font-bold ${style === m ? "border-gold bg-gold text-accent-foreground" : "bg-background"}`}>{l}</button>)}</div>}
+      <div className="relative" onContextMenu={viewOnly ? (e) => e.preventDefault() : undefined} style={viewOnly ? { WebkitTouchCallout: "none", userSelect: "none" } : undefined}>
+        <canvas ref={ref} className={`h-auto w-full rounded-2xl shadow-soft ${viewOnly ? "pointer-events-none select-none" : ""}`} />
+        {viewOnly && <div className="absolute inset-0" />}
+      </div>
+      {viewOnly ? <p className="text-center text-xs text-muted-foreground">👁️ للمعاينة فقط — نسختك الرسمية محفوظة عند الخطابة 🤍</p> : <div className="flex gap-2"><button onClick={() => void dl()} className="flex-1 rounded-xl bg-primary py-2 text-sm font-bold text-primary-foreground">📥 حفظ الكرت كصورة</button><button onClick={() => void share()} className="flex-1 rounded-xl border-2 border-gold bg-background py-2 text-sm font-bold">📤 مشاركة</button></div>}
     </div>
   );
 }

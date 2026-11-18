@@ -84,8 +84,8 @@ function FormPage() {
         ) : null}
         {code && cardCfg?.allow ? (
           <div className="mt-4 rounded-3xl border-2 border-gold bg-card p-3 shadow-soft">
-            <p className="mb-2 text-center text-sm font-bold text-primary">👑 كرت طلبك الرسمي — احفظه عندك</p>
-            <MarriageCardView code={code} gender={gender} data={d} note={cardCfg.note} opts={cardCfg.opts} allowPrivate defaultMode="private" />
+            <p className="mb-2 text-center text-sm font-bold text-primary">👑 كرت طلبك الرسمي{cardCfg.opts?.customer === "view" ? "" : " — احفظه عندك"}</p>
+            <MarriageCardView code={code} gender={gender} data={d} note={cardCfg.note} opts={cardCfg.opts} allowPrivate={cardCfg.opts?.customer !== "view"} defaultMode="private" styleSwitch={false} viewOnly={cardCfg.opts?.customer === "view"} />
           </div>
         ) : null}
         {code ? null : false ? (
