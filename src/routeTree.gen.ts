@@ -15,6 +15,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
+import { Route as AuthenticatedIdcardRouteImport } from './routes/_authenticated/idcard'
 import { Route as AuthenticatedStudioRouteImport } from './routes/_authenticated/studio'
 import { Route as MIndexRouteImport } from './routes/m.index'
 import { Route as MStoreIdRouteImport } from './routes/m.$storeId'
@@ -57,6 +58,11 @@ const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
 const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
   id: '/app',
   path: '/app',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedIdcardRoute = AuthenticatedIdcardRouteImport.update({
+  id: '/idcard',
+  path: '/idcard',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedStudioRoute = AuthenticatedStudioRouteImport.update({
@@ -137,6 +143,7 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/app': typeof AuthenticatedAppRoute
+  '/idcard': typeof AuthenticatedIdcardRoute
   '/studio': typeof AuthenticatedStudioRoute
   '/m/$storeId': typeof MStoreIdRoute
   '/s/$storeId': typeof SStoreIdRoute
@@ -158,6 +165,7 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/app': typeof AuthenticatedAppRoute
+  '/idcard': typeof AuthenticatedIdcardRoute
   '/studio': typeof AuthenticatedStudioRoute
   '/m/$storeId': typeof MStoreIdRoute
   '/s/$storeId': typeof SStoreIdRoute
@@ -181,6 +189,7 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/app': typeof AuthenticatedAppRoute
+  '/_authenticated/idcard': typeof AuthenticatedIdcardRoute
   '/_authenticated/studio': typeof AuthenticatedStudioRoute
   '/m/$storeId': typeof MStoreIdRoute
   '/s/$storeId': typeof SStoreIdRoute
@@ -204,6 +213,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/admin'
     | '/app'
+    | '/idcard'
     | '/studio'
     | '/m/$storeId'
     | '/s/$storeId'
@@ -225,6 +235,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/admin'
     | '/app'
+    | '/idcard'
     | '/studio'
     | '/m/$storeId'
     | '/s/$storeId'
@@ -247,6 +258,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/_authenticated/admin'
     | '/_authenticated/app'
+    | '/_authenticated/idcard'
     | '/_authenticated/studio'
     | '/m/$storeId'
     | '/s/$storeId'
@@ -324,6 +336,13 @@ declare module '@tanstack/react-router' {
       path: '/app'
       fullPath: '/app'
       preLoaderRoute: typeof AuthenticatedAppRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/idcard': {
+      id: '/_authenticated/idcard'
+      path: '/idcard'
+      fullPath: '/idcard'
+      preLoaderRoute: typeof AuthenticatedIdcardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/studio': {
@@ -430,6 +449,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
   AuthenticatedAppRoute: typeof AuthenticatedAppRoute
+  AuthenticatedIdcardRoute: typeof AuthenticatedIdcardRoute
   AuthenticatedStudioRoute: typeof AuthenticatedStudioRoute
   AuthenticatedAdminKingdomRoute: typeof AuthenticatedAdminKingdomRoute
 }
@@ -437,6 +457,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRoute,
   AuthenticatedAppRoute: AuthenticatedAppRoute,
+  AuthenticatedIdcardRoute: AuthenticatedIdcardRoute,
   AuthenticatedStudioRoute: AuthenticatedStudioRoute,
   AuthenticatedAdminKingdomRoute: AuthenticatedAdminKingdomRoute,
 }
