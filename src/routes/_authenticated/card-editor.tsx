@@ -289,21 +289,18 @@ function inpaint(ctx: CanvasRenderingContext2D, W: number, H: number, b: { x: nu
     }
     mask.set(m2);
   }
-  // fill masked pixels from known neighbours, layer by layer
-  let left = mask.reduce((a, v) => a + v, 0), guard = 0;
-  while (left > 0 && guard++ < 400) {
-    const fill: [number, number, number, number][] = [];
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-      const i = y * w + x; if (!mask[i]) continue;
-      let r = 0, g = 0, bb = 0, n = 0;
-      for (let j = -1; j <= 1; j++) for (let k = -1; k <= 1; k++) {
-        const xx = x + k, yy = y + j; if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
-        const ii = yy * w + xx; if (mask[ii]) continue; const o = ii * 4; r += d[o]!; g += d[o + 1]!; bb += d[o + 2]!; n++;
-      }
-      if (n) fill.push([i, r / n, g / n, bb / n]);
+  // fill each masked pixel along the direction whose two ends match best — continues stripes/patterns through the letters
+  const src = new Uint8ClampedArray(d); const dirs: number[][] = []; for (let a = 0; a < 180; a += 7.5) { const r = (a * Math.PI) / 180; dirs.push([Math.cos(r), Math.sin(r)]); }
+  const reach = (x: number, y: number, dx: number, dy: number) => { let k = 1; while (k < 200) { const xx = Math.round(x + dx * k), yy = Math.round(y + dy * k); if (xx < 0 || yy < 0 || xx >= w || yy >= h) return null; if (!mask[yy * w + xx]) return [(yy * w + xx) * 4, k] as const; k++; } return null; };
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x; if (!mask[i]) continue;
+    let best = 1e9, R = 0, G = 0, B = 0, fb: number[] | null = null;
+    for (const [dx, dy] of dirs) {
+      const p = reach(x, y, dx!, dy!), q = reach(x, y, -dx!, -dy!);
+      if (p && q) { const e = Math.abs(src[p[0]]! - src[q[0]]!) + Math.abs(src[p[0] + 1]! - src[q[0] + 1]!) + Math.abs(src[p[0] + 2]! - src[q[0] + 2]!) + (p[1] + q[1]) * 0.15 - (bg ? Math.min(Math.abs(src[p[0]]! - bg[0]!) + Math.abs(src[p[0] + 1]! - bg[1]!) + Math.abs(src[p[0] + 2]! - bg[2]!), Math.abs(src[q[0]]! - bg[0]!) + Math.abs(src[q[0] + 1]! - bg[1]!) + Math.abs(src[q[0] + 2]! - bg[2]!)) * 0.5 : 0); if (e < best) { best = e; const t = p[1] / (p[1] + q[1]); R = src[p[0]]! * (1 - t) + src[q[0]]! * t; G = src[p[0] + 1]! * (1 - t) + src[q[0] + 1]! * t; B = src[p[0] + 2]! * (1 - t) + src[q[0] + 2]! * t; } }
+      else if (!fb && (p || q)) { const o = (p || q)![0]; fb = [src[o]!, src[o + 1]!, src[o + 2]!]; }
     }
-    if (!fill.length) break;
-    for (const [i, r, g, bb] of fill) { const o = i * 4; d[o] = r; d[o + 1] = g; d[o + 2] = bb; d[o + 3] = 255; mask[i] = 0; left--; }
+    const o = i * 4; if (best < 1e9) { d[o] = R; d[o + 1] = G; d[o + 2] = B; } else if (fb) { d[o] = fb[0]!; d[o + 1] = fb[1]!; d[o + 2] = fb[2]!; } d[o + 3] = 255;
   }
   ctx.putImageData(data, x0, y0);
 }
