@@ -45,7 +45,7 @@ const NUM: Record<string, string> = { "٠": "0", "١": "1", "٢": "2", "٣": "3"
 const toEn = (s: string) => s.replace(/[٠-٩]/g, (d) => NUM[d] ?? d);
 const norm = (s: string) => s.replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/[^\p{L}\p{N} ]/gu, " ").replace(/\s+/g, " ").trim().toLowerCase();
 
-function askText(st: WaStep, cfg: Settings | null, first: boolean, done: number): string {
+export function askText(st: WaStep, cfg: Settings | null, first: boolean, done: number): string {
   let q = (cfg?.questions?.[st.k] || "").trim() || st.q;
   if (first && cfg?.welcome?.trim() && st.k === "gender") q = `${cfg.welcome.trim()}\n\n${q.replace(/^[\s\S]*?\n\n/, "")}`;
   const progress = done > 0 ? `(${done}/${WA_STEPS.length}) ` : "";
@@ -78,6 +78,8 @@ function learnedHit(cfg: Settings | null, t: string): string | null {
   }
   return null;
 }
+
+const fast = <T,>(p: Promise<T>, fb: T, ms = 7000): Promise<T> => Promise.race([p, new Promise<T>((r) => setTimeout(() => r(fb), ms))]);
 
 async function smartExtract(t: string, gender: string): Promise<{ gender: string; fields: Record<string, string> }> {
   try {
@@ -124,6 +126,25 @@ async function understand(step: WaStep, t: string, smart: boolean): Promise<Inte
   if (EXPLAIN.test(t) && t.length < 40) return { kind: "explain" };
   if (step.k === "age") { const n = toEn(t).match(/\d{2}/); return n ? { kind: "answer", value: n[0] } : { kind: "explain" }; }
   return { kind: "answer", value: t };
+}
+
+function understandLocal(step: WaStep, t: string): Intent {
+  const nt = norm(t);
+  if (REFUSE.test(nt)) return { kind: "refuse" };
+  if (ANY.test(nt)) return { kind: "any" };
+  if (step.k === "age") { const n = toEn(t).match(/\d{2}/); if (n) return { kind: "answer", value: n[0] }; }
+  return { kind: "answer", value: t };
+}
+
+/** Instant numeric answers from a mixed sentence (e.g. «35 سنه سعوديه عرق ابيض») — no AI wait. */
+function quickNum(step: WaStep, t: string): string | null {
+  const nums = toEn(t).match(/\d{2,3}/g);
+  if (!nums) return null;
+  if (step.k === "age") return nums[0]!;
+  if (step.k === "pAge") return nums.length > 1 ? `${nums[0]} - ${nums[1]}` : nums[0]!;
+  if (step.k === "height") return nums.find((n) => +n >= 120 && +n <= 220) ?? null;
+  if (step.k === "weight") return nums.find((n) => +n >= 30 && +n <= 250) ?? null;
+  return null;
 }
 
 const nextIdx = (from: number, data: Record<string, string>, gender: string) => {
@@ -215,17 +236,23 @@ export async function handleMarriageWa(db: any, instance: string, number: string
     data[step.k] = "";
   } else {
     const opt = pickOpt(step, t);
+    const qn = opt ? null : quickNum(step, t);
     if (opt) data[step.k] = opt;
-    else {
+    else if (qn) {
+      data[step.k] = qn;
+      // keep the rest of the sentence as extra info (e.g. nationality/traits of the other party)
+      const rest = toEn(t).replace(/\d{2,3}/g, "").replace(/(سنه|سنة|عام|سم|كيلو|كجم)/g, "").trim();
+      if (rest.length > 2 && step.k === "pAge" && !data["pTraits"]) data["pTraits"] = rest.slice(0, 300);
+    } else {
       if (cfg.smart && t.length > 12) {
-        const ex = await smartExtract(t, gender);
+        const ex = await fast(smartExtract(t, gender), { gender: "", fields: {} });
         if (!gender && ex.gender) gender = ex.gender;
         for (const [k, v] of Object.entries(ex.fields)) if (!(k in data) || !data[k]) data[k] = v;
       }
       if (!data[step.k]) {
         const xk = `_x_${step.k}`;
         if (DUNNO.test(norm(t))) { data[step.k] = ""; delete data[xk]; const nx = nextIdx(s.step + 1, data, gender); if (nx < WA_STEPS.length) { await save(nx); return `ولا يهمك يا بعد راسي ما هي مشكلة 🤍\n\n${askText(WA_STEPS[nx]!, cfg, false, answered())}`; } }
-        const it = await understand(step, t, !!cfg?.smart);
+        const it = await fast(understand(step, t, !!cfg?.smart), understandLocal(step, t));
         const confused = it.kind === "explain" || it.kind === "question" || (it.kind === "answer" && INQ.test(norm(it.value || t)) && (it.value || t).length < 30);
         if (confused && data[xk]) { data[step.k] = ""; delete data[xk]; const nx = nextIdx(s.step + 1, data, gender); if (nx < WA_STEPS.length) { await save(nx); return `ولا يهمك، نتخطاه ونكمل 🤍\n\n${askText(WA_STEPS[nx]!, cfg, false, answered())}`; } }
         if (confused) { data[xk] = "1"; await save(s.step); }

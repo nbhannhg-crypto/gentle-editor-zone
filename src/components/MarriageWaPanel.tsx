@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { waList } from "@/lib/studio.functions";
-import { simulateMarriageWa, marriageWaSteps, startMarriageWaManual } from "@/lib/marriage.functions";
+import { simulateMarriageWa, marriageWaSteps, startMarriageWaManual, manageMarriageSession } from "@/lib/marriage.functions";
 
 type Step = { k: string; q: string; opts: string[] };
 type Learned = { q: string; a: string };
@@ -26,6 +26,21 @@ export function MarriageWaPanel({ storeId, copy }: { storeId?: string | undefine
   const sim = useServerFn(simulateMarriageWa);
   const getSteps = useServerFn(marriageWaSteps);
   const startManual = useServerFn(startMarriageWaManual);
+  const manage = useServerFn(manageMarriageSession);
+  const [edit, setEdit] = useState<{ id: string; step: number; data: Record<string, string>; text: string } | null>(null);
+  const [eBusy, setEBusy] = useState(false);
+  const act = async (action: "save" | "skip" | "send_question" | "send_text" | "finish") => {
+    if (!edit || !storeId) return;
+    if (action === "finish" && !confirm("تعتمد الطلب الحين ويوصله رقم الطلب بالواتساب؟")) return;
+    setEBusy(true);
+    try {
+      const r = await manage({ data: { storeId, sessionId: edit.id, action, data: edit.data, step: edit.step, text: edit.text } });
+      const msgs = { save: "انحفظ ✅", skip: "تخطينا وانرسل السؤال اللي بعده ✅", send_question: "انرسل السؤال للعميل ✅", send_text: "انرسلت رسالتك ✅", finish: "اعتمد الطلب ✅" } as const;
+      toast.success(msgs[action] + ("code" in r && r.code ? ` رقم الطلب ${r.code}` : ""));
+      setEdit(action === "finish" ? null : { ...edit, step: r.step, text: action === "send_text" ? "" : edit.text });
+      void loadSess();
+    } catch (e) { toast.error(e instanceof Error ? e.message : "تعذر"); } finally { setEBusy(false); }
+  };
   const [mPhone, setMPhone] = useState("");
   const [mBusy, setMBusy] = useState(false);
   const [pPhone, setPPhone] = useState("");
@@ -153,14 +168,35 @@ export function MarriageWaPanel({ storeId, copy }: { storeId?: string | undefine
           </div>
         </div>
         {!sess.length && <p className="text-xs text-muted-foreground">ما فيه أحد سجّل بالواتساب للحين.</p>}
-        {sess.map((s) => <div key={s.id} className="flex items-center justify-between gap-2 rounded-xl border p-2 text-xs">
+        {sess.map((s) => <div key={s.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border p-2 text-xs">
           <div><b dir="ltr">+{s.phone}</b> {s.gender === "female" ? "👰" : s.gender === "male" ? "🤵" : ""} {s.data?.["name"] ?? ""}
             <div className="text-muted-foreground">{s.done ? "✅ اكتمل" : `⏳ واقف عند سؤال ${Math.min(s.step + 1, total)}/${total}: ${steps[s.step]?.q.split("\n").pop() ?? ""}`} • {new Date(s.updated_at).toLocaleString("ar")}</div></div>
           <div className="flex gap-1">
+            <button onClick={() => setEdit(edit?.id === s.id ? null : { id: s.id, step: s.step, data: { ...(s.data ?? {}) }, text: "" })} className="rounded-lg border border-primary px-2 py-1 text-primary">✏️ تعديل</button>
             <button onClick={() => void setPaused(s.phone, !s.paused)} className={`rounded-lg border px-2 py-1 ${s.paused ? "border-destructive text-destructive" : ""}`}>{s.paused ? "▶️ تشغيل" : "⏸️ إطفاء"}</button>
             <a href={`https://wa.me/${s.phone}`} target="_blank" rel="noreferrer" className="rounded-lg border px-2 py-1">💬</a>
             <button onClick={async () => { if (!confirm("تنقل الجلسة لسلة المحذوفات؟ (تقدر ترجعها)")) return; await supabase.from("marriage_wa_sessions").delete().eq("id", s.id); void loadSess(); }} className="rounded-lg border px-2 py-1">🗑️</button>
           </div>
+          {edit?.id === s.id && <div className="mt-2 w-full basis-full space-y-2 rounded-xl border border-primary/40 bg-primary/5 p-2">
+            <p className="font-semibold">✏️ تعديل يدوي — السؤال الحالي: {Math.min(edit.step + 1, total)}/{total}</p>
+            <select value={edit.step} onChange={(e) => setEdit({ ...edit, step: +e.target.value })} className="w-full rounded-lg border bg-background p-1.5">
+              {steps.map((st, i) => <option key={st.k} value={i}>{i + 1}. {st.q.split("\n").pop()}</option>)}
+            </select>
+            <div className="max-h-72 space-y-1 overflow-y-auto">
+              {steps.filter((st) => st.k !== "gender").map((st) => <label key={st.k} className="block">
+                <span className="text-muted-foreground">{st.q.split("\n").pop()}</span>
+                <input value={edit.data[st.k] ?? ""} onChange={(e) => setEdit({ ...edit, data: { ...edit.data, [st.k]: e.target.value } })} className="w-full rounded-lg border bg-background p-1.5" />
+              </label>)}
+            </div>
+            <div className="grid grid-cols-2 gap-1">
+              <button disabled={eBusy} onClick={() => void act("save")} className="rounded-lg bg-primary py-1.5 text-primary-foreground">💾 حفظ</button>
+              <button disabled={eBusy} onClick={() => void act("skip")} className="rounded-lg border py-1.5">⏩ تخطي وإرسال اللي بعده</button>
+              <button disabled={eBusy} onClick={() => void act("send_question")} className="rounded-lg border py-1.5">📤 أرسل السؤال الحالي</button>
+              <button disabled={eBusy} onClick={() => void act("finish")} className="rounded-lg bg-gold py-1.5 text-accent-foreground">✅ اعتماد وإنهاء</button>
+            </div>
+            <textarea value={edit.text} onChange={(e) => setEdit({ ...edit, text: e.target.value })} rows={2} placeholder="اكتب سؤال أو رسالة من عندك للعميل…" className="w-full rounded-lg border bg-background p-1.5" />
+            <button disabled={eBusy || !edit.text.trim()} onClick={() => void act("send_text")} className="w-full rounded-lg bg-primary py-1.5 text-primary-foreground">📨 إرسال بالواتساب</button>
+          </div>}
         </div>)}
       </div>}
 

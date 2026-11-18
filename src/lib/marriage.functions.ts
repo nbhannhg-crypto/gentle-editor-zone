@@ -110,3 +110,69 @@ export const sendMarriageApproved = createServerFn({ method: "POST" })
     if (!instance) return { ok: false, phone, text };
     try { const { evoSend } = await import("@/lib/autoreply.server"); await evoSend(`/message/sendText/${encodeURIComponent(instance)}`, { number: phone, text }); return { ok: true, phone, text }; } catch { return { ok: false, phone, text }; }
   });
+
+/** ✏️ Owner controls one WhatsApp registration session: edit answers, skip, resend question, custom message, finish. */
+export const manageMarriageSession = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({
+    storeId: z.string().uuid(),
+    sessionId: z.string().uuid(),
+    action: z.enum(["save", "skip", "send_question", "send_text", "finish"]),
+    data: z.record(z.string(), z.string().max(1000)).optional(),
+    step: z.number().int().min(0).max(100).optional(),
+    text: z.string().trim().max(2000).optional(),
+  }).parse(d))
+  .handler(async ({ data: d, context }) => {
+    const { data: st } = await context.supabase.from("stores").select("id").eq("id", d.storeId).maybeSingle();
+    if (!st) throw new Error("غير مسموح");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: s } = await supabaseAdmin.from("marriage_wa_sessions").select("*").eq("id", d.sessionId).eq("store_id", d.storeId).maybeSingle();
+    if (!s) throw new Error("الجلسة غير موجودة");
+    const { WA_STEPS, askText } = await import("@/lib/marriage-wa.server");
+    const { data: cfg } = await supabaseAdmin.from("marriage_wa_settings").select("*").eq("store_id", d.storeId).maybeSingle();
+    const sess = s as { instance: string; phone: string; step: number; gender: string; data: Record<string, string> };
+    const merged: Record<string, string> = { ...(sess.data ?? {}), ...(d.data ?? {}) };
+    let step = d.step ?? sess.step;
+    const send = async (text: string) => {
+      const { evoSend } = await import("@/lib/autoreply.server");
+      await evoSend(`/message/sendText/${encodeURIComponent(sess.instance)}`, { number: sess.phone, text });
+    };
+    const answered = () => WA_STEPS.filter((x) => (x.k === "gender" ? !!sess.gender : !!merged[x.k])).length;
+    const upd = async (extra: Record<string, unknown> = {}) => supabaseAdmin.from("marriage_wa_sessions").update({ data: merged, step, updated_at: new Date().toISOString(), ...extra } as never).eq("id", d.sessionId);
+
+    if (d.action === "skip") {
+      const k = WA_STEPS[step]?.k; if (k && k !== "gender" && !(k in merged)) merged[k] = "";
+      step = Math.min(step + 1, WA_STEPS.length - 1);
+      await upd();
+      const q = askText(WA_STEPS[step]!, cfg as never, false, answered());
+      await send(q).catch(() => { throw new Error("انحفظ، لكن تعذر الإرسال بالواتساب"); });
+      return { ok: true, step, sent: q };
+    }
+    if (d.action === "send_question") {
+      await upd();
+      const q = askText(WA_STEPS[Math.min(step, WA_STEPS.length - 1)]!, cfg as never, false, answered());
+      await send(q).catch(() => { throw new Error("تعذر الإرسال بالواتساب"); });
+      return { ok: true, step, sent: q };
+    }
+    if (d.action === "send_text") {
+      if (!d.text) throw new Error("اكتب الرسالة");
+      await upd();
+      await send(d.text).catch(() => { throw new Error("تعذر الإرسال بالواتساب"); });
+      return { ok: true, step, sent: d.text };
+    }
+    if (d.action === "finish") {
+      const out: Record<string, string> = { ...merged };
+      if (!out["platform"]) out["platform"] = "واتساب";
+      if (!out["phone"] || out["phone"].replace(/\D/g, "").length < 8) out["phone"] = sess.phone;
+      out["waPhone"] = sess.phone; out["source"] = "تسجيل واتساب تفاعلي";
+      for (const k of Object.keys(out)) if (out[k] === "" || k.startsWith("_x_")) delete out[k];
+      const { data: code } = await supabaseAdmin.rpc("submit_marriage_form", { _store: d.storeId, _gender: sess.gender || "male", _data: out } as never);
+      step = WA_STEPS.length;
+      await upd({ done: true });
+      const msg = `تم تسجيل طلبك بنجاح 💍\nرقم طلبك: *${code ?? "—"}*\nاحتفظ فيه، وبنتواصل معك أول ما يتوفر توافق مناسب بإذن الله 🤍`;
+      let sent = true; await send(msg).catch(() => { sent = false; });
+      return { ok: true, step, code: String(code ?? ""), sent: sent ? msg : "" };
+    }
+    await upd();
+    return { ok: true, step };
+  });
