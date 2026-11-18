@@ -350,8 +350,10 @@ function rgb(c?: string) { if (!c) return null; if (c.startsWith("#")) return [1
 
 /** Erase only the text strokes (ink-coloured pixels); every other pixel (patterns, logos) stays untouched. */
 function inpaint(ctx: CanvasRenderingContext2D, W: number, H: number, b: { x: number; y: number; w: number; h: number; ink?: string; bg?: string }) {
-  const x0 = Math.max(0, Math.round(b.x * W)), y0 = Math.max(0, Math.round(b.y * H));
-  const x1 = Math.min(W, Math.round((b.x + b.w) * W)), y1 = Math.min(H, Math.round((b.y + b.h) * H));
+  const pad = b.ink ? 0 : 3;
+  const ix0 = Math.round(b.x * W), iy0 = Math.round(b.y * H), ix1 = Math.round((b.x + b.w) * W), iy1 = Math.round((b.y + b.h) * H);
+  const x0 = Math.max(0, ix0 - pad), y0 = Math.max(0, iy0 - pad);
+  const x1 = Math.min(W, ix1 + pad), y1 = Math.min(H, iy1 + pad);
   const w = x1 - x0, h = y1 - y0; if (w < 2 || h < 2) return;
   const data = ctx.getImageData(x0, y0, w, h); const d = data.data;
   const ink = rgb(b.ink), bg = rgb(b.bg);
@@ -359,12 +361,12 @@ function inpaint(ctx: CanvasRenderingContext2D, W: number, H: number, b: { x: nu
   const mask = new Uint8Array(w * h);
   for (let i = 0; i < w * h; i++) {
     const o = i * 4;
-    if (!ink) { mask[i] = 1; continue; }
+    if (!ink) { const px = x0 + (i % w), py = y0 + Math.floor(i / w); if (px >= ix0 && px < ix1 && py >= iy0 && py < iy1) mask[i] = 1; continue; }
     const di = dist(o, ink); const db = bg ? dist(o, bg) : 999;
     if ((di < 120 && di < db) || (db > 90 && di < db * 1.3)) mask[i] = 1;
   }
-  // dilate 2px to remove anti-aliased edges
-  for (let pass = 0; pass < 3; pass++) {
+  // dilate 2px to remove anti-aliased edges (text erase only)
+  for (let pass = 0; pass < (ink ? 3 : 0); pass++) {
     const m2 = mask.slice();
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (!mask[y * w + x]) {
       if ((x > 0 && mask[y * w + x - 1]) || (x < w - 1 && mask[y * w + x + 1]) || (y > 0 && mask[(y - 1) * w + x]) || (y < h - 1 && mask[(y + 1) * w + x])) m2[y * w + x] = 1;
@@ -373,7 +375,7 @@ function inpaint(ctx: CanvasRenderingContext2D, W: number, H: number, b: { x: nu
   }
   // fill masked pixels from known neighbours, layer by layer
   let left = mask.reduce((a, v) => a + v, 0), guard = 0;
-  while (left > 0 && guard++ < 400) {
+  while (left > 0 && guard++ < 2000) {
     const fill: [number, number, number, number][] = [];
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
       const i = y * w + x; if (!mask[i]) continue;
