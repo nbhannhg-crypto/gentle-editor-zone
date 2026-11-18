@@ -33,7 +33,7 @@ function CardEditor() {
   const [view, setView] = useState<string>("");
   const [stamps, setStamps] = useState<Stamp[]>([]);
   const [mode, setMode] = useState<"text" | "src" | "dst">("text");
-  const [stampSize, setStampSize] = useState(0.15);
+  const [stampSize, setStampSize] = useState(0.2);
   const pending = useRef<{ sx: number; sy: number } | null>(null);
   const cur = boxes.find((b) => b.id === sel);
   const eraseKey = boxes.filter((b) => b.erase).map((b) => [b.x, b.y, b.w, b.h].map((n) => n.toFixed(3)).join(",")).join("|") + "#" + boxes.map((b) => b.ink).join(",") + "#" + stamps.map((t) => [t.sx, t.sy, t.w, t.h, t.x, t.y].join(",")).join("|");
@@ -73,9 +73,10 @@ function CardEditor() {
     if (moved.current) { moved.current = false; return; }
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height;
-    if (mode === "src") { pending.current = { sx: Math.max(0, Math.min(1 - stampSize, fx - stampSize / 2)), sy: Math.max(0, Math.min(1 - stampSize, fy - stampSize / 2)) }; setMode("dst"); return; }
+    const ar = imgRef.current ? imgRef.current.naturalWidth / imgRef.current.naturalHeight : 1; const sh = Math.min(1, stampSize * ar);
+    if (mode === "src") { pending.current = { sx: Math.max(0, Math.min(1 - stampSize, fx - stampSize / 2)), sy: Math.max(0, Math.min(1 - sh, fy - sh / 2)) }; setMode("dst"); return; }
     if (mode === "dst" && pending.current) {
-      const p = pending.current; const w = stampSize, h = stampSize;
+      const p = pending.current; const w = stampSize, h = sh;
       setStamps((ss) => [...ss, { id: crypto.randomUUID(), sx: p.sx, sy: p.sy, w, h, x: Math.max(0, Math.min(1 - w, fx - w / 2)), y: Math.max(0, Math.min(1 - h, fy - h / 2)) }]);
       pending.current = null; setMode("text"); return;
     }
