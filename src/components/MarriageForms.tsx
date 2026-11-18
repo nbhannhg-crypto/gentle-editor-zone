@@ -91,6 +91,7 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
       <section className="rounded-3xl bg-royal p-5 text-primary-foreground shadow-soft">
         <h2 className="font-display text-xl">💍 استمارات الزواج والخطابة</h2>
         <a href="/idcard" className="mt-2 inline-block rounded-xl bg-gold px-3 py-2 text-sm text-accent-foreground">🪪 تصميم بطاقة الهوية</a>
+        <a href="/card-editor" className="mt-2 ms-2 inline-block rounded-xl bg-primary px-3 py-2 text-sm text-primary-foreground">✏️ محرر الكروت</a>
         <p className="mt-1 text-sm opacity-90">حط الرابط في بايو تيك توك وسناب، والطلبات توصلك هنا بسرية تامة.</p>
         {link && <div className="mt-3 flex flex-wrap gap-2">
           <code className="min-w-0 flex-1 truncate rounded-xl bg-primary-foreground/10 px-3 py-2 text-xs" dir="ltr">{link}</code>

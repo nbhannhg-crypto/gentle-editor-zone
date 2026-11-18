@@ -15,6 +15,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
+import { Route as AuthenticatedCardEditorRouteImport } from './routes/_authenticated/card-editor'
 import { Route as AuthenticatedIdcardRouteImport } from './routes/_authenticated/idcard'
 import { Route as AuthenticatedStudioRouteImport } from './routes/_authenticated/studio'
 import { Route as MIndexRouteImport } from './routes/m.index'
@@ -58,6 +59,11 @@ const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
 const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
   id: '/app',
   path: '/app',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedCardEditorRoute = AuthenticatedCardEditorRouteImport.update({
+  id: '/card-editor',
+  path: '/card-editor',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedIdcardRoute = AuthenticatedIdcardRouteImport.update({
@@ -143,6 +149,7 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/app': typeof AuthenticatedAppRoute
+  '/card-editor': typeof AuthenticatedCardEditorRoute
   '/idcard': typeof AuthenticatedIdcardRoute
   '/studio': typeof AuthenticatedStudioRoute
   '/m/$storeId': typeof MStoreIdRoute
@@ -165,6 +172,7 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/app': typeof AuthenticatedAppRoute
+  '/card-editor': typeof AuthenticatedCardEditorRoute
   '/idcard': typeof AuthenticatedIdcardRoute
   '/studio': typeof AuthenticatedStudioRoute
   '/m/$storeId': typeof MStoreIdRoute
@@ -189,6 +197,7 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/app': typeof AuthenticatedAppRoute
+  '/_authenticated/card-editor': typeof AuthenticatedCardEditorRoute
   '/_authenticated/idcard': typeof AuthenticatedIdcardRoute
   '/_authenticated/studio': typeof AuthenticatedStudioRoute
   '/m/$storeId': typeof MStoreIdRoute
@@ -213,6 +222,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/admin'
     | '/app'
+    | '/card-editor'
     | '/idcard'
     | '/studio'
     | '/m/$storeId'
@@ -235,6 +245,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/admin'
     | '/app'
+    | '/card-editor'
     | '/idcard'
     | '/studio'
     | '/m/$storeId'
@@ -258,6 +269,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/_authenticated/admin'
     | '/_authenticated/app'
+    | '/_authenticated/card-editor'
     | '/_authenticated/idcard'
     | '/_authenticated/studio'
     | '/m/$storeId'
@@ -336,6 +348,13 @@ declare module '@tanstack/react-router' {
       path: '/app'
       fullPath: '/app'
       preLoaderRoute: typeof AuthenticatedAppRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/card-editor': {
+      id: '/_authenticated/card-editor'
+      path: '/card-editor'
+      fullPath: '/card-editor'
+      preLoaderRoute: typeof AuthenticatedCardEditorRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/idcard': {
@@ -449,6 +468,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
   AuthenticatedAppRoute: typeof AuthenticatedAppRoute
+  AuthenticatedCardEditorRoute: typeof AuthenticatedCardEditorRoute
   AuthenticatedIdcardRoute: typeof AuthenticatedIdcardRoute
   AuthenticatedStudioRoute: typeof AuthenticatedStudioRoute
   AuthenticatedAdminKingdomRoute: typeof AuthenticatedAdminKingdomRoute
@@ -457,6 +477,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRoute,
   AuthenticatedAppRoute: AuthenticatedAppRoute,
+  AuthenticatedCardEditorRoute: AuthenticatedCardEditorRoute,
   AuthenticatedIdcardRoute: AuthenticatedIdcardRoute,
   AuthenticatedStudioRoute: AuthenticatedStudioRoute,
   AuthenticatedAdminKingdomRoute: AuthenticatedAdminKingdomRoute,
