@@ -56,8 +56,10 @@ function draw(c: HTMLCanvasElement, f: F, photo: HTMLImageElement | null) {
     x.stroke();
   }
   // watermark palm + swords
-  x.globalAlpha = 0.08; x.fillStyle = "#1e7a46"; x.textAlign = "center";
-  x.font = "420px serif"; x.fillText("🌴", 900, 780);
+  x.globalAlpha = 0.10; x.strokeStyle = "#1e7a46"; x.lineWidth = 6;
+  for (const r of [260, 230, 120]) { x.beginPath(); x.arc(980, 640, r, 0, Math.PI * 2); x.stroke(); }
+  x.fillStyle = "#1e7a46"; x.textAlign = "center";
+  x.font = "300px serif"; x.fillText("🌴", 980, 720);
   x.globalAlpha = 1;
   // top band
   x.fillStyle = "rgba(30,140,80,0.08)"; x.fillRect(0, 40, W, 200);
@@ -69,9 +71,9 @@ function draw(c: HTMLCanvasElement, f: F, photo: HTMLImageElement | null) {
   // header right
   x.textAlign = "right"; x.fillStyle = "#1a7a43";
   x.font = "bold 46px 'Noto Kufi Arabic', Tahoma, sans-serif";
-  x.fillText("منصة خطابة أم ندى", W - 230, 130);
+  x.fillText("أم ندى", W - 230, 130);
   x.font = "32px 'Noto Kufi Arabic', Tahoma, sans-serif"; x.fillStyle = "#3a6b4f";
-  x.fillText("توثيق الهوية والجدية", W - 230, 185);
+  x.fillText("خطابة أم ندى", W - 230, 185);
   // emblem
   x.font = "120px serif"; x.textAlign = "center"; x.fillText("🌴", W - 140, 200);
   x.fillStyle = "#1a7a43"; x.font = "bold 34px serif"; x.fillText("⚔", W - 140, 225);
