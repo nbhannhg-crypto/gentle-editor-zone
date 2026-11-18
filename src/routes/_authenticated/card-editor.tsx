@@ -63,6 +63,11 @@ function CardEditor() {
     w = Math.min(w, W - x); h = Math.min(h, H - y); return { x, y, w, h };
   }
   const [tapCut, setTapCut] = useState(false);
+  const [eSel, setESel] = useState(false);
+  const [er, setEr] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
+  const erd = useRef(false);
+  const fr = (e: React.PointerEvent) => { const r = viewRef.current!.getBoundingClientRect(); return { x: Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)), y: Math.max(0, Math.min(1, (e.clientY - r.top) / r.height)) }; };
+  function eraseSelected() { if (!er) return; const x = Math.min(er.x0, er.x1), y = Math.min(er.y0, er.y1), w = Math.abs(er.x1 - er.x0), h = Math.abs(er.y1 - er.y0); if (w < 0.005 || h < 0.005) return; setBoxes((bs) => [...bs, { id: crypto.randomUUID(), x, y, w, h, text: "", color: "#000", bg: "", size: 3, erase: true }]); setEr(null); }
   const [z1, setZ1] = useState(1); const [z2, setZ2] = useState(1);
   const [pan1, setPan1] = useState(false); const [pan2, setPan2] = useState(false);
   function cropRect(e: React.PointerEvent) {
@@ -70,10 +75,10 @@ function CardEditor() {
     const im = img2Ref.current; if (!im) return; const r = rectOf(s0);
     if (r.w < 8 || r.h < 8) { setSel2(null); if (tapCut) { cropFrom2(e as unknown as React.MouseEvent); setTapCut(false); } return; }
   }
-  function cutSel() {
+  function cutSel(keepBg = false) {
     const s0 = sel2; const im = img2Ref.current; if (!s0 || !im) return; const r = rectOf(s0); if (r.w < 4 || r.h < 4) return;
     const c = document.createElement("canvas"); c.width = Math.round(r.w); c.height = Math.round(r.h); const ctx = c.getContext("2d")!;
-    ctx.drawImage(im, r.x, r.y, r.w, r.h, 0, 0, c.width, c.height); if (noBg) cleanBg(ctx, c.width, c.height); addOv(c.toDataURL("image/png"), c.width / c.height); setSel2(null);
+    ctx.drawImage(im, r.x, r.y, r.w, r.h, 0, 0, c.width, c.height); if (noBg && !keepBg) cleanBg(ctx, c.width, c.height); addOv(c.toDataURL("image/png"), c.width / c.height); setSel2(null);
   }
   function cropFrom2(e: React.MouseEvent) {
     const im = img2Ref.current; if (!im) return;
@@ -84,10 +89,10 @@ function CardEditor() {
     const c = document.createElement("canvas"); c.width = sw; c.height = shh; const ctx = c.getContext("2d")!;
     ctx.drawImage(im, x, y, sw, shh, 0, 0, sw, shh); if (noBg) cleanBg(ctx, sw, shh); addOv(c.toDataURL("image/png"), sw / shh);
   }
-  function addWhole2() {
+  function addWhole2(keepBg = false) {
     const im = img2Ref.current; if (!im) return; const W = im.naturalWidth, H = im.naturalHeight;
     const c = document.createElement("canvas"); c.width = W; c.height = H; const ctx = c.getContext("2d")!; ctx.drawImage(im, 0, 0);
-    if (noBg) cleanBg(ctx, W, H); addOv(c.toDataURL("image/png"), W / H);
+    if (noBg && !keepBg) cleanBg(ctx, W, H); addOv(c.toDataURL("image/png"), W / H);
   }
   const cur = boxes.find((b) => b.id === sel);
   const eraseKey = boxes.filter((b) => b.erase).map((b) => [b.x, b.y, b.w, b.h].map((n) => n.toFixed(3)).join(",")).join("|") + "#" + boxes.map((b) => b.ink).join(",") + "#" + stamps.map((t) => [t.sx, t.sy, t.w, t.h, t.x, t.y].join(",")).join("|");
@@ -197,13 +202,20 @@ function CardEditor() {
             <Button size="sm" variant="outline" onClick={() => setZ1((v) => Math.min(5, +(v + 0.25).toFixed(2)))}>➕</Button>
             <Button size="sm" variant="outline" onClick={() => setZ1(1)}>↺</Button>
             <Button size="sm" variant={pan1 ? "default" : "outline"} onClick={() => setPan1((v) => !v)}>{"✋ حرّك بإصبعك والتعديل شغال"}</Button>
+            <Button size="sm" variant={eSel ? "default" : "outline"} onClick={() => { setESel((v) => !v); setEr(null); }}>{eSel ? "🧽 وضع التحديد شغال (اضغط للإيقاف)" : "🧽 حدد صورة قديمة وامسحها"}</Button>
+            {eSel && er && <Button size="sm" variant="destructive" onClick={eraseSelected}>🧽 امسح المحدد</Button>}
           </div>
           )}
       {src && (
         <div className="max-h-[75vh] overflow-auto rounded-lg border" style={{ touchAction: "pan-x pan-y" }}>
         <div style={{ containerType: "inline-size", width: `${z1 * 100}%`, touchAction: "pan-x pan-y" }} className="relative select-none" onPointerMove={onMove} onPointerUp={() => { drag.current = null; odrag.current = null; }}>
           <img ref={imgRef} src={src} alt="" className="hidden" onLoad={() => { const c = compose(); if (c) setView(c.toDataURL("image/png")); }} />
-          <img ref={viewRef} src={view || src} alt="الكرت" className="w-full rounded-lg" onClick={onImgClick} draggable={false} />
+          <img ref={viewRef} src={view || src} alt="الكرت" className="w-full rounded-lg" onClick={(e) => { if (!eSel) onImgClick(e); }} draggable={false}
+            style={eSel ? { touchAction: "none" } : undefined}
+            onPointerDown={(e) => { if (!eSel) return; e.stopPropagation(); (e.target as HTMLElement).setPointerCapture(e.pointerId); erd.current = true; const p0 = fr(e); setEr({ x0: p0.x, y0: p0.y, x1: p0.x, y1: p0.y }); }}
+            onPointerMove={(e) => { if (!eSel || !erd.current) return; e.stopPropagation(); const p1 = fr(e); setEr((r) => (r ? { ...r, x1: p1.x, y1: p1.y } : r)); }}
+            onPointerUp={() => { erd.current = false; }} />
+          {eSel && er && <div className="pointer-events-none absolute border-2 border-dashed border-destructive bg-destructive/10" style={{ left: `${Math.min(er.x0, er.x1) * 100}%`, top: `${Math.min(er.y0, er.y1) * 100}%`, width: `${Math.abs(er.x1 - er.x0) * 100}%`, height: `${Math.abs(er.y1 - er.y0) * 100}%` }} />}
           {ovs.map((o) => (
             <img key={o.id} data-ov={o.id} src={o.src} alt="" draggable={false} onClick={(e) => e.stopPropagation()}
               onPointerDown={(e) => { e.stopPropagation(); setOsel(o.id); setSel(null); (e.target as HTMLElement).setPointerCapture(e.pointerId); odrag.current = { id: o.id, sx: e.clientX, sy: e.clientY, bx: o.x, by: o.y }; }}
@@ -311,13 +323,15 @@ function CardEditor() {
               {([["free", "حر ✋"], ["sq", "مربع ⬛"], ["wide", "مستطيل عرضي ▬"], ["tall", "مستطيل طولي ▮"]] as const).map(([k, l]) => <Button key={k} size="sm" variant={shape === k ? "default" : "outline"} onClick={() => setShape(k)}>{l}</Button>)}
             </div>
             <div className="flex flex-wrap gap-1">
-              <Button size="sm" disabled={!sel2} onClick={cutSel}>✂️ قص وإضافة للكرت</Button>
+              <Button size="sm" disabled={!sel2} onClick={() => cutSel()}>✂️ قص وإضافة للكرت</Button>
+              <Button size="sm" variant="secondary" disabled={!sel2} onClick={() => cutSel(true)}>🖼️ قص وإضافة مع الخلفية</Button>
               {sel2 && <Button size="sm" variant="outline" onClick={() => setSel2(null)}>إلغاء التحديد</Button>}
               <Button size="sm" variant={tapCut ? "default" : "outline"} onClick={() => setTapCut((v) => !v)}>{tapCut ? "👆 اضغط على الشعار الحين (مرة وحدة)" : "👆 قص بضغطة واحدة"}</Button>
             </div>
             <label>حجم القص بالضغطة <input type="range" min={0.05} max={1} step={0.01} value={cut} onChange={(e) => setCut(+e.target.value)} className="w-full" /></label>
             <label className="flex items-center gap-2"><input type="checkbox" checked={noBg} onChange={(e) => setNoBg(e.target.checked)} /> شيل خلفية الشعار عشان يندمج</label>
-            <Button size="sm" variant="outline" onClick={addWhole2}>➕ أضف الصورة كاملة للكرت</Button>
+            <Button size="sm" variant="outline" onClick={() => addWhole2()}>➕ أضف الصورة كاملة للكرت</Button>
+            <Button size="sm" variant="secondary" onClick={() => addWhole2(true)}>🖼️ أضف الصورة كاملة مع الخلفية</Button>
           </>}
         </div>
       )}
