@@ -173,14 +173,14 @@ function inpaint(ctx: CanvasRenderingContext2D, W: number, H: number, b: { x: nu
     const wl = 1 / (x - L), wr = 1 / (R - x), wt = 1 / (y - T), wb = 1 / (B - y);
     const pl = at(L, y), pr = at(R, y), pt = at(x, T), pb = at(x, B);
     const ws = wl + wr + wt + wb, o = at(x, y);
-    for (let k = 0; k < 3; k++) out[o + k] = (d[pl + k] * wl + d[pr + k] * wr + d[pt + k] * wt + d[pb + k] * wb) / ws;
+    for (let k = 0; k < 3; k++) out[o + k] = (d[pl + k]! * wl + d[pr + k]! * wr + d[pt + k]! * wt + d[pb + k]! * wb) / ws;
     out[o + 3] = 255;
   }
   // light blur inside for a natural texture-free blend
   const res = new Uint8ClampedArray(out);
   for (let y = T + 1; y < B; y++) for (let x = L + 1; x < R; x++) {
     const o = at(x, y);
-    for (let k = 0; k < 3; k++) { let s = 0; for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) s += out[at(x + i, y + j) + k]; res[o + k] = s / 9; }
+    for (let k = 0; k < 3; k++) { let s = 0; for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) s += out[at(x + i, y + j) + k]!; res[o + k] = s / 9; }
   }
   data.data.set(res); ctx.putImageData(data, sx, sy);
 }
@@ -192,6 +192,6 @@ function textColor(img: HTMLImageElement, x: number, y: number, w: number, h: nu
   ctx.drawImage(img, x * W, y * H, pw, ph, 0, 0, pw, ph);
   const d = ctx.getImageData(0, 0, pw, ph).data; const m = bg.match(/\d+/g)?.map(Number) || [0, 0, 0];
   let best = -1, col = "";
-  for (let i = 0; i < d.length; i += 16) { const diff = Math.abs(d[i] - m[0]) + Math.abs(d[i + 1] - m[1]) + Math.abs(d[i + 2] - m[2]); if (diff > best) { best = diff; col = `rgb(${d[i]},${d[i + 1]},${d[i + 2]})`; } }
+  for (let i = 0; i < d.length; i += 16) { const diff = Math.abs(d[i]! - m[0]!) + Math.abs(d[i + 1]! - m[1]!) + Math.abs(d[i + 2]! - m[2]!); if (diff > best) { best = diff; col = `rgb(${d[i]!},${d[i + 1]!},${d[i + 2]!})`; } }
   return best > 60 ? col : "";
 }
