@@ -21,8 +21,11 @@ export function CardSettings({ storeId }: { storeId: string }) {
   useEffect(() => { void loadCardCfg(storeId).then((c) => { setAllow(c.allow); setNote(c.note); setO({ ...CARD_DEFAULTS, ...c.opts }); }); }, [storeId]);
   const save = async (a = allow, opts = o) => {
     setBusy(true);
-    const { error } = await supabase.from("marriage_wa_settings").upsert({ store_id: storeId, card_customer: a, card_note: note.slice(0, 160), card_opts: opts } as never, { onConflict: "store_id" });
-    setBusy(false); if (error) toast.error("ما انحفظ الإعداد"); else toast.success("انحفظ ✅");
+    const base = { store_id: storeId, card_customer: a, card_note: note.slice(0, 160) };
+    let { error } = await supabase.from("marriage_wa_settings").upsert({ ...base, card_opts: opts } as never, { onConflict: "store_id" });
+    let partial = false;
+    if (error) { partial = true; ({ error } = await supabase.from("marriage_wa_settings").upsert(base, { onConflict: "store_id" })); }
+    setBusy(false); if (error) toast.error("ما انحفظ الإعداد"); else if (partial) toast.message("انحفظ التشغيل والرسالة، ونصوص الكرت تنحفظ بعد دقائق — جرّب مرة ثانية"); else toast.success("انحفظ ✅");
   };
   const set = <K extends keyof CardOpts>(k: K, v: Required<CardOpts>[K]) => setO((p) => ({ ...p, [k]: v }));
   const Tg = ({ on, label, k }: { on: boolean; label: string; k: "terms" | "socials" }) => (
