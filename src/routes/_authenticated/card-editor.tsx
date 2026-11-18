@@ -62,10 +62,14 @@ function CardEditor() {
     if (shape === "sq") { const m = Math.max(w, h); w = h = m; } else if (shape === "wide") h = w / 2; else if (shape === "tall") w = h / 2;
     w = Math.min(w, W - x); h = Math.min(h, H - y); return { x, y, w, h };
   }
+  const [tapCut, setTapCut] = useState(false);
   function cropRect(e: React.PointerEvent) {
     const s0 = sel2; sd.current = false; if (!s0) return;
     const im = img2Ref.current; if (!im) return; const r = rectOf(s0);
-    if (r.w < 8 || r.h < 8) { setSel2(null); cropFrom2(e as unknown as React.MouseEvent); return; }
+    if (r.w < 8 || r.h < 8) { setSel2(null); if (tapCut) { cropFrom2(e as unknown as React.MouseEvent); setTapCut(false); } return; }
+  }
+  function cutSel() {
+    const s0 = sel2; const im = img2Ref.current; if (!s0 || !im) return; const r = rectOf(s0); if (r.w < 4 || r.h < 4) return;
     const c = document.createElement("canvas"); c.width = Math.round(r.w); c.height = Math.round(r.h); const ctx = c.getContext("2d")!;
     ctx.drawImage(im, r.x, r.y, r.w, r.h, 0, 0, c.width, c.height); if (noBg) cleanBg(ctx, c.width, c.height); addOv(c.toDataURL("image/png"), c.width / c.height); setSel2(null);
   }
@@ -238,6 +242,17 @@ function CardEditor() {
               <label>لون الكتابة <input type="color" value={toHex(cur.color)} onChange={(e) => upd({ color: e.target.value })} /></label>
             </div>
           </div>
+          <div className="flex flex-wrap items-center gap-1 text-xs">حجم الخط شعرة:
+            <Button size="sm" variant="outline" onClick={() => upd({ size: Math.max(0.5, +(cur.size - 0.1).toFixed(2)) })}>➖</Button>
+            <span className="w-10 text-center">{cur.size.toFixed(1)}</span>
+            <Button size="sm" variant="outline" onClick={() => upd({ size: +(cur.size + 0.1).toFixed(2) })}>➕</Button>
+          </div>
+          <div className="flex flex-wrap items-center gap-1 text-xs">تحريك الكلام شعرة:
+            <Button size="sm" variant="outline" onClick={() => upd({ y: cur.y - 0.002 })}>⬆️</Button>
+            <Button size="sm" variant="outline" onClick={() => upd({ y: cur.y + 0.002 })}>⬇️</Button>
+            <Button size="sm" variant="outline" onClick={() => upd({ x: cur.x + 0.002 })}>➡️</Button>
+            <Button size="sm" variant="outline" onClick={() => upd({ x: cur.x - 0.002 })}>⬅️</Button>
+          </div>
           <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={cur.erase} onChange={(e) => upd({ erase: e.target.checked })} /> امسح الكلام القديم تحت المربع</label>
           <div className="flex gap-2">
             <Button size="sm" variant="destructive" onClick={() => { setBoxes((bs) => bs.filter((b) => b.id !== sel)); setSel(null); }}>🗑️ حذف المربع</Button>
@@ -263,7 +278,7 @@ function CardEditor() {
             <input type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => setSrc2(String(rd.result)); rd.readAsDataURL(f); }} />
           </label>
           {src2 && <>
-            <p className="text-muted-foreground">حدد الشعار بإصبعك (اسحب مربع حوله) أو اضغط فوقه ⬅️ ينحط في الكرت، وبعدها اسحبه لمكانه.</p>
+            <p className="text-muted-foreground">اسحب بإصبعك مربع حول الشعار، تأكد من التحديد، ثم اضغط «✂️ قص وإضافة للكرت». اللمس لحاله ما ينسخ شي.</p>
             <div className="relative touch-none select-none"
               onPointerDown={(e) => { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); sd.current = true; const q = p2(e); setSel2({ x0: q.x, y0: q.y, x1: q.x, y1: q.y }); }}
               onPointerMove={(e) => { if (!sd.current) return; const q = p2(e); setSel2((v) => (v ? { ...v, x1: q.x, y1: q.y } : v)); }}
@@ -274,7 +289,12 @@ function CardEditor() {
             <div className="flex flex-wrap gap-1">شكل القص:
               {([["free", "حر ✋"], ["sq", "مربع ⬛"], ["wide", "مستطيل عرضي ▬"], ["tall", "مستطيل طولي ▮"]] as const).map(([k, l]) => <Button key={k} size="sm" variant={shape === k ? "default" : "outline"} onClick={() => setShape(k)}>{l}</Button>)}
             </div>
-            <label>حجم القص <input type="range" min={0.05} max={1} step={0.01} value={cut} onChange={(e) => setCut(+e.target.value)} className="w-full" /></label>
+            <div className="flex flex-wrap gap-1">
+              <Button size="sm" disabled={!sel2} onClick={cutSel}>✂️ قص وإضافة للكرت</Button>
+              {sel2 && <Button size="sm" variant="outline" onClick={() => setSel2(null)}>إلغاء التحديد</Button>}
+              <Button size="sm" variant={tapCut ? "default" : "outline"} onClick={() => setTapCut((v) => !v)}>{tapCut ? "👆 اضغط على الشعار الحين (مرة وحدة)" : "👆 قص بضغطة واحدة"}</Button>
+            </div>
+            <label>حجم القص بالضغطة <input type="range" min={0.05} max={1} step={0.01} value={cut} onChange={(e) => setCut(+e.target.value)} className="w-full" /></label>
             <label className="flex items-center gap-2"><input type="checkbox" checked={noBg} onChange={(e) => setNoBg(e.target.checked)} /> شيل خلفية الشعار عشان يندمج</label>
             <Button size="sm" variant="outline" onClick={addWhole2}>➕ أضف الصورة كاملة للكرت</Button>
           </>}
