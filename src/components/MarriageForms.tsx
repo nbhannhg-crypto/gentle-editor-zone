@@ -116,8 +116,8 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
       </div>
 
       {storeId && <CardSettings storeId={storeId} />}
-      <details className="rounded-2xl border bg-card p-3">
-        <summary className="cursor-pointer font-semibold">📥 لصق وفرز رسالة عميل (للي يخافون من الروابط)</summary>
+      <details open className="rounded-2xl border bg-card p-3">
+        <summary className="cursor-pointer font-semibold">📥 لصق وفرز رسالة عميل + ✨ توليد ذكي</summary>
         <p className="mt-1 text-xs text-muted-foreground">الصق كلام العميل كامل مثل ما أرسله بالواتساب أو تيك توك، والنظام يرتبه في الاستمارة.</p>
         <textarea value={paste} onChange={(e) => setPaste(e.target.value)} rows={5} placeholder="مثال: السلام عليكم انا عريس عمري 30 من الرياض موظف أبي زوجة من 22 إلى 28..." className="mt-2 w-full rounded-xl border bg-background p-2 text-sm" />
         <button disabled={busy} onClick={() => void runParse()} className="mt-2 rounded-xl bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-60">{busy ? "⏳ جاري الفرز..." : "✨ فرز تلقائي"}</button>

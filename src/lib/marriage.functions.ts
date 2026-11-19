@@ -189,17 +189,18 @@ export const generateMarriageForm = createServerFn({ method: "POST" })
     const keys = M_ALL.filter((f) => !skip.has(f.k)).map((f) => `"${f.k}": ${f.l}${f.opts ? ` (اختر من: ${f.opts.join("، ")})` : ""}`).join("\n");
     const who = data.gender === "female" ? "عروس سعودية" : "عريس سعودي";
     const sys = `أنت تعبئ استمارة زواج نموذجية لـ${who} بمواصفات سعودية واقعية ومتناسقة (مدن المملكة، وظائف ومؤهلات شائعة، طول ووزن منطقيين، نبذة راقية محترمة بلهجة سعودية خفيفة، مواصفات شريك وشروط مناسبة). نوّع في كل مرة ولا تكرر. لا تكتب أسماء أشخاص ولا أرقام جوال ولا يوزرات. الجنسية سعودي/سعودية.
-أرجع JSON فقط بدون شرح وبدون علامات كود: {"fields":{...}} بالمفاتيح:\n${keys}`;
+اجعل كل قيمة قصيرة (النبذة والشروط سطرين بحد أقصى). أرجع JSON فقط بدون شرح وبدون علامات كود: {"fields":{...}} بالمفاتيح:\n${keys}`;
     const seed = `${data.hint ? `مواصفات مطلوبة: ${data.hint}\n` : ""}رقم عشوائي للتنويع: ${Math.floor(Math.random() * 1e6)}`;
     const out = await aiText(sys, seed).catch(() => "");
     if (!out) return { error: "المفاتيح المجانية مشغولة الحين، جرّب بعد شوي", fields: {} as Record<string, string> };
-    try {
-      const j = JSON.parse(out.slice(out.indexOf("{"), out.lastIndexOf("}") + 1)) as { fields?: Record<string, unknown> };
-      const allowed = new Set(M_ALL.map((f) => f.k).filter((k) => !skip.has(k)));
-      const fields: Record<string, string> = {};
-      for (const [k, v] of Object.entries(j.fields ?? {})) if (allowed.has(k) && v != null && String(v).trim()) fields[k] = String(v).trim().slice(0, 1000);
-      return { error: "", fields };
-    } catch {
-      return { error: "ما ضبط التوليد، جرّب مرة ثانية", fields: {} as Record<string, string> };
+    const allowed = new Set(M_ALL.map((f) => f.k).filter((k) => !skip.has(k)));
+    const fields: Record<string, string> = {};
+    // Tolerant: reads "key":"value" pairs even if the reply was cut off mid-JSON.
+    for (const m of out.matchAll(/"([a-zA-Z0-9]+)"\s*:\s*"((?:[^"\\]|\\.)*)"/g)) {
+      const k = m[1]!, v = m[2]!.replace(/\\n/g, " ").replace(/\\"/g, '"').trim();
+      if (allowed.has(k) && v) fields[k] = v.slice(0, 1000);
     }
+    if (!fields["nationality"]) fields["nationality"] = data.gender === "female" ? "سعودية" : "سعودي";
+    if (Object.keys(fields).length < 4) return { error: "ما ضبط التوليد، جرّب مرة ثانية", fields: {} as Record<string, string> };
+    return { error: "", fields };
   });
