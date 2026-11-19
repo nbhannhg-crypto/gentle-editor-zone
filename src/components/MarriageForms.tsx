@@ -5,7 +5,7 @@ import { CardSettings, loadCardCfg } from "@/components/MarriageCardSettings";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { M_ALL, M_CORE, M_SECTIONS, M_SOURCE, M_STATUS, publicCardText } from "@/lib/marriage";
-import { parseMarriageText, sendMarriageApproved } from "@/lib/marriage.functions";
+import { generateMarriageForm, parseMarriageText, sendMarriageApproved } from "@/lib/marriage.functions";
 
 type KD = { name?: string; age?: string; city?: string; pCity?: string; nationality?: string; pNationality?: string; type?: string; marital?: string; pMarital?: string; pAge?: string; phone?: string; broker?: string; brokerHandle?: string; brokerPlatform?: string };
 type Row = { id: string; code: string; gender: string; data: Record<string, string> & KD; status: string; notes: string; created_at: string };
@@ -31,6 +31,14 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
       const r = await parseMarriageText({ data: { text: paste } });
       if (r.error) toast.error(r.error); else { setParsed({ gender: r.gender, fields: r.fields }); toast.success("تم الفرز، راجع البيانات واحفظ"); }
     } catch { toast.error("تعذر الفرز"); } finally { setBusy(false); }
+  };
+  const [aiHint, setAiHint] = useState("");
+  const runGen = async (gender: "male" | "female") => {
+    setBusy(true);
+    try {
+      const r = await generateMarriageForm({ data: { gender, hint: aiHint || undefined } });
+      if (r.error) toast.error(r.error); else { setParsed({ gender, fields: { ...r.fields, via: "توليد ذكي" } }); toast.success("تم التوليد، راجع البيانات واحفظ ✨"); }
+    } catch { toast.error("تعذر التوليد"); } finally { setBusy(false); }
   };
   const saveParsed = async () => {
     if (!parsed || !storeId) return;
@@ -113,6 +121,14 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
         <p className="mt-1 text-xs text-muted-foreground">الصق كلام العميل كامل مثل ما أرسله بالواتساب أو تيك توك، والنظام يرتبه في الاستمارة.</p>
         <textarea value={paste} onChange={(e) => setPaste(e.target.value)} rows={5} placeholder="مثال: السلام عليكم انا عريس عمري 30 من الرياض موظف أبي زوجة من 22 إلى 28..." className="mt-2 w-full rounded-xl border bg-background p-2 text-sm" />
         <button disabled={busy} onClick={() => void runParse()} className="mt-2 rounded-xl bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-60">{busy ? "⏳ جاري الفرز..." : "✨ فرز تلقائي"}</button>
+        <div className="mt-3 rounded-xl border border-dashed p-2">
+          <div className="text-sm font-semibold">✨ توليد استمارة ذكية بمواصفات سعودية</div>
+          <input value={aiHint} onChange={(e) => setAiHint(e.target.value)} placeholder="اختياري: مثلاً من الرياض، 25 سنة، جامعية" className="mt-1 w-full rounded-lg border bg-background p-2 text-sm" />
+          <div className="mt-2 flex gap-2">
+            <button disabled={busy} onClick={() => void runGen("male")} className="flex-1 rounded-xl bg-primary py-2 text-sm text-primary-foreground disabled:opacity-60">{busy ? "⏳..." : "🤵 عريس سعودي"}</button>
+            <button disabled={busy} onClick={() => void runGen("female")} className="flex-1 rounded-xl bg-primary py-2 text-sm text-primary-foreground disabled:opacity-60">{busy ? "⏳..." : "👰 عروس سعودية"}</button>
+          </div>
+        </div>
         {parsed && <div className="mt-3 space-y-2 rounded-xl border p-2">
           <select value={parsed.gender} onChange={(e) => setParsed({ ...parsed, gender: e.target.value })} className="rounded-lg border bg-background p-2 text-sm"><option value="male">🤵 عريس</option><option value="female">👰 عروس</option></select>
           {(() => {
