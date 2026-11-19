@@ -43,7 +43,7 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
   };
   const saveParsed = async () => {
     if (!parsed || !storeId) return;
-    const { data: code, error } = await supabase.rpc("submit_marriage_form", { _store: storeId, _gender: parsed.gender, _data: { ...parsed.fields, source: parsed.fields.via === "توليد ذكي" ? "توليد ذكي" : "لصق من محادثة" } });
+    const { data: code, error } = await supabase.rpc("submit_marriage_form", { _store: storeId, _gender: parsed.gender, _data: { ...parsed.fields, source: parsed.fields["via"] === "توليد ذكي" ? "توليد ذكي" : "لصق من محادثة" } });
     if (error) { toast.error("ما انحفظ"); return; }
     toast.success(`انحفظ الطلب ${code ?? ""} 💍`); setParsed(null); setPaste(""); void load();
   };
@@ -57,7 +57,7 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
   };
   useEffect(() => { void load(); }, [storeId, all]);
 
-  const list = useMemo(() => rows.filter((r) => ((r.data?.via === "توليد ذكي") === (tab === "ai")) && (g === "all" || r.gender === g) && (st === "all" || r.status === st) &&
+  const list = useMemo(() => rows.filter((r) => ((r.data?.["via"] === "توليد ذكي") === (tab === "ai")) && (g === "all" || r.gender === g) && (st === "all" || r.status === st) &&
     (!q || [r.code, ...Object.values(r.data ?? {})].join(" ").includes(q))), [rows, q, g, st, tab]);
 
   const upd = async (r: Row, patch: Partial<Row>) => {
@@ -163,7 +163,7 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
 
       <MarriageWaPanel storeId={storeId} copy={copy} />
 
-      <div className="grid grid-cols-2 gap-2">{([["real", "💍 طلبات الزباين"], ["ai", "🤖 نماذج التوليد"]] as const).map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`rounded-xl border py-2 text-sm font-bold ${tab === k ? "border-primary bg-primary text-primary-foreground" : "bg-card"}`}>{l} ({rows.filter((r) => (r.data?.via === "توليد ذكي") === (k === "ai")).length})</button>)}</div>
+      <div className="grid grid-cols-2 gap-2">{([["real", "💍 طلبات الزباين"], ["ai", "🤖 نماذج التوليد"]] as const).map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`rounded-xl border py-2 text-sm font-bold ${tab === k ? "border-primary bg-primary text-primary-foreground" : "bg-card"}`}>{l} ({rows.filter((r) => (r.data?.["via"] === "توليد ذكي") === (k === "ai")).length})</button>)}</div>
       <div className="flex flex-wrap gap-2">
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔎 بحث بالكود أو المدينة أو أي كلمة" className="min-w-0 flex-1 rounded-xl border bg-background p-2.5 text-sm" />
         <select value={g} onChange={(e) => setG(e.target.value)} className="rounded-xl border bg-background p-2 text-sm"><option value="all">الكل</option><option value="male">🤵 عرسان</option><option value="female">👰 عرائس</option></select>
