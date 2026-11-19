@@ -182,15 +182,15 @@ export const manageMarriageSession = createServerFn({ method: "POST" })
 /** ✨ AI-generated sample marriage form with realistic Saudi specs (external AI keys only). */
 export const generateMarriageForm = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ gender: z.enum(["male", "female"]), hint: z.string().trim().max(500).optional() }).parse(d))
+  .inputValidator((d) => z.object({ gender: z.enum(["male", "female"]), hint: z.string().trim().max(3000).optional() }).parse(d))
   .handler(async ({ data }) => {
     const { aiText } = await import("@/lib/autoreply.server");
     const skip = new Set(["phone", "phone2", "handle", "name", "district", "tribe"]);
     const keys = M_ALL.filter((f) => !skip.has(f.k)).map((f) => `"${f.k}": ${f.l}${f.opts ? ` (اختر من: ${f.opts.join("، ")})` : ""}`).join("\n");
     const who = data.gender === "female" ? "عروس سعودية" : "عريس سعودي";
     const sys = `أنت تعبئ استمارة زواج نموذجية لـ${who} بمواصفات سعودية واقعية ومتناسقة (مدن المملكة، وظائف ومؤهلات شائعة، طول ووزن منطقيين، نبذة راقية محترمة بلهجة سعودية خفيفة، مواصفات شريك وشروط مناسبة). نوّع في كل مرة ولا تكرر. لا تكتب أسماء أشخاص ولا أرقام جوال ولا يوزرات. الجنسية سعودي/سعودية.
-اجعل كل قيمة قصيرة (النبذة والشروط سطرين بحد أقصى). أرجع JSON فقط بدون شرح وبدون علامات كود: {"fields":{...}} بالمفاتيح:\n${keys}`;
-    const seed = `${data.hint ? `مواصفات مطلوبة: ${data.hint}\n` : ""}رقم عشوائي للتنويع: ${Math.floor(Math.random() * 1e6)}`;
+إذا أعطاك المستخدم مواصفات أو رسالة عميل فالتقط كل معلومة فيها (العمر، المدينة، الحالة، نوع الزواج، الطول، الوزن، الوظيفة، المواصفات، شروط الشريك) وضعها في خانتها حرفيا دون تغيير، ثم أكمل كل الخانات الباقية بقيم متناسقة معها. يجب تعبئة كل المفاتيح بلا استثناء. قيم الخانات القصيرة من كلمة إلى 3 كلمات فقط، والنبذة والشروط سطرين بحد أقصى. أرجع JSON فقط بدون شرح وبدون علامات كود: {"fields":{...}} بالمفاتيح:\n${keys}`;
+    const seed = `${data.hint ? `بيانات ومواصفات يجب دمجها: ${data.hint}\n` : ""}رقم عشوائي للتنويع: ${Math.floor(Math.random() * 1e6)}`;
     const out = await aiText(sys, seed).catch(() => "");
     if (!out) return { error: "المفاتيح المجانية مشغولة الحين، جرّب بعد شوي", fields: {} as Record<string, string> };
     const allowed = new Set(M_ALL.map((f) => f.k).filter((k) => !skip.has(k)));

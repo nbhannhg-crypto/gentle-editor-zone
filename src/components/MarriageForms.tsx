@@ -119,7 +119,7 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
       {storeId && <CardSettings storeId={storeId} />}
       <div className="rounded-2xl border-2 border-gold bg-card p-3">
           <div className="text-sm font-semibold">✨ قسم التوليد الذكي (منفصل) — اضغط عريس أو عروس ويعبّيها كاملة</div>
-          <input value={aiHint} onChange={(e) => setAiHint(e.target.value)} placeholder="اختياري: مثلاً من الرياض، 25 سنة، جامعية" className="mt-1 w-full rounded-lg border bg-background p-2 text-sm" />
+          <textarea value={aiHint} onChange={(e) => setAiHint(e.target.value)} rows={5} maxLength={3000} placeholder="اختياري: الصق مواصفات أو رسالة كاملة (مثلاً: مطلقة 29 من جدة، طول 168، مسيار، المطلوب...) والذكاء يدمجها ويكمل الباقي" className="mt-1 w-full rounded-lg border bg-background p-2 text-sm" />
           <div className="mt-2 flex gap-2">
             <button disabled={busy} onClick={() => void runGen("male")} className="flex-1 rounded-xl bg-primary py-2 text-sm text-primary-foreground disabled:opacity-60">{busy ? "⏳..." : "🤵 عريس سعودي"}</button>
             <button disabled={busy} onClick={() => void runGen("female")} className="flex-1 rounded-xl bg-primary py-2 text-sm text-primary-foreground disabled:opacity-60">{busy ? "⏳..." : "👰 عروس سعودية"}</button>
