@@ -160,22 +160,22 @@ function render(x: CanvasRenderingContext2D, H: number, o: { code: string; gende
   // code
   x.fillStyle = C.navy; x.font = "800 26px Tajawal"; x.fillText(`${o.gender === "female" ? "👰 عروس للزواج" : "🤵 عريس للزواج"}   •   رقم الطلب \u2066#${o.code}\u2069`, W / 2, 478, W - 200);
 
-  let y = 500; const pad = 56, gap = 16, colW = (W - pad * 2 - gap) / 2, rowH = 44;
+  let y = 500; const pad = 56, gap = 16, colW = (W - pad * 2 - gap) / 2, rowH = 48;
   SECTIONS.forEach((s, si) => {
     const items = s.f.filter(([k]) => !(o.mode === "public" && PRIVATE.has(k)) && !(!op.extras && EXTRA_KEYS.has(k)));
     if (!items.length) return;
     x.font = "800 27px Tajawal"; const tw = Math.min(W - 200, x.measureText(s.t).width + 110);
     navyBar(x, W / 2 - tw / 2, y, tw, 50); x.fillStyle = C.white; x.textAlign = "center"; x.fillText(s.t, W / 2 - 18, y + 35); iconDot(x, W / 2 + tw / 2 - 30, y + 25, 19, SEC_ICON[si] || "⭐"); y += 62;
     if (s.f.length === 1) {
-      x.font = "500 21px 'IBM Plex Sans Arabic'"; const lines = wrap(x, (o.data[items[0]![0]] || "—").replace(/\s+/g, " "), W - pad * 2 - 110, 3); const h = 30 + lines.length * 30;
+      x.font = "700 22px Tajawal"; const lines = wrap(x, (o.data[items[0]![0]] || "—").replace(/\s+/g, " "), W - pad * 2 - 110, 3); const h = 30 + lines.length * 30;
       pill(x, pad, y, W - pad * 2, h); iconDot(x, W - pad - 32, y + h / 2, 22, ICON[items[0]![0]] || "✍️");
-      x.textAlign = "right"; x.fillStyle = C.ink; lines.forEach((l, i) => x.fillText(l, W - pad - 66, y + 36 + i * 30)); y += h + 14; return;
+      x.textAlign = "right"; x.fillStyle = "#051330"; lines.forEach((l, i) => x.fillText(l, W - pad - 66, y + 36 + i * 30)); y += h + 14; return;
     }
     items.forEach(([k, l], i) => {
       const col = i % 2, row = Math.floor(i / 2); const bx = col === 0 ? W - pad - colW : pad, by = y + row * (rowH + 8);
       pill(x, bx, by, colW, rowH); iconDot(x, bx + colW - 24, by + rowH / 2, 17, ICON[k] || "⭐");
-      x.textAlign = "right"; x.fillStyle = C.navy; x.font = "800 19px Tajawal"; const lab = `${l}:`; x.fillText(lab, bx + colW - 50, by + 29);
-      const lw = x.measureText(lab).width; x.fillStyle = "#1f2f5c"; x.font = "500 19px 'IBM Plex Sans Arabic'"; x.fillText(fit(x, o.data[k]?.trim() || "—", colW - lw - 76), bx + colW - 58 - lw, by + 29);
+      x.textAlign = "right"; x.fillStyle = C.navy; x.font = "800 19px Tajawal"; const lab = `${l}:`; x.fillText(lab, bx + colW - 50, by + 32);
+      const lw = x.measureText(lab).width; x.fillStyle = "#051330"; x.font = "700 21px Tajawal"; x.fillText(fit(x, o.data[k]?.trim() || "—", colW - lw - 76), bx + colW - 58 - lw, by + 32);
     });
     y += Math.ceil(items.length / 2) * (rowH + 8) + 12;
   });
@@ -184,7 +184,7 @@ function render(x: CanvasRenderingContext2D, H: number, o: { code: string; gende
   if (op.terms) {
     const tl = op.termsText.split("\n").map((t) => t.trim()).filter(Boolean).slice(0, 5); const h = 60 + tl.length * 32;
     navyBar(x, pad, y, W - pad * 2, h); x.textAlign = "center"; x.fillStyle = C.gold2; x.font = "800 26px Tajawal"; x.fillText("🤝 شروطنا الواضحة بالحلال", W / 2, y + 38);
-    x.fillStyle = C.white; x.font = "600 20px 'IBM Plex Sans Arabic'"; tl.forEach((t, i) => x.fillText(t, W / 2, y + 74 + i * 32, W - pad * 2 - 50)); y += h + 16;
+    x.fillStyle = C.white; x.font = "700 21px Tajawal"; tl.forEach((t, i) => x.fillText(t, W / 2, y + 74 + i * 32, W - pad * 2 - 50)); y += h + 16;
   }
   // badges
   const badges: [string, string][] = [["👥", "الخدمة مخصصة للبالغين بعمر 18 فأكثر"], ["⚖️", "سرية البيانات وعدم نشرها"], ["✅", "التحقق من المعلومات قدر الإمكان"], ["🤝", "التعامل بجدية واحترام"], ["🔒", "خصوصيتك أمانة لدينا"]];

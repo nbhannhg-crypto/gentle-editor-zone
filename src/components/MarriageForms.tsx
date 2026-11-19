@@ -14,6 +14,7 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
   const [rows, setRows] = useState<Row[]>([]);
   const [q, setQ] = useState("");
   const [g, setG] = useState("all");
+  const [tab, setTab] = useState<"real" | "ai">("real");
   const [st, setSt] = useState("all");
   const [open, setOpen] = useState<Row | null>(null);
   const [card, setCard] = useState<Row | null>(null);
@@ -42,7 +43,7 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
   };
   const saveParsed = async () => {
     if (!parsed || !storeId) return;
-    const { data: code, error } = await supabase.rpc("submit_marriage_form", { _store: storeId, _gender: parsed.gender, _data: { ...parsed.fields, source: "لصق من محادثة" } });
+    const { data: code, error } = await supabase.rpc("submit_marriage_form", { _store: storeId, _gender: parsed.gender, _data: { ...parsed.fields, source: parsed.fields.via === "توليد ذكي" ? "توليد ذكي" : "لصق من محادثة" } });
     if (error) { toast.error("ما انحفظ"); return; }
     toast.success(`انحفظ الطلب ${code ?? ""} 💍`); setParsed(null); setPaste(""); void load();
   };
@@ -56,8 +57,8 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
   };
   useEffect(() => { void load(); }, [storeId, all]);
 
-  const list = useMemo(() => rows.filter((r) => (g === "all" || r.gender === g) && (st === "all" || r.status === st) &&
-    (!q || [r.code, ...Object.values(r.data ?? {})].join(" ").includes(q))), [rows, q, g, st]);
+  const list = useMemo(() => rows.filter((r) => ((r.data?.via === "توليد ذكي") === (tab === "ai")) && (g === "all" || r.gender === g) && (st === "all" || r.status === st) &&
+    (!q || [r.code, ...Object.values(r.data ?? {})].join(" ").includes(q))), [rows, q, g, st, tab]);
 
   const upd = async (r: Row, patch: Partial<Row>) => {
     const { error } = await supabase.from("marriage_forms").update(patch).eq("id", r.id);
@@ -116,19 +117,20 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
       </div>
 
       {storeId && <CardSettings storeId={storeId} />}
-      <details open className="rounded-2xl border bg-card p-3">
-        <summary className="cursor-pointer font-semibold">📥 لصق وفرز رسالة عميل + ✨ توليد ذكي</summary>
-        <p className="mt-1 text-xs text-muted-foreground">الصق كلام العميل كامل مثل ما أرسله بالواتساب أو تيك توك، والنظام يرتبه في الاستمارة.</p>
-        <textarea value={paste} onChange={(e) => setPaste(e.target.value)} rows={5} placeholder="مثال: السلام عليكم انا عريس عمري 30 من الرياض موظف أبي زوجة من 22 إلى 28..." className="mt-2 w-full rounded-xl border bg-background p-2 text-sm" />
-        <button disabled={busy} onClick={() => void runParse()} className="mt-2 rounded-xl bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-60">{busy ? "⏳ جاري الفرز..." : "✨ فرز تلقائي"}</button>
-        <div className="mt-3 rounded-xl border border-dashed p-2">
-          <div className="text-sm font-semibold">✨ توليد استمارة ذكية بمواصفات سعودية</div>
+      <div className="rounded-2xl border-2 border-gold bg-card p-3">
+          <div className="text-sm font-semibold">✨ قسم التوليد الذكي (منفصل) — اضغط عريس أو عروس ويعبّيها كاملة</div>
           <input value={aiHint} onChange={(e) => setAiHint(e.target.value)} placeholder="اختياري: مثلاً من الرياض، 25 سنة، جامعية" className="mt-1 w-full rounded-lg border bg-background p-2 text-sm" />
           <div className="mt-2 flex gap-2">
             <button disabled={busy} onClick={() => void runGen("male")} className="flex-1 rounded-xl bg-primary py-2 text-sm text-primary-foreground disabled:opacity-60">{busy ? "⏳..." : "🤵 عريس سعودي"}</button>
             <button disabled={busy} onClick={() => void runGen("female")} className="flex-1 rounded-xl bg-primary py-2 text-sm text-primary-foreground disabled:opacity-60">{busy ? "⏳..." : "👰 عروس سعودية"}</button>
           </div>
+          <p className="mt-1 text-[11px] text-muted-foreground">النماذج المولّدة تنحفظ لحالها في «🤖 نماذج التوليد» وما تختلط بطلبات الزباين. وتطلع لك للمراجعة تحت قسم اللصق.</p>
         </div>
+      <details open className="rounded-2xl border bg-card p-3">
+        <summary className="cursor-pointer font-semibold">📥 لصق وفرز رسالة عميل + ✨ توليد ذكي</summary>
+        <p className="mt-1 text-xs text-muted-foreground">الصق كلام العميل كامل مثل ما أرسله بالواتساب أو تيك توك، والنظام يرتبه في الاستمارة.</p>
+        <textarea value={paste} onChange={(e) => setPaste(e.target.value)} rows={5} placeholder="مثال: السلام عليكم انا عريس عمري 30 من الرياض موظف أبي زوجة من 22 إلى 28..." className="mt-2 w-full rounded-xl border bg-background p-2 text-sm" />
+        <button disabled={busy} onClick={() => void runParse()} className="mt-2 rounded-xl bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-60">{busy ? "⏳ جاري الفرز..." : "✨ فرز تلقائي"}</button>
         {parsed && <div className="mt-3 space-y-2 rounded-xl border p-2">
           <select value={parsed.gender} onChange={(e) => setParsed({ ...parsed, gender: e.target.value })} className="rounded-lg border bg-background p-2 text-sm"><option value="male">🤵 عريس</option><option value="female">👰 عروس</option></select>
           {(() => {
@@ -161,6 +163,7 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
 
       <MarriageWaPanel storeId={storeId} copy={copy} />
 
+      <div className="grid grid-cols-2 gap-2">{([["real", "💍 طلبات الزباين"], ["ai", "🤖 نماذج التوليد"]] as const).map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`rounded-xl border py-2 text-sm font-bold ${tab === k ? "border-primary bg-primary text-primary-foreground" : "bg-card"}`}>{l} ({rows.filter((r) => (r.data?.via === "توليد ذكي") === (k === "ai")).length})</button>)}</div>
       <div className="flex flex-wrap gap-2">
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔎 بحث بالكود أو المدينة أو أي كلمة" className="min-w-0 flex-1 rounded-xl border bg-background p-2.5 text-sm" />
         <select value={g} onChange={(e) => setG(e.target.value)} className="rounded-xl border bg-background p-2 text-sm"><option value="all">الكل</option><option value="male">🤵 عرسان</option><option value="female">👰 عرائس</option></select>
