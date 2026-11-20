@@ -214,6 +214,8 @@ function render(x: CanvasRenderingContext2D, H: number, o: { code: string; gende
   return y + 60;
 }
 
+export const CHANNEL_URL = "https://whatsapp.com/channel/0029VbE6Qg6DzgTA861IYh3b";
+
 export async function drawMarriageCard(cv: HTMLCanvasElement, o: { code: string; gender: string; data: D; mode: "public" | "private"; note?: string | undefined; opts?: CardOpts | null | undefined }) {
   try { await Promise.all(["700 30px Tajawal", "800 30px Tajawal", "500 24px 'IBM Plex Sans Arabic'", "700 40px 'Reem Kufi'", "700 20px Amiri"].map((f) => document.fonts.load(f))); } catch { /* ignore */ }
   const rose = await loadRose(); const opts = cardOpts(o.opts);
@@ -222,7 +224,7 @@ export async function drawMarriageCard(cv: HTMLCanvasElement, o: { code: string;
   cv.width = W; cv.height = h; render(cv.getContext("2d")!, h, { ...o, opts: { ...opts, socials: opts.style === "classic" ? false : opts.socials }, rose });
 }
 
-export function MarriageCardView({ code, gender, data, note, opts: opts0, allowPrivate = true, defaultMode = "public", viewOnly = false, styleSwitch = true }: { code: string; gender: string; data: D; note?: string | undefined; opts?: CardOpts | null | undefined; allowPrivate?: boolean; defaultMode?: "public" | "private"; viewOnly?: boolean; styleSwitch?: boolean }) {
+export function MarriageCardView({ code, gender, data, note, opts: opts0, allowPrivate = true, defaultMode = "public", viewOnly = false, styleSwitch = true, shareText }: { shareText?: string; code: string; gender: string; data: D; note?: string | undefined; opts?: CardOpts | null | undefined; allowPrivate?: boolean; defaultMode?: "public" | "private"; viewOnly?: boolean; styleSwitch?: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const [mode, setMode] = useState<"public" | "private">(allowPrivate ? defaultMode : "public");
   const [style, setStyle] = useState<"royal" | "classic">(opts0?.style === "classic" ? "classic" : "royal");
@@ -233,6 +235,7 @@ export function MarriageCardView({ code, gender, data, note, opts: opts0, allowP
   const name = `ام-ندى-${code}-${mode === "public" ? "نشر" : "خاص"}.png`;
   const dl = async () => { const u = URL.createObjectURL(await blob()); const a = document.createElement("a"); a.href = u; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(u), 3000); };
   const share = async () => { try { const f = new File([await blob()], name, { type: "image/png" }); if (navigator.canShare?.({ files: [f] })) await navigator.share({ files: [f], title: "خطابة أم ندى" }); else { await dl(); toast.message("انحفظ الكرت، أرسله من الصور"); } } catch { /* cancelled */ } };
+  const toChannel = async () => { try { if (shareText) await navigator.clipboard.writeText(shareText).catch(() => {}); const f = new File([await blob()], name, { type: "image/png" }); if (navigator.canShare?.({ files: [f] })) { await navigator.share({ files: [f], ...(shareText ? { text: shareText } : {}) }); } else { await dl(); window.open(CHANNEL_URL, "_blank"); toast.message("انحفظ الكرت والنص منسوخ — أرسله بالقناة"); } } catch { /* cancelled */ } };
   return (
     <div dir="rtl" className="space-y-2">
       {allowPrivate && <div className="grid grid-cols-2 gap-2">{([["public", "📢 نسخة النشر (محجوبة)"], ["private", "🔐 نسخة خاصة كاملة"]] as const).map(([m, l]) => <button key={m} onClick={() => setMode(m)} className={`rounded-xl border px-2 py-2 text-xs font-bold ${mode === m ? "border-primary bg-primary text-primary-foreground" : "bg-background"}`}>{l}</button>)}</div>}
@@ -242,6 +245,7 @@ export function MarriageCardView({ code, gender, data, note, opts: opts0, allowP
         {viewOnly && <div className="absolute inset-0" />}
       </div>
       {viewOnly ? <p className="text-center text-xs text-muted-foreground">👁️ للمعاينة فقط — نسختك الرسمية محفوظة عند الخطابة 🤍</p> : <div className="flex gap-2"><button onClick={() => void dl()} className="flex-1 rounded-xl bg-primary py-2 text-sm font-bold text-primary-foreground">📥 حفظ الكرت كصورة</button><button onClick={() => void share()} className="flex-1 rounded-xl border-2 border-gold bg-background py-2 text-sm font-bold">📤 مشاركة</button></div>}
+      {!viewOnly && <button onClick={() => void toChannel()} className="w-full rounded-xl bg-primary py-2.5 text-sm font-bold text-primary-foreground">📢 أرسل الكرت + المواصفات للقناة</button>}
     </div>
   );
 }

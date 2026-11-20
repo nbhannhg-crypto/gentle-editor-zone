@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { MarriageWaPanel } from "@/components/MarriageWaPanel";
-import { MarriageCardView } from "@/components/MarriageCard";
+import { MarriageCardView, CHANNEL_URL } from "@/components/MarriageCard";
 import { CardSettings, loadCardCfg } from "@/components/MarriageCardSettings";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -230,7 +230,7 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
       {card && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/50 p-3" onClick={() => setCard(null)}>
           <div dir="rtl" className="max-h-[95vh] w-full max-w-md overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="mb-3 rounded-3xl bg-background p-3"><b className="mb-2 block text-center text-sm text-primary">👑 الكرت الملكي</b><MarriageCardView code={card.code} gender={card.gender} data={card.data} note={cardCfg?.note} opts={cardCfg?.opts} /><button onClick={() => copy(specText(card))} className="mt-2 w-full rounded-xl bg-gold py-2.5 text-sm font-bold text-accent-foreground">📋 نسخ مواصفات النشر (مرقمة)</button></div>
+            <div className="mb-3 rounded-3xl bg-background p-3"><b className="mb-2 block text-center text-sm text-primary">👑 الكرت الملكي</b><MarriageCardView code={card.code} gender={card.gender} data={card.data} note={cardCfg?.note} opts={cardCfg?.opts} shareText={specText(card)} /><button onClick={() => copy(specText(card))} className="mt-2 w-full rounded-xl bg-gold py-2.5 text-sm font-bold text-accent-foreground">📋 نسخ مواصفات النشر (مرقمة)</button><button onClick={() => { void navigator.clipboard.writeText(specText(card)).then(() => toast.success("انسخ الكلام — الصقه بالقناة وأرسل")); window.open(CHANNEL_URL, "_blank"); }} className="mt-2 w-full rounded-xl border-2 border-gold bg-background py-2.5 text-sm font-bold">📢 أرسل المواصفات للقناة</button></div>
             <div className="rounded-3xl border-4 border-gold bg-royal p-5 text-primary-foreground shadow-soft">
               <div className="text-center text-3xl">👑</div>
               <h3 className="text-center font-display text-xl">{card.gender === "female" ? "عروس للزواج" : "عريس للزواج"}</h3>
