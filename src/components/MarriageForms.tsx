@@ -83,6 +83,15 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
     return { x, s };
   }).filter((m) => m.s > 0).sort((p, q2) => q2.s - p.s).slice(0, 5);
 
+  const specText = (r: Row) => {
+    const out = [`💍 ${r.gender === "female" ? "عروس للزواج" : "عريس للزواج"} — رقم الطلب #${r.code}`];
+    for (const sec of M_SECTIONS) {
+      const ls = sec.fields.filter((f) => !f.private && f.k !== "phone2" && r.data[f.k]?.trim()).map((f) => `▫️ ${f.l}: ${r.data[f.k]!.trim()}`);
+      if (ls.length) out.push("", `✨ ${sec.t}`, ...ls);
+    }
+    out.push("", "خطابة أم ندى 🤍 ثقة وأمان");
+    return out.join("\n");
+  };
   const copy = (t: string) => { void navigator.clipboard.writeText(t); toast.success("تم النسخ"); };
   const wa = async (r: Row) => {
     const t = toast.loading("⏳ جاري إرسال رسالة الاعتماد...");
@@ -229,6 +238,10 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
                 {M_ALL.filter((f) => !f.private && card.data[f.k] && !f.long).slice(0, 14).map((f) => <div key={f.k}><span className="opacity-75">{f.l}:</span> {card.data[f.k]}</div>)}
               </div>
               <p className="mt-3 text-center text-xs opacity-90">🔒 البيانات الخاصة محجوبة • للتواصل أرسل الكود على الواتساب</p>
+            </div>
+            <div className="mt-2 flex gap-2">
+              <button onClick={() => copy(specText(card))} className="flex-1 rounded-xl bg-gold py-2 text-sm font-bold text-accent-foreground">📋 نسخ المواصفات كاملة</button>
+              <button onClick={() => { const n = (card.data.phone ?? "").replace(/\D/g, "").replace(/^05/, "9665"); if (!n) { toast.error("ما فيه رقم جوال في الطلب، أضفه من ✏️ تعديل"); return; } window.open(`https://wa.me/${n}?text=${encodeURIComponent(specText(card))}`, "_blank"); }} className="flex-1 rounded-xl bg-primary py-2 text-sm font-bold text-primary-foreground">💬 أرسل للعميل واتساب</button>
             </div>
             <div className="mt-2 flex gap-2">
               <button onClick={() => copy(publicCardText(card.code, card.gender, card.data))} className="flex-1 rounded-xl bg-primary py-2 text-sm text-primary-foreground">📋 نسخ نص النشر</button>
