@@ -241,7 +241,7 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
             </div>
             <div className="mt-2 flex gap-2">
               <button onClick={() => copy(specText(card))} className="flex-1 rounded-xl bg-gold py-2 text-sm font-bold text-accent-foreground">📋 نسخ المواصفات كاملة</button>
-              <button onClick={() => { const n = (card.data.phone ?? "").replace(/\D/g, "").replace(/^05/, "9665"); if (!n) { toast.error("ما فيه رقم جوال في الطلب، أضفه من ✏️ تعديل"); return; } window.open(`https://wa.me/${n}?text=${encodeURIComponent(specText(card))}`, "_blank"); }} className="flex-1 rounded-xl bg-primary py-2 text-sm font-bold text-primary-foreground">💬 أرسل للعميل واتساب</button>
+              <button onClick={() => { const n = (card.data.phone ?? "").replace(/\D/g, "").replace(/^05/, "9665"); if (!n) { toast.error("ما فيه رقم جوال في الطلب، أضفه من ✏️ تعديل"); return; } window.open(`https://api.whatsapp.com/send?phone=${n}&text=${encodeURIComponent(specText(card))}`, "_blank"); }} className="flex-1 rounded-xl bg-primary py-2 text-sm font-bold text-primary-foreground">💬 أرسل للعميل واتساب</button>
             </div>
             <div className="mt-2 flex gap-2">
               <button onClick={() => copy(publicCardText(card.code, card.gender, card.data))} className="flex-1 rounded-xl bg-primary py-2 text-sm text-primary-foreground">📋 نسخ نص النشر</button>
