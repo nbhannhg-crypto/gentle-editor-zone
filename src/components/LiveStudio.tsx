@@ -269,14 +269,39 @@ export function LiveStudio() {
     w.onmessage = (ev) => { try { const d = JSON.parse(ev.data); for (const m of Array.isArray(d?.messages) ? d.messages : [d]) { const p = parseEuler(m); if (!p) continue; if ("viewers" in p) setViewers(p.viewers); else handleRef.current(p); } } catch { /* */ } };
   };
 
-  const talk = () => {
+  const talk = (mode: "exact" | "ai" = "exact") => {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) { toast.error("متصفحك ما يدعم التحدث، جرب كروم"); return; }
-    const r = new SR(); r.lang = "ar-SA"; r.interimResults = false;
-    r.onresult = (e: any) => { const t = e.results[0][0].transcript; if (t) void ai("🎙️ صاحب البث", `صاحب البث يكلمك الآن على الهواء ويقول: ${t}. ردي عليه كأنكم تتحاورون أمام الحضور.`, true); };
+    const r = new SR(); r.lang = "ar-SA"; r.interimResults = false; r.continuous = false; r.maxAlternatives = 1;
+    r.onresult = (e: any) => { const t = Array.from(e.results as ArrayLike<any>).map((x: any) => x[0]?.transcript ?? "").join(" ").trim(); if (!t) return;
+      // 🎙️ نطق حرفي: نفس كلامك بالضبط بدون ذكاء
+      if (mode === "exact") enqueue("🎙️ كلامك", spellRef.current ? fixSpell(t) : t, true);
+      else void ai("🎙️ صاحب البث", `صاحب البث يكلمك الآن على الهواء ويقول: ${t}. ردي عليه كأنكم تتحاورون أمام الحضور.`, true); };
     r.onend = () => setListening(false); r.onerror = () => setListening(false);
     setListening(true); r.start();
   };
+  // 🔇 مانع الوشيش: إشارة خفيفة جداً مستمرة تمنع تيك توك يرفع حساسية المايك وقت السكوت
+  const [antiHiss, setAntiHiss] = useState(false);
+  const hissRef = useRef<{ ctx: AudioContext; el: HTMLAudioElement } | null>(null);
+  const stopHiss = () => { const h = hissRef.current; if (h) { h.el.pause(); void h.ctx.close().catch(() => {}); hissRef.current = null; } };
+  const startHiss = async () => {
+    stopHiss();
+    try {
+      const C = (window as any).AudioContext || (window as any).webkitAudioContext; const ctx: AudioContext = new C();
+      const len = ctx.sampleRate * 2; const buf = ctx.createBuffer(1, len, ctx.sampleRate); const d = buf.getChannelData(0);
+      let last = 0; for (let i = 0; i < len; i++) { last = last * 0.97 + (Math.random() * 2 - 1) * 0.03; d[i] = last; }
+      const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
+      const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 400;
+      const g = ctx.createGain(); g.gain.value = 0.004;
+      const dest = ctx.createMediaStreamDestination(); src.connect(lp); lp.connect(g); g.connect(dest); src.start();
+      const el = new Audio(); el.srcObject = dest.stream; el.loop = true;
+      const dev = sRef.current.voice.device; if (dev && "setSinkId" in el) await (el as any).setSinkId(dev).catch(() => {});
+      await ctx.resume().catch(() => {}); await el.play();
+      hissRef.current = { ctx, el };
+    } catch { toast.error("ما قدرنا نشغل مانع الوشيش"); setAntiHiss(false); }
+  };
+  useEffect(() => { const v = localStorage.getItem("live_anti_hiss") === "1"; if (v) setAntiHiss(true); }, []);
+  useEffect(() => { localStorage.setItem("live_anti_hiss", antiHiss ? "1" : "0"); if (antiHiss) void startHiss(); else stopHiss(); return () => stopHiss(); }, [antiHiss, s.voice.device]);
   const skip = () => { audio.current?.pause(); audio.current?.dispatchEvent(new Event("ended")); };
   const loadDevices = async () => { try { await navigator.mediaDevices.getUserMedia({ audio: true }).then((st) => st.getTracks().forEach((t) => t.stop())).catch(() => {}); setDevices((await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "audiooutput")); } catch { toast.error("ما قدرنا نقرأ أجهزة الصوت"); } };
   const sim = (e: Omit<Ev, "id" | "at">) => handle({ ...e, id: uid(), at: Date.now(), sim: true });
@@ -315,7 +340,11 @@ export function LiveStudio() {
           {s.persona.avatar ? <img src={s.persona.avatar} alt={s.persona.name} className="size-full object-cover" /> : "👩🏻‍💼"}
         </div>
         <div><div className="font-display text-lg">{s.persona.name}</div><div className="text-xs text-muted-foreground">{speaking ? "🔊 تتكلم الحين…" : queue.some((q) => q.status === "thinking") ? "💭 تفكر…" : "جاهزة"}</div></div>
-        <Button className="w-full" size="lg" onClick={talk} disabled={listening}>{listening ? "🎙️ أسمعك… تكلم" : "🎙️ كلّمها بصوتك"}</Button>
+        <Button className="w-full" size="lg" onClick={() => talk("exact")} disabled={listening}>{listening ? "🎙️ أسمعك… تكلم" : "🎙️ انطقي كلامي حرفياً"}</Button>
+        <div className="grid w-full grid-cols-2 gap-2">
+          <Button variant="secondary" onClick={() => talk("ai")} disabled={listening}>💭 حاوريها بالذكاء</Button>
+          <Button variant={antiHiss ? "default" : "secondary"} onClick={() => { const v = !antiHiss; setAntiHiss(v); toast.success(v ? "مانع الوشيش شغّال" : "مانع الوشيش مطفي"); }}>🔇 مانع الوشيش: {antiHiss ? "شغّال" : "مطفي"}</Button>
+        </div>
         <div className="grid w-full grid-cols-3 gap-2">
           <Button variant="secondary" onClick={() => openTopic()}>✨ افتحي سالفة</Button>
           <Button variant="secondary" onClick={skip}>⏭ تخطي</Button>
