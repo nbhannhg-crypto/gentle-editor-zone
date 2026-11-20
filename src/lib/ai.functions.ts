@@ -329,6 +329,7 @@ export const fishSpeak = createServerFn({ method: "POST" })
       emotion: z.string().max(30).default(""),
       custom: z.boolean().default(false),
       model: z.enum(["s2.1-pro", "s2.1-pro-free", "s2-pro", "fast", "s1"]).default("s2.1-pro"),
+      stable: z.boolean().optional(),
     }).parse(d),
   )
   .handler(async ({ data }) => {
@@ -352,9 +353,10 @@ export const fishSpeak = createServerFn({ method: "POST" })
         // نص عربي صافي بدون وسوم إنجليزية حتى تبدأ أول كلمة بلكنة سعودية واضحة
         text: clean,
         reference_id: voiceId,
-        format: "mp3", normalize: true,
+        format: "mp3", normalize: !data.stable,
         latency: "normal", mp3_bitrate: 192,
-        temperature: 0.7, top_p: 0.7,
+        // stable = نبرة ثابتة للقصص الطويلة (ما يتغير الصوت فجأة)
+        temperature: data.stable ? 0.2 : 0.7, top_p: data.stable ? 0.5 : 0.7,
         prosody: { speed: data.speed, volume: data.volume },
       }),
     });

@@ -140,7 +140,7 @@ export function LiveStudio() {
     const v = sRef.current.voice; const k = `${v.id}|${v.model}|${v.speed}|${v.emotion}|${text}`;
     let p = pre.current.get(text);
     if (!p) {
-      p = (async () => { const r = await Promise.race([speak({ data: { text: text.slice(0, 1400), voiceId: v.id, custom: true, model: v.model, speed: v.speed, volume: v.gain, emotion: v.emotion } }), new Promise<never>((_, rej) => setTimeout(() => rej(new Error("الصوت تأخر، انتقلنا للي بعده")), 25000))]); try { const d = String(r.audio); const bin = atob(d.slice(d.indexOf(",") + 1)); const u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); return URL.createObjectURL(new Blob([u8], { type: "audio/mpeg" })); } catch { return r.audio as string; } })();
+      p = (async () => { const r = await Promise.race([speak({ data: { text: text.slice(0, 1400), voiceId: v.id, custom: true, model: v.model, speed: v.speed, volume: v.gain, emotion: v.emotion, stable: true } }), new Promise<never>((_, rej) => setTimeout(() => rej(new Error("الصوت تأخر، انتقلنا للي بعده")), 25000))]); try { const d = String(r.audio); const bin = atob(d.slice(d.indexOf(",") + 1)); const u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); return URL.createObjectURL(new Blob([u8], { type: "audio/mpeg" })); } catch { return r.audio as string; } })();
       p.catch(() => pre.current.delete(text)); pre.current.set(text, p); void k;
     }
     return p;
@@ -199,7 +199,7 @@ export function LiveStudio() {
       if (story) {
         reply = reply.replace(/[A-Za-z]+/g, "").replace(/\s+/g, " ").trim();
         const m = reply.match(/^[\s\S]*[.!؟?…]/); if (m && m[0].length > reply.length * 0.5) reply = m[0];
-        const parts = reply.split(/(?<=[.!؟?…])\s+/).map((x) => x.trim()).filter(Boolean);
+        const parts = reply.split(/(?<=[.!؟?…])\s+/).map((x) => x.trim()).filter(Boolean).reduce<string[]>((acc, t) => { const last = acc[acc.length - 1]; if (last !== undefined && (last.split(" ").length < 6 || t.split(" ").length < 4)) acc[acc.length - 1] = `${last} ${t}`; else acc.push(t); return acc; }, []);
         if (parts.length > 1) { setQueue((q) => { const k = q.findIndex((x) => x.id === id); if (k < 0) return q; const items = parts.map((t, n) => ({ id: n ? uid() : id, label, text: t, status: "ready" as const })); return [...q.slice(0, k), ...items, ...q.slice(k + 1)]; }); return reply; }
       }
       patch(id, { text: reply, status: "ready" });
