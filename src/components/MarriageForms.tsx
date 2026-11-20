@@ -85,11 +85,12 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
 
   const specText = (r: Row) => {
     const out = [`💍 ${r.gender === "female" ? "عروس للزواج" : "عريس للزواج"} — رقم الطلب #${r.code}`];
+    let n = 0;
     for (const sec of M_SECTIONS) {
-      const ls = sec.fields.filter((f) => !f.private && f.k !== "phone2" && r.data[f.k]?.trim()).map((f) => `▫️ ${f.l}: ${r.data[f.k]!.trim()}`);
+      const ls = sec.fields.filter((f) => !f.private && f.k !== "phone2" && f.k !== "platform" && r.data[f.k]?.trim()).map((f) => `${++n}. ${f.l}: ${r.data[f.k]!.trim()}`);
       if (ls.length) out.push("", `✨ ${sec.t}`, ...ls);
     }
-    out.push("", "خطابة أم ندى 🤍 ثقة وأمان");
+    out.push("", "🔒 البيانات الخاصة محجوبة • للتواصل أرسل رقم الطلب على الواتساب", "خطابة أم ندى 🤍 ثقة وأمان");
     return out.join("\n");
   };
   const copy = (t: string) => { void navigator.clipboard.writeText(t); toast.success("تم النسخ"); };
@@ -229,7 +230,7 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
       {card && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/50 p-3" onClick={() => setCard(null)}>
           <div dir="rtl" className="max-h-[95vh] w-full max-w-md overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="mb-3 rounded-3xl bg-background p-3"><b className="mb-2 block text-center text-sm text-primary">👑 الكرت الملكي</b><MarriageCardView code={card.code} gender={card.gender} data={card.data} note={cardCfg?.note} opts={cardCfg?.opts} /></div>
+            <div className="mb-3 rounded-3xl bg-background p-3"><b className="mb-2 block text-center text-sm text-primary">👑 الكرت الملكي</b><MarriageCardView code={card.code} gender={card.gender} data={card.data} note={cardCfg?.note} opts={cardCfg?.opts} /><button onClick={() => copy(specText(card))} className="mt-2 w-full rounded-xl bg-gold py-2.5 text-sm font-bold text-accent-foreground">📋 نسخ مواصفات النشر (مرقمة)</button></div>
             <div className="rounded-3xl border-4 border-gold bg-royal p-5 text-primary-foreground shadow-soft">
               <div className="text-center text-3xl">👑</div>
               <h3 className="text-center font-display text-xl">{card.gender === "female" ? "عروس للزواج" : "عريس للزواج"}</h3>
@@ -240,7 +241,6 @@ export function MarriageForms({ storeId, admin }: { storeId?: string | undefined
               <p className="mt-3 text-center text-xs opacity-90">🔒 البيانات الخاصة محجوبة • للتواصل أرسل الكود على الواتساب</p>
             </div>
             <div className="mt-2 flex gap-2">
-              <button onClick={() => copy(specText(card))} className="flex-1 rounded-xl bg-gold py-2 text-sm font-bold text-accent-foreground">📋 نسخ المواصفات كاملة</button>
               <button onClick={() => { const n = (card.data.phone ?? "").replace(/\D/g, "").replace(/^05/, "9665"); if (!n) { toast.error("ما فيه رقم جوال في الطلب، أضفه من ✏️ تعديل"); return; } window.open(`https://api.whatsapp.com/send?phone=${n}&text=${encodeURIComponent(specText(card))}`, "_blank"); }} className="flex-1 rounded-xl bg-primary py-2 text-sm font-bold text-primary-foreground">💬 أرسل للعميل واتساب</button>
             </div>
             <div className="mt-2 flex gap-2">
