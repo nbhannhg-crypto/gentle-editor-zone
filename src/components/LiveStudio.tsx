@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { fishSpeak, smartReply } from "@/lib/ai.functions";
 import { STUDIO_VOICES } from "@/lib/studio-voices";
+import { QuickVoiceBoard } from "@/components/QuickVoiceBoard";
 import { VOICE_MODELS, type VoiceModel, getStudioVoice } from "@/lib/voice-model";
 
 type EvType = "comment" | "gift" | "follow" | "like" | "join" | "share";
@@ -351,6 +352,8 @@ export function LiveStudio() {
           <Button variant="secondary" onClick={() => setPaused((p) => !p)}>{paused ? "▶ استئناف" : "⏸ إيقاف"}</Button>
         </div>
       </section>
+
+      <QuickVoiceBoard voice={s.voice} speak={speak as never} onSmart={(l, p) => void ai(l, p, true)} />
 
       <section className={card}>
         <h3 className="mb-2 font-semibold">✍️ رد يدوي</h3>
