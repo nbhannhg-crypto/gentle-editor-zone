@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { vaultSpeak } from "@/lib/call-vault";
+import { CallVoiceVault } from "@/components/CallVoiceVault";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -141,7 +143,7 @@ export function LiveStudio() {
     const v = sRef.current.voice; const k = `${v.id}|${v.model}|${v.speed}|${v.emotion}|${text}`;
     let p = pre.current.get(text);
     if (!p) {
-      p = (async () => { const r = await Promise.race([speak({ data: { text: text.slice(0, 1400), voiceId: v.id, custom: true, model: v.model, speed: v.speed, volume: v.gain, emotion: v.emotion, stable: true } }), new Promise<never>((_, rej) => setTimeout(() => rej(new Error("الصوت تأخر، انتقلنا للي بعده")), 25000))]); try { const d = String(r.audio); const bin = atob(d.slice(d.indexOf(",") + 1)); const u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); return URL.createObjectURL(new Blob([u8], { type: "audio/mpeg" })); } catch { return r.audio as string; } })();
+      p = vaultSpeak(text.slice(0, 1400), { voiceId: v.id, model: String(v.model), speed: Number(v.speed), emotion: String(v.emotion || "") }, async () => { const r = await Promise.race([speak({ data: { text: text.slice(0, 1400), voiceId: v.id, custom: true, model: v.model, speed: v.speed, volume: v.gain, emotion: v.emotion, stable: true } }), new Promise<never>((_, rej) => setTimeout(() => rej(new Error("الصوت تأخر، انتقلنا للي بعده")), 25000))]); try { const d = String(r.audio); const bin = atob(d.slice(d.indexOf(",") + 1)); const u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); return URL.createObjectURL(new Blob([u8], { type: "audio/mpeg" })); } catch { return r.audio as string; } });
       p.catch(() => pre.current.delete(text)); pre.current.set(text, p); void k;
     }
     return p;
@@ -163,7 +165,7 @@ export function LiveStudio() {
       // 🛡️ مؤقت أمان + لو المتصفح رفض التشغيل ما نتخطى الجملة
       const ok = await new Promise<boolean>((res) => { const max = setTimeout(() => { a.pause(); res(true); }, Math.max(60000, next.text.length * 600)); const done = () => { clearTimeout(max); res(true); }; let tries = 0; a.onended = done; a.onerror = () => { if (tries++ < 2) { const t = a.currentTime; setTimeout(() => { a.load(); a.currentTime = Math.max(0, t - 0.3); void a.play().catch(() => {}); }, 300); } else done(); }; a.play().catch(() => { clearTimeout(max); res(false); }); });
       a.onended = a.onerror = a.onplaying = null; a.pause(); a.removeAttribute("src"); a.load(); // 🔇 إغلاق المسار = لا وشيش
-      if (src.startsWith("blob:")) setTimeout(() => URL.revokeObjectURL(src), 60000);
+      
       if (!ok) { playing.current = false; setNeedTap(true); setPaused(true); toast.error("المتصفح منع الصوت — اضغط «🔊 تفعيل الصوت»"); return; }
       recent.current = [next.text, ...recent.current].slice(0, 6);
       history.current = [...history.current, { who: "a" as const, t: next.text.slice(0, 400) }].slice(-8);
@@ -378,6 +380,7 @@ export function LiveStudio() {
           <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5">{NADA_CTRL.map(([l, pr]) => <button key={l} onClick={() => void chain(l, pr)} className="rounded-lg border bg-background px-2 py-2 text-xs font-medium hover:border-primary">{l}</button>)}</div>
         </div>
         <div className="mt-3 rounded-xl border p-2"><div className="mb-1.5 text-xs font-semibold">👋 ترحيب فوري (ينطق على طول)</div><div className="flex flex-wrap gap-1.5">{WELCOME_BANK.map((q) => <button key={q} onClick={() => enqueue("👋 ترحيب", q, true)} className="rounded-full border border-primary/40 bg-background px-2.5 py-1.5 text-xs hover:bg-primary hover:text-primary-foreground">{q}</button>)}</div></div>
+        <div className="mt-3 rounded-xl border p-2"><div className="mb-1.5 text-xs font-semibold">💾 خزينة الأصوات (أي جملة تكررت تنطق فوراً من المحفوظ)</div><CallVoiceVault playAudio={(u) => { const a = new Audio(u); const d = sRef.current.voice.device; if (d && "setSinkId" in a) void (a as any).setSinkId(d).catch(() => {}); a.volume = Math.max(0.05, Math.min(1, sRef.current.voice.volume ?? 1)); void a.play().catch(() => toast.error("اضغط «🔊 تفعيل الصوت» أول")); }} /></div>
         <div className="mt-3 flex flex-wrap gap-1.5">{QUICK.map((q) => <button key={q} onClick={() => enqueue("⚡ سريع", q)} className="rounded-full border px-2.5 py-1 text-xs text-muted-foreground hover:border-primary hover:text-foreground">{q}</button>)}</div>
       </section>
 
