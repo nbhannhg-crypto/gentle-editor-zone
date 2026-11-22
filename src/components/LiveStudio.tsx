@@ -359,7 +359,8 @@ export function LiveStudio() {
         </div>
       </section>
 
-      <div className="sticky top-0 z-30 -mx-1 space-y-1 rounded-2xl border bg-background/95 p-1.5 shadow backdrop-blur">
+      <div className={topOpen ? "h-36" : "h-12"} aria-hidden />
+      <div className="fixed inset-x-0 top-0 z-40 mx-auto max-w-3xl space-y-1 rounded-b-2xl border bg-background/95 p-1.5 shadow backdrop-blur">
         <div className="flex items-center gap-1">
           <button onClick={() => { const v = !s.auto.joins; up("auto", { joins: v, enabled: v ? true : s.auto.enabled }); toast.success(v ? "الترحيب التلقائي شغّال" : "الترحيب التلقائي مطفي — رحّب بضغطة من التعليقات"); }} className={`shrink-0 rounded-full px-2 py-1 text-xs font-bold ${s.auto.joins && s.auto.enabled ? "bg-primary text-primary-foreground" : "border"}`}>👋 ترحيب {s.auto.joins && s.auto.enabled ? "🟢 شغّال" : "⚪ مطفي"}</button>
           <span className="flex-1 text-center text-[10px] text-muted-foreground">🔊 {queue.length} بالطابور · 📡 {events.length}</span>
@@ -552,7 +553,7 @@ export function LiveStudio() {
         <button title="كتم البث" onClick={() => { const m = !muted; setMuted(m); mutedRef.current = m; if (player.current) player.current.muted = m; if (audio.current) audio.current.muted = m; toast(m ? "🔇 انكتم البث" : "🔊 رجع الصوت"); }} className={`h-9 w-9 rounded-full text-base ${muted ? "bg-destructive text-destructive-foreground" : "bg-muted"}`}>{muted ? "🔇" : "🔊"}</button>
       </div>
       {writeOpen && <div className="fixed inset-x-2 bottom-16 z-50 mx-auto flex max-w-xl gap-1.5 rounded-xl border bg-background p-2 shadow-lg">
-        <Input autoFocus value={fabText} onChange={(e) => setFabText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && fabText.trim()) { unlockAudio(); enqueue("✍️ كتابة", fabText.trim(), true); setFabText(""); } }} placeholder="اكتب وتنطقها أم ندى" />
+        <Input value={fabText} enterKeyHint="send" onChange={(e) => setFabText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && fabText.trim()) { unlockAudio(); enqueue("✍️ كتابة", fabText.trim(), true); setFabText(""); } }} placeholder="اكتب وتنطقها أم ندى" />
         <Button onClick={() => { if (!fabText.trim()) return; unlockAudio(); enqueue("✍️ كتابة", fabText.trim(), true); setFabText(""); }}>إرسال</Button>
         <Button variant="ghost" onClick={() => setWriteOpen(false)}>✕</Button>
       </div>}
