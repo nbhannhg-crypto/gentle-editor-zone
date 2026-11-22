@@ -405,3 +405,18 @@ export const polishSpeech = createServerFn({ method: "POST" })
     );
     return { text: out.replace(/^["«]|["»]$/g, "").trim() || data.text };
   });
+
+// 💍 ينظم مواصفات عروس/عريس الملصوقة إلى إعلان قصير للبث بصوت الخطابة
+export const announceSpecs = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ gender: z.enum(["bride", "groom"]), raw: z.string().min(3).max(4000) }).parse(d))
+  .handler(async ({ data }) => {
+    const who = data.gender === "bride" ? "عروسة" : "عريس";
+    const out = await askModel(
+      `أنتِ خطابة سعودية رزينة (خطابة أم ندى) تعلنين في بث مباشر عن طلب زواج. من النص الملصوق استخرجي المهم فقط: العمر، المدينة، الحالة الاجتماعية، الأطفال، الطول والوصف العام، التعليم أو الوظيفة، نوع الزواج، أهم الشروط. احذفي أي اسم أو رقم جوال أو قبيلة أو حساب أو معلومة خاصة، ولا تخترعين أي معلومة غير موجودة.
+أرجعي JSON فقط بهذا الشكل: {"title":"عنوان قصير جداً مثل: ${who} من جدة ٢٨","speech":"إعلان منطوق يبدأ بـ: للجادين فقط، عندي ${who} ... ثم المواصفات بجمل قصيرة مترابطة بلهجة سعودية، ويختم: اللي يشوف نفسه مناسب يتواصل معنا على الواتساب. بدون إيموجي وبدون ترقيم، الأرقام تكتب كلمات"}`,
+      data.raw,
+    );
+    const m = out.match(/\{[\s\S]*\}/);
+    try { const j = JSON.parse(m ? m[0] : out) as { title?: string; speech?: string }; if (j.speech) return { title: String(j.title || who).slice(0, 60), speech: String(j.speech).trim() }; } catch { /* نص عادي */ }
+    return { title: who, speech: out.replace(/[{}"]/g, "").trim() };
+  });

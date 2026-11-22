@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { fishSpeak, smartReply } from "@/lib/ai.functions";
 import { STUDIO_VOICES } from "@/lib/studio-voices";
 import { QuickVoiceBoard } from "@/components/QuickVoiceBoard";
+import { SpecsBoard } from "@/components/SpecsBoard";
 import { VOICE_MODELS, type VoiceModel, getStudioVoice } from "@/lib/voice-model";
 
 type EvType = "comment" | "gift" | "follow" | "like" | "join" | "share";
@@ -398,6 +399,7 @@ ${CITY}
       </section>
       <div className="grid gap-3 lg:grid-cols-2">
 
+      <SpecsBoard onSay={(t) => enqueue("💍 مواصفات", t, true)} />
       {<QuickVoiceBoard voice={s.voice} speak={speak as never} onSay={(t) => enqueue("⚡ صوت محفوظ", t, true)} onSmart={(l, p) => void ai(l, p, true)} />}
 
       {(
