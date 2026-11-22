@@ -311,6 +311,7 @@ export function LiveStudio() {
   const rnd = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)]!;
   const wave = () => { const types: EvType[] = ["comment", "gift", "follow", "join", "share", "like"]; for (let i = 0; i < 6; i++) setTimeout(() => { const t = types[i]!; sim({ type: t, user: rnd(NAMES), text: rnd(COMMENTS), gift: rnd(GIFTS), count: t === "like" ? 120 : Math.ceil(Math.random() * 5) }); }, i * 700); };
 
+  const [panel, setPanel] = useState<"quick" | "story" | "vault" | "queue" | "events">("quick");
   const counts = events.reduce((m, e) => ({ ...m, [e.type]: (m[e.type] ?? 0) + 1 }), {} as Record<string, number>);
   const speaking = queue.some((q) => q.status === "speaking");
   const card = "rounded-2xl border bg-card p-4";
@@ -322,7 +323,7 @@ export function LiveStudio() {
   );
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-20">
       <section className={`${card} space-y-3`}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div><h2 className="font-display text-xl">🔴 استوديو البث الذكي</h2><p className="text-xs text-muted-foreground">موظفتك ترد على بث تيك توك بصوت من أصوات موقعك</p></div>
@@ -355,9 +356,17 @@ export function LiveStudio() {
         </div>
       </section>
 
-      <QuickVoiceBoard voice={s.voice} speak={speak as never} onSmart={(l, p) => void ai(l, p, true)} />
+      <div className="sticky top-0 z-20 -mx-1 flex gap-1 overflow-x-auto rounded-2xl border bg-background/95 p-1 backdrop-blur">
+        {([["quick", "⚡ الأصوات"], ["story", "✍️ الرد والقصص"], ["vault", "💾 الخزينة"], ["queue", `🔊 الطابور${queue.length ? ` (${queue.length})` : ""}`], ["events", `📡 التعليقات${events.length ? ` (${events.length})` : ""}`]] as const).map(([k, l]) => <button key={k} onClick={() => setPanel(k)} className={`shrink-0 rounded-xl px-3 py-2 text-sm ${panel === k ? "bg-primary font-semibold text-primary-foreground" : "text-muted-foreground"}`}>{l}</button>)}
+      </div>
 
-      <section className={card}>
+      {panel === "quick" && <QuickVoiceBoard voice={s.voice} speak={speak as never} onSmart={(l, p) => void ai(l, p, true)} />}
+
+      {panel === "vault" && (
+        <div className={card}><div className="mb-1.5 text-xs font-semibold">💾 خزينة الأصوات (أي جملة تكررت تنطق فوراً من المحفوظ)</div><CallVoiceVault playAudio={(u) => { const a = new Audio(u); const d = sRef.current.voice.device; if (d && "setSinkId" in a) void (a as any).setSinkId(d).catch(() => {}); a.volume = Math.max(0.05, Math.min(1, sRef.current.voice.volume ?? 1)); void a.play().catch(() => toast.error("اضغط «🔊 تفعيل الصوت» أول")); }} /></div>
+      )}
+
+      {panel === "story" && <section className={card}>
         <h3 className="mb-2 font-semibold">✍️ رد يدوي</h3>
         <Textarea value={manual} onChange={(e) => setManual(e.target.value)} rows={3} placeholder="اكتب جملة تقولها الموظفة، أو فكرة وخلّ الذكاء يصيغها بأسلوبها" />
         <div className="mt-2 flex flex-wrap gap-2">
@@ -380,11 +389,10 @@ export function LiveStudio() {
           <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5">{NADA_CTRL.map(([l, pr]) => <button key={l} onClick={() => void chain(l, pr)} className="rounded-lg border bg-background px-2 py-2 text-xs font-medium hover:border-primary">{l}</button>)}</div>
         </div>
         <div className="mt-3 rounded-xl border p-2"><div className="mb-1.5 text-xs font-semibold">👋 ترحيب فوري (ينطق على طول)</div><div className="flex flex-wrap gap-1.5">{WELCOME_BANK.map((q) => <button key={q} onClick={() => enqueue("👋 ترحيب", q, true)} className="rounded-full border border-primary/40 bg-background px-2.5 py-1.5 text-xs hover:bg-primary hover:text-primary-foreground">{q}</button>)}</div></div>
-        <div className="mt-3 rounded-xl border p-2"><div className="mb-1.5 text-xs font-semibold">💾 خزينة الأصوات (أي جملة تكررت تنطق فوراً من المحفوظ)</div><CallVoiceVault playAudio={(u) => { const a = new Audio(u); const d = sRef.current.voice.device; if (d && "setSinkId" in a) void (a as any).setSinkId(d).catch(() => {}); a.volume = Math.max(0.05, Math.min(1, sRef.current.voice.volume ?? 1)); void a.play().catch(() => toast.error("اضغط «🔊 تفعيل الصوت» أول")); }} /></div>
         <div className="mt-3 flex flex-wrap gap-1.5">{QUICK.map((q) => <button key={q} onClick={() => enqueue("⚡ سريع", q)} className="rounded-full border px-2.5 py-1 text-xs text-muted-foreground hover:border-primary hover:text-foreground">{q}</button>)}</div>
-      </section>
+      </section>}
 
-      <section className={card}>
+      {panel === "queue" && <section className={card}>
         <div className="mb-2 flex items-center justify-between"><h3 className="font-semibold">🔊 طابور الردود الصوتية</h3><button onClick={() => { unlockAudio(); setNeedTap(false); setPaused(false); pausedRef.current = false; setTimeout(pump, 150); }} className={`rounded-full px-2 py-0.5 text-xs ${needTap ? "bg-primary text-primary-foreground animate-pulse" : "border"}`}>🔊 تفعيل الصوت</button><button onClick={() => setQueue((q) => q.filter((x) => x.status === "speaking"))} className="text-xs text-muted-foreground">🗑 مسح</button><button onClick={() => { audio.current?.pause(); playing.current = false; setPaused(false); setQueue((q) => q.filter((x) => x.status === "ready")); setTimeout(pump, 50); toast.success("تم فك التعليق"); }} className="text-xs text-primary">🔄 فك التعليق</button></div>
         {queue.length === 0 ? <p className="py-4 text-center text-sm text-muted-foreground">الطابور فاضي</p> : (
           <ul className="space-y-2">{queue.map((q) => (
@@ -393,9 +401,9 @@ export function LiveStudio() {
               {q.text && (editId === q.id ? <div className="mt-1 space-y-1"><Textarea value={editText} onChange={(e) => setEditText(e.target.value)} rows={2} /><div className="flex gap-1.5"><button onClick={() => { patch(q.id, { text: editText }); setEditId(""); }} className="rounded-full border border-primary px-2 py-0.5 text-xs">✅ حفظ</button><button onClick={() => setEditId("")} className="rounded-full border px-2 py-0.5 text-xs">إلغاء</button></div></div> : <div className="mt-1">{q.text}</div>)}
               {q.status !== "thinking" && editId !== q.id && <div className="mt-1 flex gap-1.5">{q.status === "ready" && <button onClick={() => { setEditId(q.id); setEditText(q.text); }} className="rounded-full border px-2 py-0.5 text-xs">✏️ تعديل</button>}<button onClick={() => { if (q.status === "speaking") audio.current?.pause(); setQueue((l) => l.filter((x) => x.id !== q.id)); if (q.status === "speaking") { playing.current = false; setTimeout(pump, 50); } }} className="rounded-full border px-2 py-0.5 text-xs text-destructive">⏹️ إيقاف/حذف</button></div>}
             </li>))}</ul>)}
-      </section>
+      </section>}
 
-      <section className={card}>
+      {panel === "events" && <section className={card}>
         <h3 className="mb-2 font-semibold">📡 أحداث البث</h3>
         <div className="mb-2 flex gap-1.5 overflow-x-auto">{(["all", ...Object.keys(ICON)] as const).map((k) => <button key={k} onClick={() => setFilter(k as EvType | "all")} className={`shrink-0 rounded-full px-3 py-1 text-xs ${filter === k ? "bg-primary text-primary-foreground" : "bg-muted"}`}>{k === "all" ? "الكل" : ICON[k as EvType]}</button>)}</div>
         <ul className="max-h-72 space-y-1.5 overflow-y-auto">
@@ -408,7 +416,7 @@ export function LiveStudio() {
             </li>))}
           {events.length === 0 && <li className="py-4 text-center text-sm text-muted-foreground">ما فيه أحداث بعد — جرب المحاكاة</li>}
         </ul>
-      </section>
+      </section>}
 
       <div className="flex gap-1 rounded-2xl bg-muted p-1">
         {([["sim", "🧪 المحاكاة"], ["persona", "✨ الشخصية"], ["settings", "⚙️ الإعدادات"]] as const).map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={`flex-1 rounded-xl py-2 text-sm ${tab === k ? "bg-background font-semibold" : "text-muted-foreground"}`}>{l}</button>)}
@@ -500,6 +508,14 @@ export function LiveStudio() {
           </section>
         </div>
       )}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 p-2 backdrop-blur">
+        <div className="mx-auto grid max-w-3xl grid-cols-4 gap-1.5">
+          <Button size="sm" onClick={() => talk("exact")} disabled={listening}>{listening ? "🎙️ أسمعك" : "🎙️ انطقي"}</Button>
+          <Button size="sm" variant="secondary" onClick={() => setPaused((p) => !p)}>{paused ? "▶ كمّلي" : "⏸ إيقاف"}</Button>
+          <Button size="sm" variant="secondary" onClick={skip}>⏭ تخطي</Button>
+          <Button size="sm" variant={needTap ? "default" : "secondary"} onClick={() => { unlockAudio(); setNeedTap(false); audio.current?.pause(); playing.current = false; setPaused(false); pausedRef.current = false; setQueue((q) => q.filter((x) => x.status === "ready")); setTimeout(pump, 150); toast.success("تم فك التعليق"); }}>🔊 فك</Button>
+        </div>
+      </div>
     </div>
   );
 }
