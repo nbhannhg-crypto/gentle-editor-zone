@@ -34,7 +34,7 @@ type Tab = "voice" | "library" | "whatsapp" | "recharge" | "live" | "tiktok";
 
 function StudioPage() {
   const navigate = useNavigate();
-  const [tab, setTab] = useState<Tab>("voice");
+  const [tab, setTab] = useState<Tab>("live");
   const [store, setStore] = useState<Store | null>(null);
   const [balance, setBalance] = useState(0);
   const [lib, setLib] = useState<Audio[]>([]);
@@ -69,7 +69,7 @@ function StudioPage() {
           </div>
         </div>
         <nav className="mx-auto flex max-w-4xl gap-2 overflow-x-auto px-4">
-          {([["voice", "🎙️ توليد صوت"], ["library", "📚 مكتبتي"], ["whatsapp", "🟢 حسابات واتساب"], ["live", "🔴 البث المباشر"], ["tiktok", "🎵 تيك توك"]] as const).map(([k, l]) => (
+          {([["live", "🔴 البث المباشر"], ["voice", "🎙️ توليد صوت"], ["library", "📚 مكتبتي"], ["whatsapp", "🟢 حسابات واتساب"], ["tiktok", "🎵 تيك توك"]] as const).map(([k, l]) => (
             <button key={k} onClick={() => setTab(k)}
               className={`shrink-0 rounded-t-xl px-4 py-2 text-sm font-medium ${tab === k ? "bg-background text-foreground" : "text-primary-foreground/80"}`}>{l}</button>
           ))}

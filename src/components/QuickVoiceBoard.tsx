@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { listClips } from "@/lib/call-vault";
+import { loadPref, savePref } from "@/lib/ui-prefs";
 
 // 🎛️ لوحة الأصوات الفورية: كل جملة تتولد مرة وحدة وتنحفظ في الجهاز، والضغطة بعدها تنطق على طول
 type Voice = { id: string; model: string; speed: number; gain: number; emotion: string; volume?: number; device?: string };
@@ -50,7 +51,9 @@ export function QuickVoiceBoard({ voice, speak, onSmart, onSay }: { voice: Voice
   const a = useRef<HTMLAudioElement | null>(null); const urls = useRef<Record<string, string>>({}); const last = useRef("");
   const key = (t: string) => `${voice.id}|${voice.model}|${voice.speed}|${voice.emotion}|${t}`;
   const [ovr, setOvr] = useState<Record<string, string>>({});
-  useEffect(() => { try { setOvr(JSON.parse(localStorage.getItem("live_sb_ovr") || "{}")); } catch { /* */ } }, []);
+  useEffect(() => { try { setOvr(JSON.parse(localStorage.getItem("live_sb_ovr") || "{}")); } catch { /* */ }
+    void loadPref<Record<string, string>>("live_sb_ovr").then((v) => { if (v && typeof v === "object") { setOvr(v); localStorage.setItem("live_sb_ovr", JSON.stringify(v)); } });
+    void loadPref<Item[]>(LSK).then((v) => { if (Array.isArray(v)) { setCustom(v); localStorage.setItem(LSK, JSON.stringify(v)); } }); }, []);
   const all: Item[] = [...Object.entries(PACKS).flatMap(([cat, ts]) => ts.map((t) => ({ t: ovr[t] ?? t, cat, orig: t }))), ...custom] as (Item & { orig?: string })[];
 
   useEffect(() => { try { setCustom(JSON.parse(localStorage.getItem(LSK) || "[]")); } catch { /* */ } const r = Number(localStorage.getItem("live_sb_rate")); if (r) setRate(r); }, []);
@@ -72,7 +75,7 @@ export function QuickVoiceBoard({ voice, speak, onSmart, onSay }: { voice: Voice
   };
   const stop = () => { a.current?.pause(); setPlaying(""); };
   const prepAll = async () => { const todo = all.filter((i) => !ready[i.t]); let n = 0; for (const i of todo) { setProg(`${++n}/${todo.length}`); try { await gen(i.t); } catch { /* skip */ } } setProg(""); toast.success("كل الأصوات جاهزة للنطق الفوري"); };
-  const saveCustom = (c: Item[]) => { setCustom(c); localStorage.setItem(LSK, JSON.stringify(c)); };
+  const saveCustom = (c: Item[]) => { setCustom(c); localStorage.setItem(LSK, JSON.stringify(c)); void savePref(LSK, c); };
   const add = async () => { const t = newT.trim(); if (!t) return; if (all.some((i) => i.t === t)) { toast.info("الجملة موجودة"); return; } saveCustom([...custom, { t, cat: newCat.trim() || "⭐ أصواتي", custom: true }]); setNewT(""); setBusy((m) => ({ ...m, [t]: true })); try { await gen(t); toast.success("انحفظ الصوت، اضغطه وينطق على طول"); } catch (e) { toast.error(e instanceof Error ? e.message : "تعذر التوليد"); } finally { setBusy((m) => ({ ...m, [t]: false })); } };
   const remove = (t: string) => { saveCustom(custom.filter((i) => i.t !== t)); void dbDel(key(t)); };
   const regen = async (t: string) => { delete urls.current[key(t)]; setBusy((m) => ({ ...m, [t]: true })); try { await gen(t); toast.success("انعاد توليد الصوت"); } catch { toast.error("تعذر"); } finally { setBusy((m) => ({ ...m, [t]: false })); } };
@@ -80,7 +83,7 @@ export function QuickVoiceBoard({ voice, speak, onSmart, onSay }: { voice: Voice
   const edit = async (i: Item & { orig?: string }) => {
     const n = window.prompt("عدّل الكلام:", i.t)?.trim(); if (!n || n === i.t) return;
     if (i.custom) saveCustom(custom.map((c) => (c.t === i.t ? { ...c, t: n } : c)));
-    else if (i.orig) { const o = { ...ovr, [i.orig]: n }; setOvr(o); localStorage.setItem("live_sb_ovr", JSON.stringify(o)); }
+    else if (i.orig) { const o = { ...ovr, [i.orig]: n }; setOvr(o); localStorage.setItem("live_sb_ovr", JSON.stringify(o)); void savePref("live_sb_ovr", o); }
     setBusy((m) => ({ ...m, [n]: true })); try { await gen(n); toast.success("تعدّل الكلام وانحفظ صوته"); } catch { toast.error("تعدّل الكلام، والصوت يتولد أول ضغطة"); } finally { setBusy((m) => ({ ...m, [n]: false })); }
   };
   const cats = [...new Set(all.map((i) => i.cat))];

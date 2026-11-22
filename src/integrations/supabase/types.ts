@@ -673,6 +673,7 @@ export type Database = {
         Row: {
           card_customer: boolean
           card_note: string
+          card_opts: Json
           enabled: boolean
           instance: string
           learned: Json
@@ -685,6 +686,7 @@ export type Database = {
         Insert: {
           card_customer?: boolean
           card_note?: string
+          card_opts?: Json
           enabled?: boolean
           instance?: string
           learned?: Json
@@ -697,6 +699,7 @@ export type Database = {
         Update: {
           card_customer?: boolean
           card_note?: string
+          card_opts?: Json
           enabled?: boolean
           instance?: string
           learned?: Json
@@ -996,6 +999,35 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "reply_library_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      store_ui_prefs: {
+        Row: {
+          key: string
+          store_id: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          key: string
+          store_id: string
+          updated_at?: string
+          value?: Json
+        }
+        Update: {
+          key?: string
+          store_id?: string
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "store_ui_prefs_store_id_fkey"
             columns: ["store_id"]
             isOneToOne: false
             referencedRelation: "stores"
