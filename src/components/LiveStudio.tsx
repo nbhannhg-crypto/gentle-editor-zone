@@ -360,6 +360,28 @@ export function LiveStudio() {
         <button onClick={() => up("auto", { enabled: !s.auto.enabled })} className={`rounded-full px-3 py-1.5 text-xs ${s.auto.enabled ? "bg-primary/80 text-primary-foreground" : "border"}`}>🤖 الرد التلقائي: {s.auto.enabled ? "شغّال" : "مطفي"}</button>
         <span className="text-[11px] text-muted-foreground">🔊 {queue.length} بالطابور · 📡 {events.length}</span>
       </div>
+      <div className="sticky top-12 z-20 rounded-2xl border-2 border-primary bg-card p-2 shadow">
+        <div className="text-[10px] text-muted-foreground">📺 شاشة البث — وش تنطق أم ندى الحين</div>
+        <div className="overflow-hidden whitespace-nowrap text-sm font-bold text-primary"><div className={queue.some((x) => x.status === "speaking") ? "animate-pulse" : ""}>{queue.find((x) => x.status === "speaking")?.text || "… ساكتة"}</div></div>
+        {queue.filter((x) => x.status !== "speaking").length > 0 && <div className="mt-1 flex gap-1 overflow-x-auto text-[10px]">{queue.filter((x) => x.status !== "speaking").map((x) => <span key={x.id} className="shrink-0 rounded-full bg-muted px-2 py-0.5">⏳ {x.text.slice(0, 30)}</span>)}</div>}
+      </div>
+      <section className={card}>
+        <div className="mb-1 flex items-center justify-between"><h3 className="text-sm font-semibold">🙋 القستات والداخلين</h3><span className="text-[10px] text-muted-foreground">آخر {Math.min(events.length, 8)}</span></div>
+        <div className="flex gap-1.5 overflow-x-auto pb-1">
+          {events.filter((e) => e.type === "join" || e.type === "comment" || e.type === "gift").slice(0, 8).map((e) => { const req = e.type === "comment" && /قست|مايك|ابي اطلع|أبي أطلع|ارفع/.test(e.text ?? ""); return (
+            <div key={e.id} className={`w-44 shrink-0 rounded-xl border p-1.5 text-xs ${req ? "border-primary bg-primary/10" : "bg-background"}`}>
+              <div className="truncate font-bold">{req ? "🙋 يطلب قست: " : ICON[e.type]} {e.user}</div>
+              {e.text && <div className="truncate text-[10px] text-muted-foreground">{e.text}</div>}
+              <div className="mt-1 grid grid-cols-2 gap-1 text-[10px]">
+                <button onClick={() => enqueue(`👋 ${e.user}`, rnd(WELCOME_ONE).replace("{name}", e.user), true)} className="rounded border py-1">👋 رحبي</button>
+                <button onClick={() => enqueue(`🙏 ${e.user}`, `الله يجزاك خير يا ${e.user}، تشرفنا فيك`, true)} className="rounded border py-1">🙏 اشكريه</button>
+                <button onClick={() => enqueue(`🎤 ${e.user}`, `حياك الله يا ${e.user}، المايك معك تفضل عرفنا بنفسك`, true)} className="rounded border py-1">🎤 اقبلي</button>
+                <button onClick={() => void ai(`💍 ${e.user}`, `جهزي كلام قصير باسم ${e.user} تسألينه عن مواصفاته وشروطه للزواج.`, true)} className="rounded border py-1">💍 اسأليه</button>
+              </div>
+            </div>); })}
+          {events.length === 0 && <p className="py-2 text-xs text-muted-foreground">لما يدخل أحد أو يطلب قست يطلع هنا</p>}
+        </div>
+      </section>
       <div className="grid gap-3 lg:grid-cols-2">
 
       {<QuickVoiceBoard voice={s.voice} speak={speak as never} onSay={(t) => enqueue("⚡ صوت محفوظ", t, true)} onSmart={(l, p) => void ai(l, p, true)} />}

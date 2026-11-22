@@ -23,7 +23,7 @@ const SMART: [string, string][] = [
   ["🙏 شكر الداعمين", "اشكري الداعمين والحضور بكلام دافئ جديد. جملة أو جملتين."],
 ];
 const LSK = "live_soundboard_custom";
-const dbP = () => new Promise<IDBDatabase>((res, rej) => { const r = indexedDB.open("soundboard", 1); r.onupgradeneeded = () => r.result.createObjectStore("a"); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+const dbP = () => new Promise<IDBDatabase>((res, rej) => { const r = indexedDB.open("quickvoice_v2", 1); r.onupgradeneeded = () => r.result.createObjectStore("a"); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
 const dbGet = async (k: string) => { const db = await dbP(); return new Promise<Blob | undefined>((res) => { const q = db.transaction("a").objectStore("a").get(k); q.onsuccess = () => res(q.result as Blob | undefined); q.onerror = () => res(undefined); }); };
 const dbPut = async (k: string, b: Blob) => { const db = await dbP(); return new Promise<void>((res) => { const tx = db.transaction("a", "readwrite"); tx.objectStore("a").put(b, k); tx.oncomplete = () => res(); tx.onerror = () => res(); }); };
 const dbDel = async (k: string) => { const db = await dbP(); db.transaction("a", "readwrite").objectStore("a").delete(k); };
@@ -104,10 +104,10 @@ export function QuickVoiceBoard({ voice, speak, onSmart, onSay }: { voice: Voice
       </div>
       {cats.map((c) => { const it = shown(c); if (!it.length) return null; return (
         <div key={c}><div className="mb-1.5 text-xs font-semibold">{c}</div>
-          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">{it.map((i) => (
+          <div className="grid grid-cols-3 gap-1 sm:grid-cols-5">{it.map((i) => (
             <div key={i.t} className={`relative rounded-lg border ${playing === i.t ? "border-primary bg-primary/10" : "bg-background"}`}>
-              <button onClick={() => void play(i.t)} disabled={busy[i.t]} className="w-full px-2 py-2.5 text-right text-xs leading-snug">{busy[i.t] ? "⏳ " : ready[i.t] ? "⚡ " : "○ "}{i.t}</button>
-              <div className="flex justify-end gap-2 px-1.5 pb-1 text-[10px] text-muted-foreground"><button onClick={() => void regen(i.t)} title="أعد التوليد">♻️</button>{i.custom && <button onClick={() => remove(i.t)} title="حذف">🗑️</button>}</div>
+              <button onClick={() => void play(i.t)} disabled={busy[i.t]} className="line-clamp-2 h-12 w-full px-1.5 py-1 text-right text-[11px] leading-tight">{busy[i.t] ? "⏳ " : ready[i.t] ? "🔊 " : "🔈 "}{i.t}</button>
+              <div className="absolute bottom-0 left-0 flex gap-1 p-0.5 text-[9px] opacity-60"><button onClick={() => void regen(i.t)} title="أعد التوليد">♻️</button>{i.custom && <button onClick={() => remove(i.t)} title="حذف">🗑️</button>}</div>
             </div>))}</div>
         </div>); })}
       <div className="rounded-xl border p-2 space-y-2">
