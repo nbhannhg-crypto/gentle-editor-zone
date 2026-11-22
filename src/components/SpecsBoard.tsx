@@ -5,7 +5,7 @@ import { loadPref, savePref } from "@/lib/ui-prefs";
 import { fixSpeech } from "@/lib/saudi-num";
 import { supabase } from "@/integrations/supabase/client";
 
-type Spec = { id: string; n: number; gender: "bride" | "groom"; title: string; speech: string; raw: string; contact?: string; code?: string };
+type Spec = { id: string; n: number; gender: "bride" | "groom"; title: string; speech: string; raw: string; contact?: string; code?: string; tasks?: string[] };
 type FormRow = { id: string; code: string; gender: string; status: string; data: Record<string, string> };
 const KEY = "live_specs";
 const FIELDS: [string, string][] = [["age", "العمر"], ["city", "المدينة"], ["nationality", "الجنسية"], ["marital", "الحالة"], ["kids", "الأطفال"], ["type", "نوع الزواج"], ["height", "الطول"], ["weight", "الوزن"], ["edu", "التعليم"], ["job", "الوظيفة"], ["religion", "الالتزام"], ["traits", "الصفات"], ["about", "نبذة"], ["pAge", "العمر المطلوب"], ["pCity", "المدينة المطلوبة"], ["pTerms", "الشروط"], ["pNo", "لا يقبل"]];
@@ -33,12 +33,12 @@ export function SpecsBoard({ onSay }: { onSay: (text: string) => void }) {
 
   const create = async (g: "bride" | "groom", text: string, ai: boolean, extra: Partial<Spec> = {}) => {
     const who = g === "bride" ? "عروسة" : "عريس";
-    let title = who, speech = text;
-    if (ai) { const r = await announceSpecs({ data: { gender: g, raw: text } }); title = r.title; speech = r.speech; }
+    let title = who, speech = text, tasks: string[] = [];
+    if (ai) { const r = await announceSpecs({ data: { gender: g, raw: text } }); title = r.title; speech = r.speech; tasks = r.tasks ?? []; }
     else title = `${who} ${text.split(/\s+/).slice(0, 4).join(" ")}`.slice(0, 60);
     speech = fixSpeech(speech);
     const n = list.reduce((m, x) => Math.max(m, x.n), 0) + 1;
-    const it: Spec = { id: crypto.randomUUID(), n, gender: g, title, speech, raw: text, ...extra };
+    const it: Spec = { id: crypto.randomUUID(), n, gender: g, title, speech, raw: text, tasks, ...extra };
     save([it, ...list]); onSay(speech); toast.success(`انحفظ طلب رقم ${n}`);
   };
   const make = async () => {
@@ -79,16 +79,16 @@ export function SpecsBoard({ onSay }: { onSay: (text: string) => void }) {
               <button onClick={() => setFg("male")} className={`flex-1 rounded border py-1 text-xs ${fg === "male" ? "bg-primary text-primary-foreground" : ""}`}>🤵 عرسان ({forms.filter((f) => f.gender === "male").length})</button>
               <button onClick={() => setForms(null)} className="rounded border px-2 text-xs">✕</button>
             </div>
-            <div className="max-h-72 space-y-1 overflow-y-auto">
+            <div className="max-h-[60vh] space-y-1 overflow-y-auto overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch]">
               {forms.filter((f) => f.gender === fg).map((r) => (
                 <div key={r.id} className="rounded border bg-background p-1.5 text-[11px]">
                   <div className="flex items-center gap-1">
                     <button onClick={() => void cp(r.code, `انسخ الرقم ${r.code}`)} className="rounded bg-primary/10 px-1.5 font-bold">#{r.code}</button>
-                    <button onClick={() => setSeen(seen === r.id ? "" : r.id)} className="flex-1 truncate text-right">{r.data?.["age"] ? `${r.data["age"]} سنة` : ""} · {r.data?.["city"] ?? ""} · {r.data?.["marital"] ?? ""}{seen !== r.id && r.status === "new" ? " 🆕" : ""}</button>
+                    <button onClick={() => setSeen(seen === r.id ? "" : r.id)} className="min-w-0 flex-1 break-words text-right leading-snug">{r.data?.["age"] ? `${r.data["age"]} سنة` : ""} · {r.data?.["city"] ?? ""} · {r.data?.["marital"] ?? ""}{seen !== r.id && r.status === "new" ? " 🆕" : ""}</button>
                     <button onClick={() => void cp(`#${r.code}\n${formText(r)}`)} title="نسخ الكتابة" className="px-1">📋</button>
                     <button onClick={() => void addForm(r)} disabled={busy} className="rounded bg-primary px-1.5 py-0.5 text-primary-foreground disabled:opacity-50">➕ أضف</button>
                   </div>
-                  {seen === r.id && <pre className="mt-1 whitespace-pre-wrap font-sans text-muted-foreground">{formText(r) || "لا توجد تفاصيل"}</pre>}
+                  {seen === r.id && <div className="mt-1 space-y-0.5">{FIELDS.filter(([k]) => r.data?.[k]?.trim()).map(([k, l]) => <div key={k} className="flex gap-1 break-words text-[12px] leading-snug"><span className="shrink-0 font-semibold">{l}:</span><span className="min-w-0 flex-1 break-words text-muted-foreground">{r.data[k]}</span></div>)}{!formText(r) && <span className="text-muted-foreground">لا توجد تفاصيل</span>}</div>}
                 </div>))}
             </div>
           </div>
@@ -105,7 +105,7 @@ export function SpecsBoard({ onSay }: { onSay: (text: string) => void }) {
         </div>
         <button onClick={() => void make()} disabled={busy} className="w-full rounded-lg bg-primary py-1.5 text-xs text-primary-foreground disabled:opacity-50">{busy ? "⏳ يجهز..." : useAi ? "✨ نظّم وانطق واحفظ" : "📝 انطق واحفظ مثل ما هي"}</button>
         {list.length === 0 ? <p className="text-[11px] text-muted-foreground">لا يوجد طلبات محفوظة بعد.</p> : (
-          <div className="max-h-[17rem] space-y-1.5 overflow-y-auto overscroll-contain pe-1">{list.map((s) => (
+          <div className="max-h-[17rem] space-y-1.5 overflow-y-auto overscroll-contain touch-pan-y pe-1">{list.map((s) => (
             <div key={s.id} className="rounded-lg border p-1.5">
               <div className="flex items-center gap-1">
                 <button onClick={() => onSay(s.speech)} className="flex-1 truncate text-right text-xs font-semibold">🔊 #{s.n} {s.gender === "bride" ? "👰" : "🤵"} {s.title}{s.code ? ` · ${s.code}` : ""}</button>
@@ -119,7 +119,7 @@ export function SpecsBoard({ onSay }: { onSay: (text: string) => void }) {
               </div>
               {editId === s.id ? (
                 <div className="mt-1 space-y-1"><textarea value={editT} onChange={(e) => setEditT(e.target.value)} rows={4} className="w-full rounded border bg-background px-2 py-1 text-xs" /><div className="flex gap-1"><button onClick={saveEdit} className="rounded bg-primary px-2 py-1 text-[11px] text-primary-foreground">💾 حفظ</button><button onClick={() => setEditId("")} className="rounded border px-2 py-1 text-[11px]">إلغاء</button></div></div>
-              ) : <p className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground">{s.speech}</p>}
+              ) : <>{s.tasks && s.tasks.length > 0 && <ol className="mt-1 list-decimal space-y-0.5 ps-4 text-[11px]">{s.tasks.map((t, i) => <li key={i}>{t}</li>)}</ol>}<div className="mt-1 flex items-start gap-1 rounded border bg-muted/40 p-1"><p className="min-w-0 flex-1 break-words text-[11px] text-muted-foreground">{s.speech}</p><button onClick={() => void cp(s.speech, "انسخ سكربت النطق")} className="shrink-0 px-1 text-xs">📋</button></div></>}
             </div>))}</div>
         )}
       </>}
