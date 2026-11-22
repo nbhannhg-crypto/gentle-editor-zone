@@ -48,7 +48,10 @@ const SPELL: [RegExp, string][] = [[/معولمات/g, "معلومات"], [/مر
 const fixSpell = (t: string) => SPELL.reduce((a, [r, v]) => a.replace(r, v), t).replace(/[\u200B-\u200D\u0640]/g, "").replace(/\s{2,}/g, " ").trim();
 const SPELL_RULE = "\nمهم جداً: اكتبي كل كلمة بإملاء عربي صحيح 100%، ممنوع تقلبين أو تقدمين أو تأخرين أي حرف داخل الكلمة، وراجعي كل كلمة قبل ما ترسلين.";
 let n = 0; const uid = () => `${Date.now().toString(36)}${n++}`;
-const fill = (t: string, e: Ev) => t.replace(/\{name\}/g, e.user).replace(/\{gift\}/g, e.gift ?? "").replace(/\{count\}/g, e.count && e.count > 1 ? `×${e.count}` : "");
+// 👋 الاسم المنطوق: الاسم الأول فقط (أبو/أم + اسم)، وإذا غير مفهوم يرحب بدون اسم
+const spokenName = (u: string) => { if (!u || WARM.includes(u)) return ""; const w = u.trim().split(/\s+/); return /^(أبو|ابو|أم|ام)$/.test(w[0] ?? "") && w[1] ? `${w[0]} ${w[1]}` : (w[0] ?? ""); };
+const withName = (t: string, u: string) => { const n = spokenName(u); return n ? t.replace(/\{name\}/g, n) : t.replace(/\s*(يا\s+)?\{name\}\s*/g, " ").replace(/\s+،/g, "،").replace(/^\s*،\s*/, "").replace(/\s{2,}/g, " ").trim(); };
+const fill = (t: string, e: Ev) => withName(t, e.user).replace(/\{gift\}/g, e.gift ?? "").replace(/\{count\}/g, e.count && e.count > 1 ? `×${e.count}` : "");
 
 const WARM = ["الغالي", "الطيب", "الحبيب", "الغالية", "ضيفنا العزيز", "راعي الجود"];
 const EN_AR: Record<string, string> = { fahad: "فهد", fahd: "فهد", saud: "سعود", sara: "سارة", sarah: "سارة", khaled: "خالد", khalid: "خالد", mohammed: "محمد", mohamed: "محمد", muhammad: "محمد", ahmed: "أحمد", ahmad: "أحمد", ali: "علي", omar: "عمر", abdullah: "عبدالله", faisal: "فيصل", nasser: "ناصر", nayef: "نايف", turki: "تركي", sultan: "سلطان", majed: "ماجد", hamad: "حمد", salman: "سلمان", nora: "نورة", noura: "نورة", reem: "ريم", lama: "لمى", nada: "ندى", hind: "هند", maha: "مها", amal: "أمل", abu: "أبو", um: "أم", umm: "أم", otaibi: "العتيبي", alotaibi: "العتيبي", qahtani: "القحطاني", alqahtani: "القحطاني", harbi: "الحربي", alharbi: "الحربي", shammari: "الشمري", alshammari: "الشمري", dosari: "الدوسري", aldosari: "الدوسري", mutairi: "المطيري", almutairi: "المطيري", ghamdi: "الغامدي", alghamdi: "الغامدي", zahrani: "الزهراني", alzahrani: "الزهراني", anazi: "العنزي", alanazi: "العنزي" };
@@ -381,7 +384,7 @@ export function LiveStudio() {
               <div className="truncate font-bold">{req ? "🙋 يطلب قست: " : ICON[e.type]} {e.user}</div>
               {e.text && <div className="truncate text-[10px] text-muted-foreground">{e.text}</div>}
               <div className="mt-1 grid grid-cols-2 gap-1 text-[10px]">
-                <button onClick={() => enqueue(`👋 ${e.user}`, rnd(WELCOME_ONE).replace("{name}", e.user), true)} className="rounded border py-1">👋 رحبي</button>
+                <button onClick={() => enqueue(`👋 ${e.user}`, withName(rnd(WELCOME_ONE), e.user), true)} className="rounded border py-1">👋 رحبي</button>
                 <button onClick={() => enqueue(`🙏 ${e.user}`, `الله يجزاك خير يا ${e.user}، تشرفنا فيك`, true)} className="rounded border py-1">🙏 اشكريه</button>
                 <button onClick={() => enqueue(`🎤 ${e.user}`, `حياك الله يا ${e.user}، المايك معك تفضل عرفنا بنفسك`, true)} className="rounded border py-1">🎤 اقبلي</button>
                 <button onClick={() => void ai(`💍 ${e.user}`, `جهزي كلام قصير باسم ${e.user} تسألينه عن مواصفاته وشروطه للزواج.`, true)} className="rounded border py-1">💍 اسأليه</button>
@@ -444,7 +447,7 @@ export function LiveStudio() {
             <li key={e.id} className="flex items-start gap-2 rounded-lg bg-muted/40 px-2 py-1.5 text-sm">
               <span>{ICON[e.type]}</span>
               <div className="min-w-0 flex-1"><b>{e.user}</b> {e.sim && <span className="text-[10px] text-muted-foreground">(محاكاة)</span>}<div className="text-xs text-muted-foreground">{e.type === "comment" ? e.text : e.type === "gift" ? `${e.gift} ×${e.count}` : e.type === "like" ? `${e.count} لايك` : { follow: "تابع", join: "دخل البث", share: "شارك البث" }[e.type]}</div></div>
-              <button onClick={() => enqueue(`👋 ${e.user}`, rnd(WELCOME_ONE).replace("{name}", e.user), true)} className="shrink-0 rounded-full border border-primary px-2 py-0.5 text-xs text-primary">👋 رحبي</button>
+              <button onClick={() => enqueue(`👋 ${e.user}`, withName(rnd(WELCOME_ONE), e.user), true)} className="shrink-0 rounded-full border border-primary px-2 py-0.5 text-xs text-primary">👋 رحبي</button>
               {e.type === "comment" && <button onClick={() => void ai(`💬 ${e.user}`, `${e.user} كتب: ${e.text}. ردي عليه.`, true)} className="text-xs text-primary">ردي</button>}
             </li>))}
           {events.length === 0 && <li className="py-4 text-center text-sm text-muted-foreground">ما فيه أحداث بعد — جرب المحاكاة</li>}
