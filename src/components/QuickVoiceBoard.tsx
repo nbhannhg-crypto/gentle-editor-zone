@@ -49,7 +49,9 @@ export function QuickVoiceBoard({ voice, speak, onSmart, onSay }: { voice: Voice
   const [playing, setPlaying] = useState(""); const [prog, setProg] = useState("");
   const a = useRef<HTMLAudioElement | null>(null); const urls = useRef<Record<string, string>>({}); const last = useRef("");
   const key = (t: string) => `${voice.id}|${voice.model}|${voice.speed}|${voice.emotion}|${t}`;
-  const all: Item[] = [...Object.entries(PACKS).flatMap(([cat, ts]) => ts.map((t) => ({ t, cat }))), ...custom];
+  const [ovr, setOvr] = useState<Record<string, string>>({});
+  useEffect(() => { try { setOvr(JSON.parse(localStorage.getItem("live_sb_ovr") || "{}")); } catch { /* */ } }, []);
+  const all: Item[] = [...Object.entries(PACKS).flatMap(([cat, ts]) => ts.map((t) => ({ t: ovr[t] ?? t, cat, orig: t }))), ...custom] as (Item & { orig?: string })[];
 
   useEffect(() => { try { setCustom(JSON.parse(localStorage.getItem(LSK) || "[]")); } catch { /* */ } const r = Number(localStorage.getItem("live_sb_rate")); if (r) setRate(r); }, []);
   useEffect(() => { let off = false; void (async () => { const m: Record<string, boolean> = {}; for (const i of all) m[i.t] = !!(await dbGet(key(i.t)).catch(() => undefined)); if (!off) setReady(m); })(); return () => { off = true; }; }, [voice.id, voice.model, voice.speed, voice.emotion, custom.length]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -75,6 +77,12 @@ export function QuickVoiceBoard({ voice, speak, onSmart, onSay }: { voice: Voice
   const remove = (t: string) => { saveCustom(custom.filter((i) => i.t !== t)); void dbDel(key(t)); };
   const regen = async (t: string) => { delete urls.current[key(t)]; setBusy((m) => ({ ...m, [t]: true })); try { await gen(t); toast.success("انعاد توليد الصوت"); } catch { toast.error("تعذر"); } finally { setBusy((m) => ({ ...m, [t]: false })); } };
 
+  const edit = async (i: Item & { orig?: string }) => {
+    const n = window.prompt("عدّل الكلام:", i.t)?.trim(); if (!n || n === i.t) return;
+    if (i.custom) saveCustom(custom.map((c) => (c.t === i.t ? { ...c, t: n } : c)));
+    else if (i.orig) { const o = { ...ovr, [i.orig]: n }; setOvr(o); localStorage.setItem("live_sb_ovr", JSON.stringify(o)); }
+    setBusy((m) => ({ ...m, [n]: true })); try { await gen(n); toast.success("تعدّل الكلام وانحفظ صوته"); } catch { toast.error("تعدّل الكلام، والصوت يتولد أول ضغطة"); } finally { setBusy((m) => ({ ...m, [n]: false })); }
+  };
   const cats = [...new Set(all.map((i) => i.cat))];
   const shown = (c: string) => all.filter((i) => i.cat === c && (!q || i.t.includes(q)));
   const nReady = all.filter((i) => ready[i.t]).length;
@@ -107,7 +115,7 @@ export function QuickVoiceBoard({ voice, speak, onSmart, onSay }: { voice: Voice
           <div className="grid grid-cols-3 gap-1 sm:grid-cols-5">{it.map((i) => (
             <div key={i.t} className={`relative rounded-lg border ${playing === i.t ? "border-primary bg-primary/10" : "bg-background"}`}>
               <button onClick={() => void play(i.t)} disabled={busy[i.t]} className="line-clamp-2 h-12 w-full px-1.5 py-1 text-right text-[11px] leading-tight">{busy[i.t] ? "⏳ " : ready[i.t] ? "🔊 " : "🔈 "}{i.t}</button>
-              <div className="absolute bottom-0 left-0 flex gap-1 p-0.5 text-[9px] opacity-60"><button onClick={() => void regen(i.t)} title="أعد التوليد">♻️</button>{i.custom && <button onClick={() => remove(i.t)} title="حذف">🗑️</button>}</div>
+              <div className="absolute bottom-0 left-0 flex gap-1 p-0.5 text-[9px] opacity-60"><button onClick={() => void regen(i.t)} title="أعد التوليد">♻️</button><button onClick={() => void edit(i)} title="عدّل الكلام">✏️</button>{i.custom && <button onClick={() => remove(i.t)} title="حذف">🗑️</button>}</div>
             </div>))}</div>
         </div>); })}
       <div className="rounded-xl border p-2 space-y-2">

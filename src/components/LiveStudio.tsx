@@ -95,6 +95,9 @@ export function LiveStudio() {
   const [queue, setQueue] = useState<QItem[]>([]);
   const [manual, setManual] = useState("");
   const [paused, setPaused] = useState(false);
+  const [muted, setMuted] = useState(false); const mutedRef = useRef(false);
+  const [fabPos, setFabPos] = useState({ x: 8, y: 160 }); const [writeOpen, setWriteOpen] = useState(false); const [fabText, setFabText] = useState("");
+  const drag = useRef<{ dx: number; dy: number; moved: boolean } | null>(null);
   const [listening, setListening] = useState(false);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [simUser, setSimUser] = useState("أبو فهد");
@@ -160,7 +163,7 @@ export function LiveStudio() {
       // ⚡ جهّز الجملة اللي بعدها الحين عشان ما يصير سكوت بين الجمل
       const after = qRef.current.find((x) => x.status === "ready" && x.id !== next.id && x.text);
       if (after) void getSrc(after.text).catch(() => {});
-      const a = player.current ?? new Audio(); player.current = a; a.onended = a.onerror = a.onplaying = null; a.src = src; audio.current = a; a.volume = Math.max(0.05, Math.min(1, v.volume ?? 1)); a.onplaying = () => { unlocked.current = true; setNeedTap(false); patch(next.id, { status: "speaking" }); };
+      const a = player.current ?? new Audio(); player.current = a; a.onended = a.onerror = a.onplaying = null; a.src = src; audio.current = a; a.volume = Math.max(0.05, Math.min(1, v.volume ?? 1)); a.muted = mutedRef.current; a.onplaying = () => { unlocked.current = true; setNeedTap(false); patch(next.id, { status: "speaking" }); };
       if (v.device && "setSinkId" in a) await (a as any).setSinkId(v.device).catch(() => {});
       // 🛡️ مؤقت أمان + لو المتصفح رفض التشغيل ما نتخطى الجملة
       const ok = await new Promise<boolean>((res) => { const max = setTimeout(() => { a.pause(); res(true); }, Math.max(60000, next.text.length * 600)); const done = () => { clearTimeout(max); res(true); }; let tries = 0; a.onended = done; a.onerror = () => { if (tries++ < 2) { const t = a.currentTime; setTimeout(() => { a.load(); a.currentTime = Math.max(0, t - 0.3); void a.play().catch(() => {}); }, 300); } else done(); }; a.play().catch(() => { clearTimeout(max); res(false); }); });
@@ -533,6 +536,22 @@ export function LiveStudio() {
           </section>
         </div>
       )}
+      <div className="fixed z-50 flex flex-col gap-1 rounded-full border bg-background/90 p-1 shadow-lg backdrop-blur" style={{ left: fabPos.x, top: fabPos.y }}>
+        <div className="cursor-grab touch-none select-none text-center text-xs text-muted-foreground" title="اسحبني"
+          onPointerDown={(e) => { (e.target as HTMLElement).setPointerCapture(e.pointerId); drag.current = { dx: e.clientX - fabPos.x, dy: e.clientY - fabPos.y, moved: false }; }}
+          onPointerMove={(e) => { if (!drag.current) return; setFabPos({ x: Math.max(0, Math.min(window.innerWidth - 44, e.clientX - drag.current.dx)), y: Math.max(0, Math.min(window.innerHeight - 220, e.clientY - drag.current.dy)) }); }}
+          onPointerUp={() => { drag.current = null; }}>⠿</div>
+        <button title="انطقي (يدور المحفوظ أو يولد)" onClick={() => talk("exact")} disabled={listening} className={`h-9 w-9 rounded-full text-base ${listening ? "animate-pulse bg-destructive text-destructive-foreground" : "bg-primary text-primary-foreground"}`}>🎙️</button>
+        <button title="اكتب وتنطق" onClick={() => setWriteOpen((o) => !o)} className="h-9 w-9 rounded-full bg-muted text-base">✍️</button>
+        <button title="الرد التلقائي على التعليقات" onClick={() => { const b = !s.auto.comments; up("auto", { comments: b }); toast.success(b ? "الردود شغالة" : "الردود موقفة"); }} className={`h-9 w-9 rounded-full text-base ${s.auto.comments ? "bg-primary text-primary-foreground" : "bg-muted"}`}>💬</button>
+        <button title="تشغيل/إيقاف النطق" onClick={() => setPaused((p) => !p)} className={`h-9 w-9 rounded-full text-base ${paused ? "bg-primary text-primary-foreground" : "bg-muted"}`}>{paused ? "▶" : "⏸"}</button>
+        <button title="كتم البث" onClick={() => { const m = !muted; setMuted(m); mutedRef.current = m; if (player.current) player.current.muted = m; if (audio.current) audio.current.muted = m; toast(m ? "🔇 انكتم البث" : "🔊 رجع الصوت"); }} className={`h-9 w-9 rounded-full text-base ${muted ? "bg-destructive text-destructive-foreground" : "bg-muted"}`}>{muted ? "🔇" : "🔊"}</button>
+      </div>
+      {writeOpen && <div className="fixed inset-x-2 bottom-16 z-50 mx-auto flex max-w-xl gap-1.5 rounded-xl border bg-background p-2 shadow-lg">
+        <Input autoFocus value={fabText} onChange={(e) => setFabText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && fabText.trim()) { unlockAudio(); enqueue("✍️ كتابة", fabText.trim(), true); setFabText(""); } }} placeholder="اكتب وتنطقها أم ندى" />
+        <Button onClick={() => { if (!fabText.trim()) return; unlockAudio(); enqueue("✍️ كتابة", fabText.trim(), true); setFabText(""); }}>إرسال</Button>
+        <Button variant="ghost" onClick={() => setWriteOpen(false)}>✕</Button>
+      </div>}
       <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 p-2 backdrop-blur">
         <div className="mx-auto grid max-w-3xl grid-cols-4 gap-1.5">
           <Button size="sm" onClick={() => talk("exact")} disabled={listening}>{listening ? "🎙️ أسمعك" : "🎙️ انطقي"}</Button>
