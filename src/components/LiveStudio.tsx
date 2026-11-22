@@ -385,6 +385,7 @@ export function LiveStudio() {
                 <button onClick={() => enqueue(`🙏 ${e.user}`, `الله يجزاك خير يا ${e.user}، تشرفنا فيك`, true)} className="rounded border py-1">🙏 اشكريه</button>
                 <button onClick={() => enqueue(`🎤 ${e.user}`, `حياك الله يا ${e.user}، المايك معك تفضل عرفنا بنفسك`, true)} className="rounded border py-1">🎤 اقبلي</button>
                 <button onClick={() => void ai(`💍 ${e.user}`, `جهزي كلام قصير باسم ${e.user} تسألينه عن مواصفاته وشروطه للزواج.`, true)} className="rounded border py-1">💍 اسأليه</button>
+                {e.text && <button onClick={() => void ai(`💬 ${e.user}`, `${e.user} كتب في التعليق: «${e.text}». ردي عليه باسمه على نفس كلامه رد قصير.`, true)} className="col-span-2 rounded border border-primary py-1 font-bold">💬 ردي عليه</button>}
               </div>
             </div>); })}
           {events.length === 0 && <p className="py-2 text-xs text-muted-foreground">لما يدخل أحد أو يطلب قست يطلع هنا</p>}
