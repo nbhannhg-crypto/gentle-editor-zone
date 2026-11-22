@@ -96,6 +96,7 @@ export function LiveStudio() {
   const [manual, setManual] = useState("");
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(false); const mutedRef = useRef(false);
+  const [topOpen, setTopOpen] = useState(true);
   const [fabPos, setFabPos] = useState({ x: 8, y: 160 }); const [writeOpen, setWriteOpen] = useState(false); const [fabText, setFabText] = useState("");
   const drag = useRef<{ dx: number; dy: number; moved: boolean } | null>(null);
   const [listening, setListening] = useState(false);
@@ -358,15 +359,18 @@ export function LiveStudio() {
         </div>
       </section>
 
-      <div className="sticky top-0 z-20 flex flex-wrap items-center gap-1.5 rounded-2xl border bg-background/95 p-2 backdrop-blur">
-        <button onClick={() => { const v = !s.auto.joins; up("auto", { joins: v, enabled: v ? true : s.auto.enabled }); toast.success(v ? "الترحيب التلقائي شغّال" : "الترحيب التلقائي مطفي — رحّب بضغطة من التعليقات"); }} className={`rounded-full px-3 py-1.5 text-xs font-bold ${s.auto.joins && s.auto.enabled ? "bg-primary text-primary-foreground" : "border"}`}>👋 الترحيب التلقائي: {s.auto.joins && s.auto.enabled ? "🟢 شغّال" : "⚪ مطفي"}</button>
-        <button onClick={() => up("auto", { enabled: !s.auto.enabled })} className={`rounded-full px-3 py-1.5 text-xs ${s.auto.enabled ? "bg-primary/80 text-primary-foreground" : "border"}`}>🤖 الرد التلقائي: {s.auto.enabled ? "شغّال" : "مطفي"}</button>
-        <span className="text-[11px] text-muted-foreground">🔊 {queue.length} بالطابور · 📡 {events.length}</span>
-      </div>
-      <div className="sticky top-12 z-20 rounded-2xl border-2 border-primary bg-card p-2 shadow">
-        <div className="text-[10px] text-muted-foreground">📺 شاشة البث — وش تنطق أم ندى الحين</div>
-        <div className="overflow-hidden whitespace-nowrap text-sm font-bold text-primary"><div className={queue.some((x) => x.status === "speaking") ? "animate-pulse" : ""}>{queue.find((x) => x.status === "speaking")?.text || "… ساكتة"}</div></div>
-        {queue.filter((x) => x.status !== "speaking").length > 0 && <div className="mt-1 flex gap-1 overflow-x-auto text-[10px]">{queue.filter((x) => x.status !== "speaking").map((x) => <span key={x.id} className="shrink-0 rounded-full bg-muted px-2 py-0.5">⏳ {x.text.slice(0, 30)}</span>)}</div>}
+      <div className="sticky top-0 z-30 -mx-1 space-y-1 rounded-2xl border bg-background/95 p-1.5 shadow backdrop-blur">
+        <div className="flex items-center gap-1">
+          <button onClick={() => { const v = !s.auto.joins; up("auto", { joins: v, enabled: v ? true : s.auto.enabled }); toast.success(v ? "الترحيب التلقائي شغّال" : "الترحيب التلقائي مطفي — رحّب بضغطة من التعليقات"); }} className={`shrink-0 rounded-full px-2 py-1 text-xs font-bold ${s.auto.joins && s.auto.enabled ? "bg-primary text-primary-foreground" : "border"}`}>👋 ترحيب {s.auto.joins && s.auto.enabled ? "🟢 شغّال" : "⚪ مطفي"}</button>
+          <span className="flex-1 text-center text-[10px] text-muted-foreground">🔊 {queue.length} بالطابور · 📡 {events.length}</span>
+          <button onClick={() => up("auto", { enabled: !s.auto.enabled })} className={`shrink-0 rounded-full px-2 py-1 text-xs ${s.auto.enabled ? "bg-primary/80 text-primary-foreground" : "border"}`}>🤖 رد {s.auto.enabled ? "شغّال" : "مطفي"}</button>
+          <button onClick={() => setTopOpen((o) => !o)} title="إخفاء/إظهار شاشة البث" className="shrink-0 rounded-full border px-2 py-1 text-xs">{topOpen ? "▲" : "▼"}</button>
+        </div>
+        {topOpen && <div className="rounded-xl border-2 border-primary bg-card p-2">
+      <div className="text-[10px] text-muted-foreground">📺 شاشة البث — وش تنطق أم ندى الحين</div>
+      <div className="overflow-hidden whitespace-nowrap text-sm font-bold text-primary"><div className={queue.some((x) => x.status === "speaking") ? "animate-pulse" : ""}>{queue.find((x) => x.status === "speaking")?.text || "… ساكتة"}</div></div>
+      {queue.filter((x) => x.status !== "speaking").length > 0 && <div className="mt-1 flex gap-1 overflow-x-auto text-[10px]">{queue.filter((x) => x.status !== "speaking").map((x) => <span key={x.id} className="shrink-0 rounded-full bg-muted px-2 py-0.5">⏳ {x.text.slice(0, 30)}</span>)}</div>}
+        </div>}
       </div>
       <section className={card}>
         <div className="mb-1 flex items-center justify-between"><h3 className="text-sm font-semibold">🙋 القستات والداخلين</h3><span className="text-[10px] text-muted-foreground">آخر {Math.min(events.length, 8)}</span></div>
