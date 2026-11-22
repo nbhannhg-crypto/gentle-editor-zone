@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { listClips } from "@/lib/call-vault";
 
 // 🎛️ لوحة الأصوات الفورية: كل جملة تتولد مرة وحدة وتنحفظ في الجهاز، والضغطة بعدها تنطق على طول
 type Voice = { id: string; model: string; speed: number; gain: number; emotion: string; volume?: number; device?: string };
@@ -27,7 +28,19 @@ const dbGet = async (k: string) => { const db = await dbP(); return new Promise<
 const dbPut = async (k: string, b: Blob) => { const db = await dbP(); return new Promise<void>((res) => { const tx = db.transaction("a", "readwrite"); tx.objectStore("a").put(b, k); tx.oncomplete = () => res(); tx.onerror = () => res(); }); };
 const dbDel = async (k: string) => { const db = await dbP(); db.transaction("a", "readwrite").objectStore("a").delete(k); };
 
-export function QuickVoiceBoard({ voice, speak, onSmart }: { voice: Voice; speak: SpeakFn; onSmart: (label: string, prompt: string) => void }) {
+export function QuickVoiceBoard({ voice, speak, onSmart, onSay }: { voice: Voice; speak: SpeakFn; onSmart: (label: string, prompt: string) => void; onSay?: (text: string) => void }) {
+  const [heard, setHeard] = useState(""); const [hits, setHits] = useState<string[]>([]); const [mic, setMic] = useState(false);
+  const score = (h: string, t: string) => { const w = h.split(/\s+/).filter((x) => x.length > 1); return w.filter((x) => t.includes(x)).length / Math.max(1, w.length); };
+  const listen = () => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition; if (!SR) { toast.error("المتصفح ما يدعم المايك، استخدم كروم"); return; }
+    const r = new SR(); r.lang = "ar-SA"; r.interimResults = false; setMic(true);
+    r.onresult = async (e: any) => { const h = String(e.results[0][0].transcript || "").trim(); setHeard(h);
+      let vault: string[] = []; try { vault = (await listClips()).map((c) => c.text); } catch { /* */ }
+      const pool = [...new Set([...all.map((i) => i.t), ...vault])];
+      const best = pool.map((t) => [t, score(h, t)] as const).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([t]) => t);
+      setHits(best); if (!best.length) toast.info("ما لقيت صوت محفوظ يطابق، اضغط «انطقيها» يتولد وينحفظ"); };
+    r.onerror = () => setMic(false); r.onend = () => setMic(false); r.start();
+  };
   const [custom, setCustom] = useState<Item[]>([]);
   const [ready, setReady] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState<Record<string, boolean>>({});
@@ -48,6 +61,7 @@ export function QuickVoiceBoard({ voice, speak, onSmart }: { voice: Voice; speak
   };
   const get = async (t: string) => { const k = key(t); if (urls.current[k]) return urls.current[k]!; let b = await dbGet(k).catch(() => undefined); if (!b) { setBusy((m) => ({ ...m, [t]: true })); try { b = await gen(t); } finally { setBusy((m) => ({ ...m, [t]: false })); } } const u = URL.createObjectURL(b); urls.current[k] = u; return u; };
   const play = async (t: string) => {
+    if (onSay) { last.current = t; setPlaying(t); onSay(t); setTimeout(() => setPlaying((p) => (p === t ? "" : p)), 4000); return; }
     try {
       const u = await get(t); const el = a.current ?? new Audio(); a.current = el; el.pause(); el.src = u; el.playbackRate = rate; el.volume = Math.max(0.05, Math.min(1, vol * (voice.volume ?? 1)));
       if (voice.device && "setSinkId" in el) await (el as any).setSinkId(voice.device).catch(() => {});
@@ -77,6 +91,11 @@ export function QuickVoiceBoard({ voice, speak, onSmart }: { voice: Voice; speak
         <label className="col-span-2 flex items-center gap-1">🐢<input type="range" min={0.7} max={1.4} step={0.05} value={rate} onChange={(e) => { const v = Number(e.target.value); setRate(v); localStorage.setItem("live_sb_rate", String(v)); if (a.current) a.current.playbackRate = v; }} className="flex-1" />🐇 {rate.toFixed(2)}</label>
         <label className="col-span-4 flex items-center gap-1">🔉<input type="range" min={0.1} max={1} step={0.05} value={vol} onChange={(e) => { const v = Number(e.target.value); setVol(v); if (a.current) a.current.volume = v; }} className="flex-1" />🔊</label>
         {playing && <div className="col-span-4 truncate text-center text-primary">🔊 {playing}</div>}
+      </div>
+      <div className="rounded-xl border border-primary/40 p-2 space-y-1.5">
+        <button onClick={listen} disabled={mic} className={`w-full rounded-lg py-2.5 text-sm font-bold ${mic ? "bg-destructive text-destructive-foreground animate-pulse" : "bg-primary text-primary-foreground"}`}>{mic ? "🎤 أسمعك… تكلم" : "🎤 تكلم وأدوّر لك الصوت المحفوظ"}</button>
+        {heard && <div className="text-xs">📝 سمعت: <b>{heard}</b> <button onClick={() => void play(heard)} className="ms-1 rounded-full border border-primary px-2 py-0.5 text-primary">🔊 انطقيها</button></div>}
+        {hits.length > 0 && <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">{hits.map((t) => <button key={t} onClick={() => void play(t)} className="rounded-lg border bg-background px-2 py-2 text-right text-xs">⚡ {t}</button>)}</div>}
       </div>
       <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 دوّر على جملة…" className="w-full rounded-lg border bg-background px-3 py-2 text-sm" />
       <div className="rounded-xl border border-primary/30 bg-primary/5 p-2">
