@@ -119,7 +119,7 @@ export function SpecsBoard({ onSay }: { onSay: (text: string) => void }) {
               </div>
               {editId === s.id ? (
                 <div className="mt-1 space-y-1"><textarea value={editT} onChange={(e) => setEditT(e.target.value)} rows={4} className="w-full rounded border bg-background px-2 py-1 text-xs" /><div className="flex gap-1"><button onClick={saveEdit} className="rounded bg-primary px-2 py-1 text-[11px] text-primary-foreground">💾 حفظ</button><button onClick={() => setEditId("")} className="rounded border px-2 py-1 text-[11px]">إلغاء</button></div></div>
-              ) : <>{s.tasks && s.tasks.length > 0 && <ol className="mt-1 list-decimal space-y-0.5 ps-4 text-[11px]">{s.tasks.map((t, i) => <li key={i}>{t}</li>)}</ol>}<div className="mt-1 flex items-start gap-1 rounded border bg-muted/40 p-1"><p className="min-w-0 flex-1 break-words text-[11px] text-muted-foreground">{s.speech}</p><button onClick={() => void cp(s.speech, "انسخ سكربت النطق")} className="shrink-0 px-1 text-xs">📋</button></div></>}
+              ) : <><div className="mt-1 flex items-start gap-1 rounded border bg-muted/40 p-1"><p className="min-w-0 flex-1 break-words text-[11px] text-muted-foreground">{s.speech}</p><button onClick={() => void cp(s.speech, "انسخ سكربت النطق")} className="shrink-0 px-1 text-xs">📋</button></div></>}
             </div>))}</div>
         )}
       </>}
