@@ -17,6 +17,7 @@ function toE164(n: string) {
 
 export function WebPhone() {
   const [num, setNum] = useState("");
+  const [fromNum, setFromNum] = useState("");
   const [state, setState] = useState("جاهز");
   const [inCall, setInCall] = useState(false);
   const [micOn, setMicOn] = useState(true);
@@ -46,8 +47,11 @@ export function WebPhone() {
     if (to.length < 8) { toast.error("اكتب رقم صحيح"); return; }
     try {
       setState("يجهز الخط…");
-      const [{ token, balance: bal }, stream, { TelnyxRTC }] = await Promise.all([phoneToken(), mixedStream(), import("@telnyx/webrtc")]);
+      const [{ token, balance: bal, from }, stream, mod] = await Promise.all([phoneToken(), mixedStream(), import("@telnyx/webrtc")]);
       setBalance(bal);
+      const m: any = mod; const TelnyxRTC = m.TelnyxRTC ?? m.default?.TelnyxRTC;
+      if (!TelnyxRTC) throw new Error("تعذر تحميل الهاتف");
+      const caller = fromNum.trim() ? toE164(fromNum) : from;
       client.current?.disconnect();
       const c = new TelnyxRTC({ login_token: token });
       client.current = c;
@@ -60,7 +64,7 @@ export function WebPhone() {
         if (s === "hangup" || s === "destroy") { setInCall(false); call.current = null; }
       });
       c.on("telnyx.ready", () => {
-        call.current = c.newCall({ destinationNumber: to, localStream: stream, audio: true, video: false } as any);
+        call.current = c.newCall({ destinationNumber: to, callerNumber: caller, callerName: "Um Nada", localStream: stream, audio: true, video: false } as any);
         setInCall(true);
       });
       c.connect();
@@ -88,6 +92,7 @@ export function WebPhone() {
         <Input dir="ltr" inputMode="tel" placeholder="05xxxxxxxx" value={num} onChange={(e) => setNum(e.target.value)} />
         {inCall ? <Button variant="destructive" onClick={hangup}>إنهاء</Button> : <Button onClick={dial}>اتصال</Button>}
       </div>
+      <Input dir="ltr" inputMode="tel" placeholder="الرقم اللي يطلع للعميل (اختياري)" value={fromNum} onChange={(e) => setFromNum(e.target.value)} />
       <div className="flex items-center justify-between rounded-xl bg-muted px-3 py-2 text-sm">
         <span>{state}</span>
         <Button size="sm" variant="outline" onClick={toggleMic}>{micOn ? "🎙️ مايكي شغال" : "🔇 مايكي مكتوم"}</Button>
