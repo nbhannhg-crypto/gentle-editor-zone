@@ -1,23 +1,30 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { phoneToken } from "@/lib/phone.functions";
+import { phoneToken, phoneCallerIds, phoneVerifyStart, phoneVerifyConfirm } from "@/lib/phone.functions";
 import { listClips, clipUrl, type CallClip } from "@/lib/call-vault";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 // Browser phone: owner hears the customer, talks via mic, and injects Um Nada vault clips into the call.
-function toE164(n: string) {
+const COUNTRIES = [
+  { c: "966", n: "🇸🇦 السعودية" }, { c: "967", n: "🇾🇪 اليمن" }, { c: "971", n: "🇦🇪 الإمارات" }, { c: "965", n: "🇰🇼 الكويت" },
+  { c: "974", n: "🇶🇦 قطر" }, { c: "973", n: "🇧🇭 البحرين" }, { c: "968", n: "🇴🇲 عمان" }, { c: "20", n: "🇪🇬 مصر" },
+  { c: "962", n: "🇯🇴 الأردن" }, { c: "90", n: "🇹🇷 تركيا" }, { c: "44", n: "🇬🇧 بريطانيا" }, { c: "1", n: "🇺🇸 أمريكا/كندا" },
+];
+// Any country: "+"/"00" numbers pass as-is; local numbers get the chosen country code (leading 0 dropped).
+function toE164(n: string, cc = "966") {
   const d = n.replace(/[^\d+]/g, "").replace(/^00/, "+");
   if (d.startsWith("+")) return d;
-  if (d.startsWith("05")) return "+966" + d.slice(1);
-  if (d.startsWith("5") && d.length === 9) return "+966" + d;
-  if (d.startsWith("966")) return "+" + d;
-  return d;
+  if (d.startsWith(cc) && d.length > cc.length + 7) return "+" + d;
+  return "+" + cc + d.replace(/^0+/, "");
 }
 
 export function WebPhone() {
   const [num, setNum] = useState("");
   const [fromNum, setFromNum] = useState("");
+  const [cc, setCc] = useState("966");
+  const [ids, setIds] = useState<{ owned: string[]; verified: string[] }>({ owned: [], verified: [] });
+  const [vNum, setVNum] = useState(""), [vCode, setVCode] = useState(""), [vSent, setVSent] = useState(false), [vBusy, setVBusy] = useState(false);
   const [state, setState] = useState("جاهز");
   const [inCall, setInCall] = useState(false);
   const [micOn, setMicOn] = useState(true);
@@ -27,6 +34,19 @@ export function WebPhone() {
   const client = useRef<any>(null), call = useRef<any>(null);
   const ac = useRef<AudioContext | null>(null), dest = useRef<MediaStreamAudioDestinationNode | null>(null);
   const micGain = useRef<GainNode | null>(null), remote = useRef<HTMLAudioElement>(null);
+
+  const loadIds = () => phoneCallerIds().then(setIds).catch(() => {});
+  useEffect(() => { loadIds(); }, []);
+  async function sendCode(method: "sms" | "call") {
+    setVBusy(true);
+    try { await phoneVerifyStart({ data: { number: toE164(vNum, cc), method } }); setVSent(true); toast.success(method === "sms" ? "وصلك كود برسالة" : "بيجيك اتصال فيه الكود"); }
+    catch (e) { toast.error((e as Error).message); } finally { setVBusy(false); }
+  }
+  async function confirmCode() {
+    setVBusy(true);
+    try { const n = toE164(vNum, cc); await phoneVerifyConfirm({ data: { number: n, code: vCode } }); toast.success("تم توثيق الرقم ✅"); setVSent(false); setVCode(""); setVNum(""); await loadIds(); setFromNum(n); }
+    catch (e) { toast.error((e as Error).message); } finally { setVBusy(false); }
+  }
 
   useEffect(() => { listClips().then(setClips).catch(() => {}); return () => { try { call.current?.hangup(); client.current?.disconnect(); } catch { /* */ } }; }, []);
 
@@ -43,7 +63,7 @@ export function WebPhone() {
   }
 
   async function dial() {
-    const to = toE164(num);
+    const to = toE164(num, cc);
     if (to.length < 8) { toast.error("اكتب رقم صحيح"); return; }
     try {
       setState("يجهز الخط…");
@@ -51,16 +71,16 @@ export function WebPhone() {
       setBalance(bal);
       const m: any = mod; const TelnyxRTC = m.TelnyxRTC ?? m.default?.TelnyxRTC;
       if (!TelnyxRTC) throw new Error("تعذر تحميل الهاتف");
-      const caller = fromNum.trim() ? toE164(fromNum) : from;
+      const caller = fromNum || from;
       client.current?.disconnect();
       const c = new TelnyxRTC({ login_token: token });
       client.current = c;
-      c.on("telnyx.error", () => { setState("خطأ في الخط"); setInCall(false); });
+      c.on("telnyx.error", (e: any) => { setState("خطأ في الخط: " + (e?.error?.message ?? e?.message ?? "")); setInCall(false); });
       c.on("telnyx.notification", (n: any) => {
         const cl = n.call; if (!cl) return;
         if (remote.current && cl.remoteStream) remote.current.srcObject = cl.remoteStream;
         const s = cl.state as string;
-        setState(s === "active" ? "🟢 متصل — تسمعه ويسمعك" : s === "ringing" || s === "trying" || s === "early" ? "📞 يرن…" : s === "hangup" || s === "destroy" ? "انتهت المكالمة" : s);
+        setState(s === "active" ? "🟢 متصل — تسمعه ويسمعك" : s === "ringing" || s === "trying" || s === "early" ? "📞 يرن…" : s === "hangup" || s === "destroy" ? "انتهت المكالمة" + (cl.cause && cl.cause !== "NORMAL_CLEARING" ? ` (${cl.cause})` : "") : s);
         if (s === "hangup" || s === "destroy") { setInCall(false); call.current = null; }
       });
       c.on("telnyx.ready", () => {
@@ -89,10 +109,34 @@ export function WebPhone() {
         {balance && <span className="text-xs text-muted-foreground">رصيد الخط: ${balance}</span>}
       </div>
       <div className="flex gap-2">
-        <Input dir="ltr" inputMode="tel" placeholder="05xxxxxxxx" value={num} onChange={(e) => setNum(e.target.value)} />
+        <select value={cc} onChange={(e) => setCc(e.target.value)} className="rounded-md border bg-background px-2 text-sm">
+          {COUNTRIES.map((x) => <option key={x.c} value={x.c}>{x.n} +{x.c}</option>)}
+        </select>
+        <Input dir="ltr" inputMode="tel" placeholder="رقم العميل" value={num} onChange={(e) => setNum(e.target.value)} />
         {inCall ? <Button variant="destructive" onClick={hangup}>إنهاء</Button> : <Button onClick={dial}>اتصال</Button>}
       </div>
-      <Input dir="ltr" inputMode="tel" placeholder="الرقم اللي يطلع للعميل (اختياري)" value={fromNum} onChange={(e) => setFromNum(e.target.value)} />
+      <label className="block text-xs text-muted-foreground">الرقم اللي يطلع للعميل</label>
+      <select dir="ltr" value={fromNum} onChange={(e) => setFromNum(e.target.value)} className="w-full rounded-md border bg-background p-2 text-sm">
+        <option value="">الافتراضي</option>
+        {ids.verified.map((n) => <option key={n} value={n}>✅ {n} (رقمك الموثّق)</option>)}
+        {ids.owned.map((n) => <option key={n} value={n}>{n} (رقم الخط)</option>)}
+      </select>
+      <details className="rounded-xl border p-3 text-sm">
+        <summary className="cursor-pointer font-bold">➕ وثّق رقم جديد عشان يطلع للعميل</summary>
+        <p className="my-2 text-xs text-muted-foreground">شركات الاتصال ترفض أي رقم غير موثّق وتقول «رقمك لا يتوافق مع الخدمة». اكتب رقمك، يجيك كود، تدخله ويصير جاهز.</p>
+        <Input dir="ltr" inputMode="tel" placeholder="رقمك (يُستخدم مفتاح الدولة المختار)" value={vNum} onChange={(e) => setVNum(e.target.value)} className="mb-2" />
+        {!vSent ? (
+          <div className="flex gap-2">
+            <Button size="sm" disabled={vBusy || !vNum} onClick={() => sendCode("sms")}>كود برسالة</Button>
+            <Button size="sm" variant="outline" disabled={vBusy || !vNum} onClick={() => sendCode("call")}>كود باتصال</Button>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <Input dir="ltr" inputMode="numeric" placeholder="الكود" value={vCode} onChange={(e) => setVCode(e.target.value)} />
+            <Button size="sm" disabled={vBusy || !vCode} onClick={confirmCode}>تأكيد</Button>
+          </div>
+        )}
+      </details>
       <div className="flex items-center justify-between rounded-xl bg-muted px-3 py-2 text-sm">
         <span>{state}</span>
         <Button size="sm" variant="outline" onClick={toggleMic}>{micOn ? "🎙️ مايكي شغال" : "🔇 مايكي مكتوم"}</Button>
