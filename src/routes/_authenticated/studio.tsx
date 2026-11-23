@@ -13,6 +13,7 @@ import { STUDIO_VOICES, STUDIO_PACKS, JEEB_NUMBER } from "@/lib/studio-voices";
 import { studioGenerate, studioWrite, waList, waSendVoice, placeCall } from "@/lib/studio.functions";
 import { WhatsApp, type Wa } from "@/components/WaAccounts";
 import { LiveStudio } from "@/components/LiveStudio";
+import { WebPhone } from "@/components/WebPhone";
 import { TikTokStudio } from "@/components/TikTokStudio";
 
 export const Route = createFileRoute("/_authenticated/studio")({
@@ -30,7 +31,7 @@ export const Route = createFileRoute("/_authenticated/studio")({
 });
 
 type Audio = { id: string; text: string; voice_name: string; path: string; created_at: string };
-type Tab = "voice" | "library" | "whatsapp" | "recharge" | "live" | "tiktok";
+type Tab = "voice" | "library" | "whatsapp" | "recharge" | "live" | "tiktok" | "phone";
 
 function StudioPage() {
   const navigate = useNavigate();
@@ -69,7 +70,7 @@ function StudioPage() {
           </div>
         </div>
         <nav className="mx-auto flex max-w-4xl gap-2 overflow-x-auto px-4">
-          {([["live", "🔴 البث المباشر"], ["voice", "🎙️ توليد صوت"], ["library", "📚 مكتبتي"], ["whatsapp", "🟢 حسابات واتساب"], ["tiktok", "🎵 تيك توك"]] as const).map(([k, l]) => (
+          {([["live", "🔴 البث المباشر"], ["voice", "🎙️ توليد صوت"], ["library", "📚 مكتبتي"], ["whatsapp", "🟢 حسابات واتساب"], ["tiktok", "🎵 تيك توك"], ["phone", "📞 الهاتف"]] as const).map(([k, l]) => (
             <button key={k} onClick={() => setTab(k)}
               className={`shrink-0 rounded-t-xl px-4 py-2 text-sm font-medium ${tab === k ? "bg-background text-foreground" : "text-primary-foreground/80"}`}>{l}</button>
           ))}
@@ -82,6 +83,7 @@ function StudioPage() {
         {tab === "recharge" && store && <Recharge storeId={store.id} />}
         {tab === "live" && <LiveStudio />}
         {tab === "tiktok" && <TikTokStudio storeId={store?.id} />}
+        {tab === "phone" && <WebPhone />}
       </main>
     </div>
   );
