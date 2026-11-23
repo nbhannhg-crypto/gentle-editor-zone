@@ -214,8 +214,9 @@ function Library({ lib, was, reload, onSpent }: { lib: Audio[]; was: Wa[]; reloa
     catch (e) { toast.error((e as Error).message); }
   };
   const doCall = async (a: Audio): Promise<void> => {
-    const n = (target[a.id] ?? "").replace(/\s/g, "");
-    const to = n.startsWith("+") ? n : `+${n}`;
+    const n = (target[a.id] ?? "").replace(/[^\d+]/g, "").replace(/^00/, "+");
+    // Any country in international form; a local Saudi 05… number gets +966.
+    const to = n.startsWith("+") ? n : n.startsWith("05") ? `+966${n.slice(1)}` : `+${n}`;
     try { await call({ data: { to, audioId: a.id } }); toast.success("📞 جاري الاتصال… (10 نقاط)"); onSpent(); }
     catch (e) { toast.error((e as Error).message); }
   };

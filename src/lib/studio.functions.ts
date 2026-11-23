@@ -326,7 +326,14 @@ export const placeCall = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ to: z.string().regex(/^\+\d{8,15}$/), audioId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const key = process.env["TELNYX_API_KEY"], app = process.env["TELNYX_APP_ID"], from = process.env["TELNYX_FROM"];
+    const key = process.env["TELNYX_API_KEY"];
+    // Caller ID must be a number owned/verified on the account, else carriers reject the call.
+    const from = process.env["TELNYX_FROM"] ?? process.env["TELNYX_FROM_NUMBER"];
+    let app = process.env["TELNYX_APP_ID"];
+    if (key && !app) {
+      const l = await fetch("https://api.telnyx.com/v2/texml_applications", { headers: { Authorization: `Bearer ${key}` } }).then((x) => x.json()).catch(() => null);
+      app = ((l?.data ?? []) as any[]).find((a) => a.active)?.id;
+    }
     if (!key || !app || !from) throw new Error("خدمة المكالمات غير مربوطة");
     const storeId = await myStore(context as Ctx);
     const { error: spendErr } = await context.supabase.rpc("spend_points", { _store: storeId, _amount: 10, _reason: "مكالمة هاتفية" });
