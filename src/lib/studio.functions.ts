@@ -328,7 +328,7 @@ export const placeCall = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const key = process.env["TELNYX_API_KEY"];
     // Caller ID must be a number owned/verified on the account, else carriers reject the call.
-    const from = process.env["TELNYX_FROM"] ?? process.env["TELNYX_FROM_NUMBER"];
+    const from = key ? await (await import("@/lib/telnyx-caller.server")).preferredCallerId(key) : undefined;
     let app = process.env["TELNYX_APP_ID"];
     if (key && !app) {
       const l = await fetch("https://api.telnyx.com/v2/texml_applications", { headers: { Authorization: `Bearer ${key}` } }).then((x) => x.json()).catch(() => null);

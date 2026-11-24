@@ -12,7 +12,7 @@ export const phoneToken = createServerFn({ method: "POST" })
     const r = await fetch(`https://api.telnyx.com/v2/telephony_credentials/${cred}/token`, { method: "POST", headers: { Authorization: `Bearer ${key}` } });
     if (!r.ok) throw new Error("تعذر تجهيز الخط");
     const b = await fetch("https://api.telnyx.com/v2/balance", { headers: { Authorization: `Bearer ${key}` } }).then((x) => x.json()).catch(() => null);
-    return { token: await r.text(), from: process.env["TELNYX_FROM_NUMBER"] ?? "", balance: (b?.data?.balance as string) ?? "" };
+    return { token: await r.text(), from: await (await import("@/lib/telnyx-caller.server")).preferredCallerId(key), balance: (b?.data?.balance as string) ?? "" };
   });
 
 async function ownerKey(context: any) {
