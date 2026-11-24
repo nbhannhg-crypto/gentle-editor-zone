@@ -7,6 +7,7 @@ import { STUDIO_VOICES } from "@/lib/studio-voices";
 import { getStudioVoice } from "@/lib/voice-model";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Volume2, Mic, Square, Play } from "lucide-react";
 import { phoneVoiceProfile, type PhoneVoiceMode } from "@/lib/phone-voice-mode";
 
 // Browser phone: owner hears the customer, talks via mic, and injects Um Nada vault clips into the call.
@@ -32,6 +33,17 @@ export function WebPhone() {
   const [state, setState] = useState("جاهز");
   const [inCall, setInCall] = useState(false);
   const [micOn, setMicOn] = useState(true);
+  const micEnabled = useRef(true), callActive = useRef(false);
+  const [volume, setVolume] = useState(20);
+  const volumeRef = useRef(0.2), monitor = useRef<GainNode | null>(null);
+  const remoteSource = useRef<MediaElementAudioSourceNode | null>(null);
+  const micStream = useRef<MediaStream | null>(null);
+  const [previewText, setPreviewText] = useState("");
+  const [previewListening, setPreviewListening] = useState(false);
+  const [previewBusy, setPreviewBusy] = useState(false);
+  const [previewError, setPreviewError] = useState("");
+  const previewRef = useRef(false), previewEpoch = useRef(0);
+  const previewSource = useRef<AudioBufferSourceNode | null>(null);
   const [balance, setBalance] = useState("");
   const [clips, setClips] = useState<CallClip[]>([]);
   const [q, setQ] = useState("");
@@ -47,47 +59,123 @@ export function WebPhone() {
     let v: any = {}; try { v = JSON.parse(localStorage.getItem("live_studio_v1") || "{}").voice ?? {}; } catch { /* */ }
     return { id: getStudioVoice() || v.id || STUDIO_VOICES[0]?.[0] || "", model: String(v.model || "s2.1-pro"), speed: Number(v.speed || 1), gain: Number(v.gain || 0), emotion: String(v.emotion || "") };
   }
-  function sayAsNada(text: string, mode = voiceModeRef.current) {
+  async function prepareAudio() {
+    const ctx = (ac.current ??= new AudioContext());
+    await ctx.resume();
+    if (!monitor.current) {
+      monitor.current = ctx.createGain();
+      monitor.current.gain.value = volumeRef.current;
+      monitor.current.connect(ctx.destination);
+    }
+    if (remote.current && !remoteSource.current) {
+      remoteSource.current = ctx.createMediaElementSource(remote.current);
+      remoteSource.current.connect(monitor.current);
+    }
+    return ctx;
+  }
+  function changeVolume(value: number) {
+    setVolume(value); volumeRef.current = value / 100;
+    if (monitor.current) monitor.current.gain.value = volumeRef.current;
+  }
+  function syncMic() {
+    if (micGain.current) micGain.current.gain.value = callActive.current && micEnabled.current && !nadaRef.current ? 1 : 0;
+  }
+  function stopPreview() {
+    previewEpoch.current++; previewRef.current = false;
+    stopNada(); setPreviewListening(false); setPreviewBusy(false);
+    try { previewSource.current?.stop(); } catch { /* already ended */ }
+    previewSource.current = null;
+  }
+  async function testVoice() {
+    if (!previewText.trim() || inCall) return;
+    stopPreview();
+    setPreviewError("");
+    try { await prepareAudio(); sayAsNada(previewText, voiceModeRef.current, "preview"); }
+    catch { toast.error("تعذر تشغيل الصوت"); }
+  }
+  async function testMic() {
+    if (inCall) return;
+    stopPreview();
+    setPreviewError("");
+    try { await prepareAudio(); previewRef.current = true; startNada(); }
+    catch { toast.error("تعذر تشغيل المايك"); }
+  }
+  function sayAsNada(text: string, mode = voiceModeRef.current, target: "call" | "preview" = "call") {
     const t = text.trim(); if (!t) return;
+    const epoch = previewEpoch.current;
+    if (target === "preview") setPreviewBusy(true);
     const v = liveVoice();
     const profile = phoneVoiceProfile(mode);
     const src = vaultSpeak(t.slice(0, 600), { voiceId: v.id, model: v.model, speed: v.speed, emotion: v.emotion, ...("synthesisProfile" in profile ? { synthesisProfile: profile.synthesisProfile } : {}) }, async () => {
       const r = await fishSpeak({ data: { text: t.slice(0, 600), voiceId: v.id, custom: true, model: v.model, speed: v.speed, volume: v.gain, emotion: v.emotion, stable: profile.stable } as any });
       return String((r as any).audio);
     });
+    // Handle generation rejection immediately, even while a previous sentence is playing.
+    const generated = Promise.resolve(src).then(url => ({ url }), error => ({ error }));
     sayQ.current = sayQ.current.then(async () => {
       try {
-        if (!ac.current || !dest.current) return;
-        const buf = await ac.current.decodeAudioData(await (await fetch(await src)).arrayBuffer());
-        const s = ac.current.createBufferSource(); s.buffer = buf; s.connect(dest.current); s.start();
-        await new Promise((r) => (s.onended = r));
-      } catch (e) { toast.error("ما طلع الصوت: " + (e as Error).message); }
+        const result = await generated;
+        if ("error" in result) throw result.error;
+        if (target === "preview" && epoch !== previewEpoch.current) return;
+        if (target === "call" && !callActive.current) return;
+        const ctx = ac.current;
+        if (!ctx || (target === "call" && !dest.current)) return;
+        const response = await fetch(result.url);
+        const buf = await ctx.decodeAudioData(await response.arrayBuffer());
+        if (target === "preview" && epoch !== previewEpoch.current) return;
+        if (target === "call" && !callActive.current) return;
+        const source = ctx.createBufferSource(); source.buffer = buf;
+        if (target === "preview") {
+          if (!monitor.current) return;
+          source.connect(monitor.current); previewSource.current = source;
+        } else if (dest.current) source.connect(dest.current);
+        await new Promise<void>((resolve) => { source.onended = () => resolve(); source.start(); });
+      } catch (e) {
+        const message = "ما طلع الصوت: " + (e as Error).message;
+        if (target === "preview" && epoch === previewEpoch.current) setPreviewError(message);
+        toast.error(message);
+      }
+      finally { if (target === "preview" && epoch === previewEpoch.current) { setPreviewBusy(false); previewSource.current = null; } }
     });
   }
   function startNada() {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) { toast.error("المتصفح ما يدعم التحدث، استخدم كروم"); return; }
-    nadaRef.current = true; setNadaMode(true);
-    if (micGain.current) micGain.current.gain.value = 0; setMicOn(false);
+    const preview = previewRef.current;
+    nadaRef.current = true;
+    if (preview) setPreviewListening(true);
+    else { setNadaMode(true); micEnabled.current = false; setMicOn(false); }
+    syncMic();
     const mode = voiceModeRef.current, profile = phoneVoiceProfile(mode);
     const r = new SR(); r.lang = "ar-SA"; r.continuous = profile.continuous; r.interimResults = profile.interimResults; r.maxAlternatives = profile.maxAlternatives; rec.current = r;
     r.onresult = (e: any) => {
       let interim = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) { const x = e.results[i]; const t = x[0]?.transcript ?? ""; if (x.isFinal) { setHeard(""); sayAsNada(t, mode); } else interim += t; }
+      for (let i = e.resultIndex; i < e.results.length; i++) { const x = e.results[i]; const t = x[0]?.transcript ?? ""; if (x.isFinal) {
+        if (preview) {
+          nadaRef.current = false; previewRef.current = false; setPreviewListening(false);
+          try { r.stop(); } catch { /* */ }
+          setPreviewText(t); setHeard(""); sayAsNada(t, mode, "preview");
+        } else { setHeard(""); sayAsNada(t, mode); }
+      } else interim += t; }
       if (interim) setHeard(interim);
     };
     r.onend = () => { if (nadaRef.current && rec.current === r) startNada(); };
-    r.onerror = (e: any) => { if (["not-allowed", "service-not-allowed", "audio-capture"].includes(e.error)) { stopNada(); toast.error("تعذر سماعك، تأكد من إذن المايك"); } };
-    try { r.start(); } catch { /* */ }
+    r.onerror = (e: any) => { if (["not-allowed", "service-not-allowed", "audio-capture"].includes(e.error)) { stopPreview(); toast.error("تعذر سماعك، تأكد من إذن المايك"); } };
+    try { r.start(); } catch { stopPreview(); toast.error("تعذر بدء الاستماع"); }
   }
-  function stopNada() { nadaRef.current = false; setNadaMode(false); setHeard(""); try { rec.current?.stop(); } catch { /* */ } }
+  function stopNada() { nadaRef.current = false; previewRef.current = false; setNadaMode(false); setPreviewListening(false); setHeard(""); try { rec.current?.stop(); } catch { /* */ } syncMic(); }
   function changeVoiceMode(mode: PhoneVoiceMode) {
     if (mode === voiceModeRef.current) return;
     voiceModeRef.current = mode; setVoiceMode(mode); setHeard("");
     // Finish the current utterance with its original settings; restart in the new mode.
     if (nadaRef.current) { try { rec.current?.stop(); } catch { startNada(); } }
   }
-  useEffect(() => () => { nadaRef.current = false; try { rec.current?.stop(); } catch { /* */ } }, []);
+  useEffect(() => () => {
+    nadaRef.current = false; previewEpoch.current++; callActive.current = false;
+    try { rec.current?.stop(); previewSource.current?.stop(); } catch { /* */ }
+    micStream.current?.getTracks().forEach(track => track.stop());
+    void ac.current?.close();
+  }, []);
 
   // Default caller ID: the owner's verified Saudi number (US numbers get blocked by Saudi/Yemeni carriers).
   const loadIds = () => phoneCallerIds().then((r) => {
@@ -110,14 +198,16 @@ export function WebPhone() {
   useEffect(() => { listClips().then(setClips).catch(() => {}); return () => { try { call.current?.hangup(); client.current?.disconnect(); } catch { /* */ } }; }, []);
 
   async function mixedStream() {
-    const ctx = (ac.current ??= new AudioContext());
-    await ctx.resume();
+    const ctx = await prepareAudio();
     if (!dest.current) {
       dest.current = ctx.createMediaStreamDestination();
       const mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      micStream.current = mic;
       micGain.current = ctx.createGain();
+      micGain.current.gain.value = 0;
       ctx.createMediaStreamSource(mic).connect(micGain.current).connect(dest.current);
     }
+    syncMic();
     return dest.current.stream;
   }
 
@@ -125,6 +215,7 @@ export function WebPhone() {
     const to = toE164(num, cc);
     if (to.length < 8) { toast.error("اكتب رقم صحيح"); return; }
     try {
+      stopPreview(); callActive.current = false; syncMic();
       setState("يجهز الخط…");
       const [{ token, balance: bal, from }, stream, mod] = await Promise.all([phoneToken(), mixedStream(), import("@telnyx/webrtc")]);
       setBalance(bal);
@@ -134,11 +225,13 @@ export function WebPhone() {
       client.current?.disconnect();
       const c = new TelnyxRTC({ login_token: token });
       client.current = c;
-      c.on("telnyx.error", (e: any) => { setState("خطأ في الخط: " + (e?.error?.message ?? e?.message ?? "")); setInCall(false); });
+      c.on("telnyx.error", (e: any) => { setState("خطأ في الخط: " + (e?.error?.message ?? e?.message ?? "")); setInCall(false); callActive.current = false; stopNada(); syncMic(); });
       c.on("telnyx.notification", (n: any) => {
         const cl = n.call; if (!cl) return;
         if (remote.current && cl.remoteStream) remote.current.srcObject = cl.remoteStream;
         const s = cl.state as string;
+        callActive.current = s === "active"; syncMic();
+        if (remote.current && cl.remoteStream) void remote.current.play().catch(() => toast.error("اضغط على مستوى الصوت لتفعيل السماعة"));
         setState(s === "active" ? "🟢 متصل — تسمعه ويسمعك" : s === "ringing" || s === "trying" || s === "early" ? "📞 يرن…" : s === "hangup" || s === "destroy" ? "انتهت المكالمة" + (cl.cause && cl.cause !== "NORMAL_CLEARING" ? ` (${cl.cause})` : "") : s);
         if (s === "hangup" || s === "destroy") { stopNada(); setInCall(false); call.current = null; }
       });
@@ -147,17 +240,17 @@ export function WebPhone() {
         setInCall(true);
       });
       c.connect();
-    } catch (e) { setState("جاهز"); toast.error((e as Error).message); }
+    } catch (e) { callActive.current = false; syncMic(); setState("جاهز"); toast.error((e as Error).message); }
   }
 
-  function hangup() { stopNada(); try { call.current?.hangup(); } catch { /* */ } setInCall(false); setState("انتهت المكالمة"); }
-  function toggleMic() { if (nadaRef.current) { toast("أنت في وضع صوت أم ندى — مايكك مقفول عن العميل"); return; } const v = !micOn; setMicOn(v); if (micGain.current) micGain.current.gain.value = v ? 1 : 0; }
+  function hangup() { callActive.current = false; stopNada(); try { call.current?.hangup(); } catch { /* */ } setInCall(false); setState("انتهت المكالمة"); }
+  function toggleMic() { if (nadaRef.current) { toast("أنت في وضع صوت أم ندى — مايكك مقفول عن العميل"); return; } const v = !micOn; setMicOn(v); micEnabled.current = v; syncMic(); }
 
   async function inject(c: CallClip) {
     if (!ac.current || !dest.current) { toast.error("اتصل أول"); return; }
     const buf = await ac.current.decodeAudioData(await (await fetch(await clipUrl(c))).arrayBuffer());
     const src = ac.current.createBufferSource(); src.buffer = buf;
-    src.connect(dest.current); src.connect(ac.current.destination); src.start();
+    src.connect(dest.current); if (monitor.current) src.connect(monitor.current); src.start();
   }
 
   const shown = clips.filter((c) => !q || c.text.includes(q)).slice(0, 60);
@@ -167,11 +260,11 @@ export function WebPhone() {
         <h2 className="font-display text-xl">📞 الهاتف المباشر</h2>
         {balance && <span className="text-xs text-muted-foreground">رصيد الخط: ${balance}</span>}
       </div>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <select value={cc} onChange={(e) => setCc(e.target.value)} className="rounded-md border bg-background px-2 text-sm">
           {COUNTRIES.map((x) => <option key={x.c} value={x.c}>{x.n} +{x.c}</option>)}
         </select>
-        <Input dir="ltr" inputMode="tel" placeholder="رقم العميل" value={num} onChange={(e) => setNum(e.target.value)} />
+        <Input className="min-w-0 flex-1" dir="ltr" inputMode="tel" placeholder="رقم العميل" value={num} onChange={(e) => setNum(e.target.value)} />
         {inCall ? <Button variant="destructive" onClick={hangup}>إنهاء</Button> : <Button onClick={dial}>اتصال</Button>}
       </div>
       <label className="block text-xs text-muted-foreground">الرقم اللي يطلع للعميل</label>
@@ -200,11 +293,27 @@ export function WebPhone() {
         <span>{state}</span>
         <Button size="sm" variant="outline" onClick={toggleMic}>{micOn ? "🎙️ مايكي شغال" : "🔇 مايكي مكتوم"}</Button>
       </div>
+      <div className="space-y-2">
+        <label htmlFor="phone-volume" className="flex items-center gap-2 text-sm"><Volume2 className="size-4" /> صوت السماعة والرنين <span dir="ltr">{volume}%</span></label>
+        <Input id="phone-volume" type="range" min="0" max="100" value={volume} className="h-8 cursor-pointer border-0 px-0 accent-primary" onChange={e => changeVolume(Number(e.target.value))} onPointerDown={() => { void ac.current?.resume(); void remote.current?.play().catch(() => {}); }} />
+      </div>
       <div className="space-y-2 rounded-xl border border-primary/40 p-3">
         <div role="group" aria-label="وضع صوت الهاتف" className="grid grid-cols-2 gap-2">
           <Button size="sm" variant={voiceMode === "previous" ? "default" : "outline"} aria-pressed={voiceMode === "previous"} onClick={() => changeVoiceMode("previous")}>السابق — ثابت</Button>
           <Button size="sm" variant={voiceMode === "developed" ? "default" : "outline"} aria-pressed={voiceMode === "developed"} onClick={() => changeVoiceMode("developed")}>المطوّر — طبيعي</Button>
         </div>
+        <section aria-label="اختبار النطق قبل الاتصال" className="space-y-2 border-b pb-3">
+          <h3 className="text-sm font-bold">اختبار النطق قبل الاتصال</h3>
+          <Input aria-label="نص اختبار النطق" placeholder="اكتب جملة للاختبار" value={previewText} disabled={inCall} onChange={e => setPreviewText(e.target.value)} onKeyDown={e => { if (e.key === "Enter") void testVoice(); }} />
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" disabled={inCall || previewBusy || previewListening} onClick={() => void testMic()}><Mic className="size-4" /> اختبار المايك</Button>
+            <Button size="sm" disabled={inCall || !previewText.trim() || previewBusy || previewListening} onClick={() => void testVoice()}><Play className="size-4" /> اسمع الاختبار</Button>
+            {(previewListening || previewBusy) && <Button size="sm" variant="outline" onClick={stopPreview}><Square className="size-4" /> إيقاف الاختبار</Button>}
+          </div>
+          <p role="status" className="text-xs text-muted-foreground">{previewListening ? (heard || "أسمعك…") : previewBusy ? "يجهّز النطق…" : ""}</p>
+          {previewError && <p role="alert" className="text-xs text-destructive">{previewError}</p>}
+          <p className="text-xs text-muted-foreground">توليد صوت جديد قد يستهلك من رصيد مزوّد الصوت.</p>
+        </section>
         <div className="flex items-center justify-between gap-2">
           <div><p className="text-sm font-bold">👩 تكلم بصوتك ويوصله صوت أم ندى</p><p className="text-xs text-muted-foreground">مايكك ما يوصل للعميل، كل جملة تقولها تنطق له بصوت أم ندى وأنت تسمعه.</p></div>
           {nadaMode ? <Button size="sm" variant="destructive" onClick={stopNada}>إيقاف</Button> : <Button size="sm" onClick={() => { if (!inCall) { toast.error("اتصل أول"); return; } startNada(); }}>تشغيل</Button>}

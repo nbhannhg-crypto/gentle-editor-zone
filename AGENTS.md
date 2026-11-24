@@ -18,3 +18,6 @@
 - External AI keys (GEMINI_KEYS rotation, then OPENROUTER_KEY) live in src/lib/ai-keys.server.ts; all text/vision/transcription AI (queen brain, suggestions, reports, studio, brain factory, WhatsApp, media) never falls back to the built-in gateway (show a busy message / stay silent instead) — why: the owner forbids platform-credit spend. Only the `speak` TTS still uses the gateway.
 
 - Image/video design generation (DesignStudio) calls fal.ai server-side via FAL_KEY in src/lib/design.functions.ts; results are saved to the existing media-library bucket/table — why: owner chose fal.ai and forbids platform-credit spend.
+
+- Phone preview and calls share synthesis settings; preview audio goes only to a local monitor gain, independent of the call destination, so testing never sends audio to a customer.
+- Incoming phone audio and local previews use a Web Audio monitor gain instead of relying on mobile HTML audio volume; microphone gain stays zero until the call is active.
