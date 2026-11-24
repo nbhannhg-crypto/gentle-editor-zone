@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { phoneToken, phoneCallerIds, phoneVerifyStart, phoneVerifyConfirm } from "@/lib/phone.functions";
-import { listClips, clipUrl, type CallClip } from "@/lib/call-vault";
+import { listClips, clipUrl, vaultSpeak, type CallClip } from "@/lib/call-vault";
+import { fishSpeak } from "@/lib/ai.functions";
+import { STUDIO_VOICES } from "@/lib/studio-voices";
+import { getStudioVoice } from "@/lib/voice-model";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -34,6 +37,46 @@ export function WebPhone() {
   const client = useRef<any>(null), call = useRef<any>(null);
   const ac = useRef<AudioContext | null>(null), dest = useRef<MediaStreamAudioDestinationNode | null>(null);
   const micGain = useRef<GainNode | null>(null), remote = useRef<HTMLAudioElement>(null);
+  // 🎙️➡️👩 Voice mode: owner speaks, mic is cut from the call, each sentence is spoken to the customer in Um Nada's voice (same engine as LiveStudio).
+  const [nadaMode, setNadaMode] = useState(false), [heard, setHeard] = useState(""), [typed, setTyped] = useState("");
+  const nadaRef = useRef(false), rec = useRef<any>(null), sayQ = useRef<Promise<void>>(Promise.resolve());
+  function liveVoice() {
+    let v: any = {}; try { v = JSON.parse(localStorage.getItem("live_studio_v1") || "{}").voice ?? {}; } catch { /* */ }
+    return { id: getStudioVoice() || v.id || STUDIO_VOICES[0]![0], model: String(v.model || "s2.1-pro"), speed: Number(v.speed || 1), gain: Number(v.gain || 0), emotion: String(v.emotion || "") };
+  }
+  function sayAsNada(text: string) {
+    const t = text.trim(); if (!t) return;
+    const v = liveVoice();
+    const src = vaultSpeak(t.slice(0, 600), { voiceId: v.id, model: v.model, speed: v.speed, emotion: v.emotion }, async () => {
+      const r = await fishSpeak({ data: { text: t.slice(0, 600), voiceId: v.id, custom: true, model: v.model, speed: v.speed, volume: v.gain, emotion: v.emotion, stable: true } as any });
+      return String((r as any).audio);
+    });
+    sayQ.current = sayQ.current.then(async () => {
+      try {
+        if (!ac.current || !dest.current) return;
+        const buf = await ac.current.decodeAudioData(await (await fetch(await src)).arrayBuffer());
+        const s = ac.current.createBufferSource(); s.buffer = buf; s.connect(dest.current); s.start();
+        await new Promise((r) => (s.onended = r));
+      } catch (e) { toast.error("ما طلع الصوت: " + (e as Error).message); }
+    });
+  }
+  function startNada() {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) { toast.error("المتصفح ما يدعم التحدث، استخدم كروم"); return; }
+    nadaRef.current = true; setNadaMode(true);
+    if (micGain.current) micGain.current.gain.value = 0; setMicOn(false);
+    const r = new SR(); r.lang = "ar-SA"; r.continuous = true; r.interimResults = true; rec.current = r;
+    r.onresult = (e: any) => {
+      let interim = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) { const x = e.results[i]; const t = x[0]?.transcript ?? ""; if (x.isFinal) { setHeard(""); sayAsNada(t); } else interim += t; }
+      if (interim) setHeard(interim);
+    };
+    r.onend = () => { if (nadaRef.current) { try { r.start(); } catch { /* */ } } };
+    r.onerror = () => {};
+    try { r.start(); } catch { /* */ }
+  }
+  function stopNada() { nadaRef.current = false; setNadaMode(false); setHeard(""); try { rec.current?.stop(); } catch { /* */ } }
+  useEffect(() => () => { nadaRef.current = false; try { rec.current?.stop(); } catch { /* */ } }, []);
 
   // Default caller ID: the owner's verified Saudi number (US numbers get blocked by Saudi/Yemeni carriers).
   const loadIds = () => phoneCallerIds().then((r) => {
@@ -96,8 +139,8 @@ export function WebPhone() {
     } catch (e) { setState("جاهز"); toast.error((e as Error).message); }
   }
 
-  function hangup() { try { call.current?.hangup(); } catch { /* */ } setInCall(false); setState("انتهت المكالمة"); }
-  function toggleMic() { const v = !micOn; setMicOn(v); if (micGain.current) micGain.current.gain.value = v ? 1 : 0; }
+  function hangup() { stopNada(); try { call.current?.hangup(); } catch { /* */ } setInCall(false); setState("انتهت المكالمة"); }
+  function toggleMic() { if (nadaRef.current) { toast("أنت في وضع صوت أم ندى — مايكك مقفول عن العميل"); return; } const v = !micOn; setMicOn(v); if (micGain.current) micGain.current.gain.value = v ? 1 : 0; }
 
   async function inject(c: CallClip) {
     if (!ac.current || !dest.current) { toast.error("اتصل أول"); return; }
@@ -145,6 +188,17 @@ export function WebPhone() {
       <div className="flex items-center justify-between rounded-xl bg-muted px-3 py-2 text-sm">
         <span>{state}</span>
         <Button size="sm" variant="outline" onClick={toggleMic}>{micOn ? "🎙️ مايكي شغال" : "🔇 مايكي مكتوم"}</Button>
+      </div>
+      <div className="space-y-2 rounded-xl border border-primary/40 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <div><p className="text-sm font-bold">👩 تكلم بصوتك ويوصله صوت أم ندى</p><p className="text-xs text-muted-foreground">مايكك ما يوصل للعميل، كل جملة تقولها تنطق له بصوت أم ندى وأنت تسمعه.</p></div>
+          {nadaMode ? <Button size="sm" variant="destructive" onClick={stopNada}>إيقاف</Button> : <Button size="sm" onClick={() => { if (!inCall) { toast.error("اتصل أول"); return; } startNada(); }}>تشغيل</Button>}
+        </div>
+        {nadaMode && <p className="text-xs">{heard ? `🎙️ ${heard}` : "🎙️ أسمعك… تكلم"}</p>}
+        <div className="flex gap-2">
+          <Input placeholder="أو اكتب جملة وتنطق فوراً" value={typed} onChange={(e) => setTyped(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && typed.trim()) { if (!inCall) { toast.error("اتصل أول"); return; } sayAsNada(typed); setTyped(""); } }} />
+          <Button size="sm" variant="outline" disabled={!typed.trim()} onClick={() => { if (!inCall) { toast.error("اتصل أول"); return; } sayAsNada(typed); setTyped(""); }}>انطق</Button>
+        </div>
       </div>
       <audio ref={remote} autoPlay />
       <div>
