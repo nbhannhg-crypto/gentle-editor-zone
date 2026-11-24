@@ -78,7 +78,32 @@ export function WebPhone() {
     if (monitor.current) monitor.current.gain.value = volumeRef.current;
   }
   function syncMic() {
-    if (micGain.current) micGain.current.gain.value = callActive.current && micEnabled.current && !nadaRef.current ? 1 : 0;
+    const enabled = callActive.current && micEnabled.current && !nadaRef.current;
+    if (micGain.current) micGain.current.gain.value = enabled ? 1 : 0;
+    micStream.current?.getAudioTracks().forEach(track => { track.enabled = enabled; });
+    // A recovered SDK sender must never bypass the controlled mixer.
+    const expected = dest.current?.stream.getAudioTracks()[0];
+    const senders: RTCRtpSender[] = call.current?.peer?.instance?.getSenders() ?? [];
+    senders.forEach(sender => { if (sender.track?.kind === "audio" && sender.track !== expected) sender.track.enabled = false; });
+  }
+  async function bindCallAudio(required = false) {
+    const currentCall = call.current, destination = dest.current;
+    const track = destination?.stream.getAudioTracks()[0];
+    const senders: RTCRtpSender[] = currentCall?.peer?.instance?.getSenders() ?? [];
+    const sender = senders.find(item => item.track?.kind === "audio");
+    if (!destination || !track || track.readyState !== "live" || !sender) {
+      if (required) throw new Error("مسار صوت العميل مو جاهز، أعد الاتصال");
+      return;
+    }
+    if (sender.track !== track) {
+      const previous = sender.track;
+      if (previous) previous.enabled = false;
+      await sender.replaceTrack(track);
+      if (call.current !== currentCall || dest.current !== destination) return;
+      if (currentCall.options) currentCall.options.localStream = destination.stream;
+    }
+    track.enabled = true;
+    syncMic();
   }
   function stopPreview() {
     previewEpoch.current++; previewRef.current = false;
@@ -103,6 +128,7 @@ export function WebPhone() {
   function sayAsNada(text: string, mode = voiceModeRef.current, target: "call" | "preview" = "call") {
     const t = text.trim(); if (!t) return;
     const epoch = previewEpoch.current;
+    const callDestination = target === "call" ? dest.current : null;
     if (target === "preview") setPreviewBusy(true);
     const v = liveVoice();
     const profile = phoneVoiceProfile(mode);
@@ -117,13 +143,16 @@ export function WebPhone() {
         const result = await generated;
         if ("error" in result) throw result.error;
         if (target === "preview" && epoch !== previewEpoch.current) return;
-        if (target === "call" && !callActive.current) return;
+        if (target === "call" && (!callActive.current || dest.current !== callDestination)) return;
         const ctx = ac.current;
         if (!ctx || (target === "call" && !dest.current)) return;
         const response = await fetch(result.url);
         const buf = await ctx.decodeAudioData(await response.arrayBuffer());
         if (target === "preview" && epoch !== previewEpoch.current) return;
-        if (target === "call" && !callActive.current) return;
+        if (target === "call" && (!callActive.current || dest.current !== callDestination)) return;
+        await ctx.resume();
+        if (target === "call") await bindCallAudio(true);
+        if (target === "call" && (!callActive.current || dest.current !== callDestination)) return;
         const source = ctx.createBufferSource(); source.buffer = buf;
         if (target === "preview") {
           if (!monitor.current) return;
@@ -146,6 +175,7 @@ export function WebPhone() {
     if (preview) setPreviewListening(true);
     else { setNadaMode(true); micEnabled.current = false; setMicOn(false); }
     syncMic();
+    if (!preview) void bindCallAudio().catch(() => toast.error("تعذر توصيل صوت أم ندى للعميل"));
     const mode = voiceModeRef.current, profile = phoneVoiceProfile(mode);
     const r = new SR(); r.lang = "ar-SA"; r.continuous = profile.continuous; r.interimResults = profile.interimResults; r.maxAlternatives = profile.maxAlternatives; rec.current = r;
     r.onresult = (e: any) => {
@@ -199,14 +229,17 @@ export function WebPhone() {
 
   async function mixedStream() {
     const ctx = await prepareAudio();
-    if (!dest.current) {
-      dest.current = ctx.createMediaStreamDestination();
-      const mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
-      micStream.current = mic;
-      micGain.current = ctx.createGain();
-      micGain.current.gain.value = 0;
-      ctx.createMediaStreamSource(mic).connect(micGain.current).connect(dest.current);
-    }
+    // Telnyx stops local tracks on hangup; never reuse a finished destination.
+    micStream.current?.getTracks().forEach(track => track.stop());
+    micGain.current?.disconnect();
+    dest.current?.stream.getTracks().forEach(track => track.stop());
+    dest.current = null;
+    const mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    micStream.current = mic;
+    dest.current = ctx.createMediaStreamDestination();
+    micGain.current = ctx.createGain();
+    micGain.current.gain.value = 0;
+    ctx.createMediaStreamSource(mic).connect(micGain.current).connect(dest.current);
     syncMic();
     return dest.current.stream;
   }
@@ -216,21 +249,24 @@ export function WebPhone() {
     if (to.length < 8) { toast.error("اكتب رقم صحيح"); return; }
     try {
       stopPreview(); callActive.current = false; syncMic();
+      client.current?.disconnect(); call.current = null;
       setState("يجهز الخط…");
       const [{ token, balance: bal, from }, stream, mod] = await Promise.all([phoneToken(), mixedStream(), import("@telnyx/webrtc")]);
       setBalance(bal);
       const m: any = mod; const TelnyxRTC = m.TelnyxRTC ?? m.default?.TelnyxRTC;
       if (!TelnyxRTC) throw new Error("تعذر تحميل الهاتف");
       const caller = fromNum || from;
-      client.current?.disconnect();
       const c = new TelnyxRTC({ login_token: token });
       client.current = c;
       c.on("telnyx.error", (e: any) => { setState("خطأ في الخط: " + (e?.error?.message ?? e?.message ?? "")); setInCall(false); callActive.current = false; stopNada(); syncMic(); });
       c.on("telnyx.notification", (n: any) => {
+        if (client.current !== c) return;
         const cl = n.call; if (!cl) return;
+        call.current = cl;
         if (remote.current && cl.remoteStream) remote.current.srcObject = cl.remoteStream;
         const s = cl.state as string;
         callActive.current = s === "active"; syncMic();
+        if (callActive.current) void bindCallAudio().catch(() => toast.error("تعذر توصيل صوت أم ندى للعميل"));
         if (remote.current && cl.remoteStream) void remote.current.play().catch(() => toast.error("اضغط على مستوى الصوت لتفعيل السماعة"));
         setState(s === "active" ? "🟢 متصل — تسمعه ويسمعك" : s === "ringing" || s === "trying" || s === "early" ? "📞 يرن…" : s === "hangup" || s === "destroy" ? "انتهت المكالمة" + (cl.cause && cl.cause !== "NORMAL_CLEARING" ? ` (${cl.cause})` : "") : s);
         if (s === "hangup" || s === "destroy") { stopNada(); setInCall(false); call.current = null; }
@@ -247,10 +283,16 @@ export function WebPhone() {
   function toggleMic() { if (nadaRef.current) { toast("أنت في وضع صوت أم ندى — مايكك مقفول عن العميل"); return; } const v = !micOn; setMicOn(v); micEnabled.current = v; syncMic(); }
 
   async function inject(c: CallClip) {
-    if (!ac.current || !dest.current) { toast.error("اتصل أول"); return; }
-    const buf = await ac.current.decodeAudioData(await (await fetch(await clipUrl(c))).arrayBuffer());
-    const src = ac.current.createBufferSource(); src.buffer = buf;
-    src.connect(dest.current); if (monitor.current) src.connect(monitor.current); src.start();
+    if (!ac.current || !dest.current || !callActive.current) { toast.error("انتظر العميل يرد أول"); return; }
+    const destination = dest.current;
+    try {
+      const buf = await ac.current.decodeAudioData(await (await fetch(await clipUrl(c))).arrayBuffer());
+      if (!callActive.current || dest.current !== destination) return;
+      await ac.current.resume(); await bindCallAudio(true);
+      if (!callActive.current || dest.current !== destination) return;
+      const src = ac.current.createBufferSource(); src.buffer = buf;
+      src.connect(destination); if (monitor.current) src.connect(monitor.current); src.start();
+    } catch { toast.error("تعذر توصيل الصوت للعميل"); }
   }
 
   const shown = clips.filter((c) => !q || c.text.includes(q)).slice(0, 60);

@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ fish: vi.fn(), vault: vi.fn(), newCall: vi.fn(), stop: vi.fn(), gains: [] as { gain: { value: number }; connect: ReturnType<typeof vi.fn> }[], sources: [] as { connect: ReturnType<typeof vi.fn>; start: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn>; onended: (() => void) | null }[], notification: null as ((event: any) => void) | null }));
+const mocks = vi.hoisted(() => ({ fish: vi.fn(), vault: vi.fn(), newCall: vi.fn(), stop: vi.fn(), destinations: [] as { stream: { getAudioTracks: () => any[]; getTracks: () => any[] } }[], gains: [] as { gain: { value: number }; connect: ReturnType<typeof vi.fn> }[], sources: [] as { connect: ReturnType<typeof vi.fn>; start: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn>; onended: (() => void) | null }[], notification: null as ((event: any) => void) | null }));
 vi.mock("@/lib/phone.functions", () => ({ phoneToken: vi.fn(async () => ({ token: "test", balance: "1", from: "+12025550123" })), phoneCallerIds: vi.fn(async () => ({ owned: [], verified: [] })), phoneVerifyStart: vi.fn(), phoneVerifyConfirm: vi.fn() }));
 vi.mock("@/lib/ai.functions", () => ({ fishSpeak: mocks.fish }));
 vi.mock("@/lib/call-vault", () => ({ listClips: vi.fn(async () => []), clipUrl: vi.fn(), vaultSpeak: mocks.vault }));
@@ -27,7 +27,7 @@ class Recognition {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks(); Recognition.instances = []; mocks.gains = []; mocks.sources = []; mocks.notification = null;
+  vi.clearAllMocks(); Recognition.instances = []; mocks.gains = []; mocks.sources = []; mocks.destinations = []; mocks.notification = null;
   mocks.newCall.mockReturnValue({ hangup() {} });
   mocks.fish.mockResolvedValue({ audio: "data:audio/mpeg;base64,AA==" });
   mocks.vault.mockImplementation(async (_text, _voice, gen: () => Promise<string>) => gen());
@@ -37,8 +37,12 @@ beforeEach(() => {
     async resume() {}
     async close() {}
     createMediaElementSource() { return { connect: vi.fn() }; }
-    createMediaStreamDestination() { return { stream: {} }; }
-    createGain() { const gain = { gain: { value: 1 }, connect: vi.fn() }; mocks.gains.push(gain); return gain; }
+    createMediaStreamDestination() {
+      const track = { kind: "audio", enabled: true, readyState: "live", stop: vi.fn(() => { track.readyState = "ended"; }) };
+      const destination = { stream: { getAudioTracks: () => [track], getTracks: () => [track] } };
+      mocks.destinations.push(destination); return destination;
+    }
+    createGain() { const gain = { gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() }; mocks.gains.push(gain); return gain; }
     createMediaStreamSource() { return { connect: (gain: { connect: () => void }) => gain }; }
     async decodeAudioData() { return {}; }
     createBufferSource() {
@@ -46,7 +50,7 @@ beforeEach(() => {
       mocks.sources.push(source); return source;
     }
   });
-  Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: { getUserMedia: vi.fn(async () => ({ getTracks: () => [] })) } });
+  Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: { getUserMedia: vi.fn(async () => ({ getTracks: () => [], getAudioTracks: () => [] })) } });
 });
 
 it("switches an active phone from previous to broadcast recognition and natural synthesis, then back", async () => {
@@ -130,4 +134,40 @@ it("cancels pending preview synthesis so it cannot play into a later call", asyn
   await act(async () => finish?.({ audio: "data:audio/mpeg;base64,AA==" }));
   expect(mocks.sources).toHaveLength(0);
   expect(mocks.newCall).not.toHaveBeenCalled();
+});
+
+it("replaces a bypass microphone sender with the mixed call track before sending Um Nada", async () => {
+  const raw = { kind: "audio", enabled: true, stop: vi.fn() };
+  const sender = { track: raw as any, replaceTrack: vi.fn(async (track: any) => { sender.track = track; }) };
+  const activeCall = { state: "active", peer: { instance: { getSenders: () => [sender] } }, hangup() {} };
+  mocks.newCall.mockReturnValue(activeCall);
+  vi.stubGlobal("fetch", vi.fn(async () => ({ arrayBuffer: async () => new ArrayBuffer(1) })));
+  render(<WebPhone />);
+  fireEvent.change(screen.getByPlaceholderText("رقم العميل"), { target: { value: "0500000000" } });
+  fireEvent.click(screen.getByRole("button", { name: /^اتصال$/ }));
+  await waitFor(() => expect(mocks.newCall).toHaveBeenCalled());
+  act(() => mocks.notification?.({ call: activeCall }));
+  await waitFor(() => expect(sender.replaceTrack).toHaveBeenCalled());
+  fireEvent.click(screen.getByRole("button", { name: /^تشغيل$/ }));
+  await act(async () => Recognition.instances.at(-1)?.onresult?.({ resultIndex: 0, results: [{ 0: { transcript: "كيف حالك" }, isFinal: true }] }));
+  await waitFor(() => expect(mocks.sources).toHaveLength(1));
+  expect(sender.track).toBe(mocks.destinations[0]?.stream.getAudioTracks()[0]);
+  expect(raw.enabled).toBe(false);
+  expect(mocks.gains[1]?.gain.value).toBe(0);
+  expect(mocks.sources[0]?.connect).toHaveBeenCalledExactlyOnceWith(mocks.destinations[0]);
+});
+
+it("creates a fresh outgoing stream on the next call after the SDK stops the previous track", async () => {
+  render(<WebPhone />);
+  fireEvent.change(screen.getByPlaceholderText("رقم العميل"), { target: { value: "0500000000" } });
+  fireEvent.click(screen.getByRole("button", { name: /^اتصال$/ }));
+  await waitFor(() => expect(mocks.newCall).toHaveBeenCalledTimes(1));
+  const first = mocks.destinations[0]?.stream;
+  first?.getAudioTracks()[0]?.stop();
+  fireEvent.click(screen.getByRole("button", { name: "إنهاء" }));
+  fireEvent.click(screen.getByRole("button", { name: /^اتصال$/ }));
+  await waitFor(() => expect(mocks.newCall).toHaveBeenCalledTimes(2));
+  const next = mocks.newCall.mock.calls[1]?.[0]?.localStream;
+  expect(next).not.toBe(first);
+  expect(next.getAudioTracks()[0]?.readyState).toBe("live");
 });
