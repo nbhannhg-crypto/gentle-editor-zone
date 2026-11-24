@@ -35,7 +35,12 @@ export function WebPhone() {
   const ac = useRef<AudioContext | null>(null), dest = useRef<MediaStreamAudioDestinationNode | null>(null);
   const micGain = useRef<GainNode | null>(null), remote = useRef<HTMLAudioElement>(null);
 
-  const loadIds = () => phoneCallerIds().then(setIds).catch(() => {});
+  // Default caller ID: the owner's verified Saudi number (US numbers get blocked by Saudi/Yemeni carriers).
+  const loadIds = () => phoneCallerIds().then((r) => {
+    setIds(r);
+    const sa = [...r.verified, ...r.owned].find((n) => n.startsWith("+966")) ?? r.verified[0];
+    if (sa) setFromNum((cur) => cur || sa);
+  }).catch(() => {});
   useEffect(() => { loadIds(); }, []);
   async function sendCode(method: "sms" | "call") {
     setVBusy(true);
