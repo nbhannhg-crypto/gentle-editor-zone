@@ -90,7 +90,9 @@ export function WebPhone() {
     const currentCall = call.current, destination = dest.current;
     const track = destination?.stream.getAudioTracks()[0];
     const senders: RTCRtpSender[] = currentCall?.peer?.instance?.getSenders() ?? [];
-    const sender = senders.find(item => item.track?.kind === "audio");
+    const transceivers: RTCRtpTransceiver[] = currentCall?.peer?.instance?.getTransceivers?.() ?? [];
+    const sender = senders.find(item => item.track?.kind === "audio")
+      ?? transceivers.find(item => item.receiver.track?.kind === "audio" && item.receiver.track.readyState !== "ended")?.sender;
     if (!destination || !track || track.readyState !== "live" || !sender) {
       if (required) throw new Error("مسار صوت العميل مو جاهز، أعد الاتصال");
       return;
@@ -179,6 +181,7 @@ export function WebPhone() {
     const mode = voiceModeRef.current, profile = phoneVoiceProfile(mode);
     const r = new SR(); r.lang = "ar-SA"; r.continuous = profile.continuous; r.interimResults = profile.interimResults; r.maxAlternatives = profile.maxAlternatives; rec.current = r;
     r.onresult = (e: any) => {
+      if (rec.current !== r || !nadaRef.current) return;
       let interim = "";
       for (let i = e.resultIndex; i < e.results.length; i++) { const x = e.results[i]; const t = x[0]?.transcript ?? ""; if (x.isFinal) {
         if (preview) {
@@ -190,10 +193,10 @@ export function WebPhone() {
       if (interim) setHeard(interim);
     };
     r.onend = () => { if (nadaRef.current && rec.current === r) startNada(); };
-    r.onerror = (e: any) => { if (["not-allowed", "service-not-allowed", "audio-capture"].includes(e.error)) { stopPreview(); toast.error("تعذر سماعك، تأكد من إذن المايك"); } };
+    r.onerror = (e: any) => { if (rec.current !== r || !nadaRef.current) return; if (["not-allowed", "service-not-allowed", "audio-capture"].includes(e.error)) { stopPreview(); toast.error("تعذر سماعك، تأكد من إذن المايك"); } };
     try { r.start(); } catch { stopPreview(); toast.error("تعذر بدء الاستماع"); }
   }
-  function stopNada() { nadaRef.current = false; previewRef.current = false; setNadaMode(false); setPreviewListening(false); setHeard(""); try { rec.current?.stop(); } catch { /* */ } syncMic(); }
+  function stopNada() { nadaRef.current = false; previewRef.current = false; setNadaMode(false); setPreviewListening(false); setHeard(""); const previous = rec.current; rec.current = null; try { previous?.stop(); } catch { /* */ } syncMic(); }
   function changeVoiceMode(mode: PhoneVoiceMode) {
     if (mode === voiceModeRef.current) return;
     voiceModeRef.current = mode; setVoiceMode(mode); setHeard("");
@@ -258,7 +261,7 @@ export function WebPhone() {
       const caller = fromNum || from;
       const c = new TelnyxRTC({ login_token: token });
       client.current = c;
-      c.on("telnyx.error", (e: any) => { setState("خطأ في الخط: " + (e?.error?.message ?? e?.message ?? "")); setInCall(false); callActive.current = false; stopNada(); syncMic(); });
+      c.on("telnyx.error", (e: any) => { if (client.current !== c) return; setState("خطأ في الخط: " + (e?.error?.message ?? e?.message ?? "")); setInCall(false); callActive.current = false; stopNada(); syncMic(); });
       c.on("telnyx.notification", (n: any) => {
         if (client.current !== c) return;
         const cl = n.call; if (!cl) return;
@@ -272,6 +275,7 @@ export function WebPhone() {
         if (s === "hangup" || s === "destroy") { stopNada(); setInCall(false); call.current = null; }
       });
       c.on("telnyx.ready", () => {
+        if (client.current !== c) return;
         call.current = c.newCall({ destinationNumber: to, callerNumber: caller, callerName: "Um Nada", localStream: stream, audio: true, video: false } as any);
         setInCall(true);
       });

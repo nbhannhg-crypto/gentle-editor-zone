@@ -15,6 +15,7 @@ vi.mock("@telnyx/webrtc", () => ({ TelnyxRTC: class {
 } }));
 
 import { WebPhone } from "./WebPhone";
+import { listClips, clipUrl } from "@/lib/call-vault";
 
 type ResultHandler = (e: { resultIndex: number; results: { 0: { transcript: string }; isFinal: boolean }[] }) => void;
 class Recognition {
@@ -29,6 +30,7 @@ class Recognition {
 beforeEach(() => {
   vi.clearAllMocks(); Recognition.instances = []; mocks.gains = []; mocks.sources = []; mocks.destinations = []; mocks.notification = null;
   mocks.newCall.mockReturnValue({ hangup() {} });
+  vi.mocked(listClips).mockResolvedValue([]);
   mocks.fish.mockResolvedValue({ audio: "data:audio/mpeg;base64,AA==" });
   mocks.vault.mockImplementation(async (_text, _voice, gen: () => Promise<string>) => gen());
   vi.stubGlobal("SpeechRecognition", Recognition);
@@ -170,4 +172,57 @@ it("creates a fresh outgoing stream on the next call after the SDK stops the pre
   const next = mocks.newCall.mock.calls[1]?.[0]?.localStream;
   expect(next).not.toBe(first);
   expect(next.getAudioTracks()[0]?.readyState).toBe("live");
+});
+
+it("recovers an audio sender whose track was detached by the SDK", async () => {
+  const sender = { track: null as any, replaceTrack: vi.fn(async (track: any) => { sender.track = track; }) };
+  const activeCall = { state: "active", peer: { instance: { getSenders: () => [sender], getTransceivers: () => [{ sender, receiver: { track: { kind: "audio" } } }] } }, hangup() {} };
+  mocks.newCall.mockReturnValue(activeCall);
+  render(<WebPhone />);
+  fireEvent.change(screen.getByPlaceholderText("رقم العميل"), { target: { value: "0500000000" } });
+  fireEvent.click(screen.getByRole("button", { name: /^اتصال$/ }));
+  await waitFor(() => expect(mocks.newCall).toHaveBeenCalled());
+  act(() => mocks.notification?.({ call: activeCall }));
+  await waitFor(() => expect(sender.replaceTrack).toHaveBeenCalled());
+  expect(sender.track).toBe(mocks.destinations[0]?.stream.getAudioTracks()[0]);
+});
+
+it("ignores speech results arriving after the owner stopped Um Nada mode", async () => {
+  render(<WebPhone />);
+  fireEvent.change(screen.getByPlaceholderText("رقم العميل"), { target: { value: "0500000000" } });
+  fireEvent.click(screen.getByRole("button", { name: /^اتصال$/ }));
+  await waitFor(() => expect(mocks.newCall).toHaveBeenCalled());
+  fireEvent.click(screen.getByRole("button", { name: /^تشغيل$/ }));
+  const recognition = Recognition.instances.at(-1);
+  fireEvent.click(screen.getByRole("button", { name: /^إيقاف$/ }));
+  await act(async () => recognition?.onresult?.({ resultIndex: 0, results: [{ 0: { transcript: "كلام متأخر" }, isFinal: true }] }));
+  expect(mocks.fish).not.toHaveBeenCalled();
+});
+
+it.each(["typed", "clip"])("sends %s audio through the call mixer even when local listening volume is zero", async (entry) => {
+  vi.mocked(listClips).mockResolvedValue([{ id: "clip", text: "صوت محفوظ" } as any]);
+  vi.mocked(clipUrl).mockResolvedValue("data:audio/mpeg;base64,AA==");
+  vi.stubGlobal("fetch", vi.fn(async () => ({ arrayBuffer: async () => new ArrayBuffer(1) })));
+  const raw = { kind: "audio", enabled: true };
+  const sender = { track: raw as any, replaceTrack: vi.fn(async (track: any) => { sender.track = track; }) };
+  const activeCall = { state: "active", peer: { instance: { getSenders: () => [sender] } }, hangup() {} };
+  mocks.newCall.mockReturnValue(activeCall);
+  render(<WebPhone />);
+  fireEvent.change(screen.getByPlaceholderText("رقم العميل"), { target: { value: "0500000000" } });
+  fireEvent.click(screen.getByRole("button", { name: /^اتصال$/ }));
+  await waitFor(() => expect(mocks.newCall).toHaveBeenCalled());
+  act(() => mocks.notification?.({ call: activeCall }));
+  fireEvent.click(screen.getByRole("button", { name: /^تشغيل$/ }));
+  fireEvent.change(screen.getByRole("slider"), { target: { value: "0" } });
+  if (entry === "clip") fireEvent.click(await screen.findByRole("button", { name: "صوت محفوظ" }));
+  else {
+    fireEvent.change(screen.getByPlaceholderText("أو اكتب جملة وتنطق فوراً"), { target: { value: "السلام عليكم" } });
+    fireEvent.click(screen.getByRole("button", { name: /^انطق$/ }));
+  }
+  await waitFor(() => expect(mocks.sources).toHaveLength(1));
+  expect(sender.track).toBe(mocks.destinations[0]?.stream.getAudioTracks()[0]);
+  expect(mocks.sources[0]?.connect).toHaveBeenCalledWith(mocks.destinations[0]);
+  expect(mocks.gains[0]?.gain.value).toBe(0);
+  expect(mocks.gains[1]?.gain.value).toBe(0);
+  expect(raw.enabled).toBe(false);
 });

@@ -22,3 +22,4 @@
 - Phone preview and calls share synthesis settings; preview audio goes only to a local monitor gain, independent of the call destination, so testing never sends audio to a customer.
 - Incoming phone audio and local previews use a Web Audio monitor gain instead of relying on mobile HTML audio volume; microphone gain stays zero until the call is active.
 - Each phone call owns a fresh mixed stream; bind the actual audio RTP sender to it before voice injection and disable any bypass sender — SDK teardown/recovery can stop or replace tracks outside the mixer.
+- Phone recognition and SDK callbacks must belong to the current recognizer/client; recover detached audio senders through their audio transceiver — late callbacks must not generate or reroute speech after stopping or reconnecting.
