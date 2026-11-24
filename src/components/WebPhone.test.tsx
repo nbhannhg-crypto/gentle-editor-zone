@@ -34,6 +34,11 @@ beforeEach(() => {
   mocks.fish.mockResolvedValue({ audio: "data:audio/mpeg;base64,AA==" });
   mocks.vault.mockImplementation(async (_text, _voice, gen: () => Promise<string>) => gen());
   vi.stubGlobal("SpeechRecognition", Recognition);
+  vi.stubGlobal("MediaStream", class {
+    constructor(private tracks: any[] = []) {}
+    getAudioTracks() { return this.tracks; }
+    getTracks() { return this.tracks; }
+  });
   vi.stubGlobal("AudioContext", class {
     destination = {};
     async resume() {}
@@ -45,14 +50,16 @@ beforeEach(() => {
       mocks.destinations.push(destination); return destination;
     }
     createGain() { const gain = { gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() }; mocks.gains.push(gain); return gain; }
-    createMediaStreamSource() { return { connect: (gain: { connect: () => void }) => gain }; }
+    createMediaStreamSource() { return { connect: (gain: { connect: () => void }) => gain, disconnect: vi.fn() }; }
     async decodeAudioData() { return {}; }
     createBufferSource() {
       const source = { buffer: null, connect: vi.fn(), start: vi.fn(() => queueMicrotask(() => source.onended?.())), stop: vi.fn(() => source.onended?.()), onended: null as (() => void) | null };
       mocks.sources.push(source); return source;
     }
   });
-  Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: { getUserMedia: vi.fn(async () => ({ getTracks: () => [], getAudioTracks: () => [] })) } });
+  const outgoing = { kind: "audio", readyState: "live", enabled: true, stop: vi.fn() };
+  const capture = { ...outgoing, clone: () => outgoing };
+  Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: { getUserMedia: vi.fn(async () => ({ getTracks: () => [capture], getAudioTracks: () => [capture] })) } });
 });
 
 it("switches an active phone from previous to broadcast recognition and natural synthesis, then back", async () => {
@@ -60,6 +67,7 @@ it("switches an active phone from previous to broadcast recognition and natural 
   fireEvent.change(screen.getByPlaceholderText("رقم العميل"), { target: { value: "0500000000" } });
   fireEvent.click(screen.getByRole("button", { name: /^اتصال$/ }));
   await waitFor(() => expect(mocks.newCall).toHaveBeenCalled());
+  act(() => mocks.notification?.({ call: { state: "active" } }));
   fireEvent.click(screen.getByRole("button", { name: /^تشغيل$/ }));
   const old = Recognition.instances.at(-1);
   expect(old?.continuous).toBe(true);
@@ -143,7 +151,7 @@ it("replaces a bypass microphone sender with the mixed call track before sending
   const sender = { track: raw as any, replaceTrack: vi.fn(async (track: any) => { sender.track = track; }) };
   const activeCall = { state: "active", peer: { instance: { getSenders: () => [sender] } }, hangup() {} };
   mocks.newCall.mockReturnValue(activeCall);
-  vi.stubGlobal("fetch", vi.fn(async () => ({ arrayBuffer: async () => new ArrayBuffer(1) })));
+  vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(1) })));
   render(<WebPhone />);
   fireEvent.change(screen.getByPlaceholderText("رقم العميل"), { target: { value: "0500000000" } });
   fireEvent.click(screen.getByRole("button", { name: /^اتصال$/ }));
@@ -169,9 +177,9 @@ it("creates a fresh outgoing stream on the next call after the SDK stops the pre
   fireEvent.click(screen.getByRole("button", { name: "إنهاء" }));
   fireEvent.click(screen.getByRole("button", { name: /^اتصال$/ }));
   await waitFor(() => expect(mocks.newCall).toHaveBeenCalledTimes(2));
-  const next = mocks.newCall.mock.calls[1]?.[0]?.localStream;
+  const next = mocks.destinations[1]?.stream;
   expect(next).not.toBe(first);
-  expect(next.getAudioTracks()[0]?.readyState).toBe("live");
+  expect(next?.getAudioTracks()[0]?.readyState).toBe("live");
 });
 
 it("recovers an audio sender whose track was detached by the SDK", async () => {
@@ -183,6 +191,7 @@ it("recovers an audio sender whose track was detached by the SDK", async () => {
   fireEvent.click(screen.getByRole("button", { name: /^اتصال$/ }));
   await waitFor(() => expect(mocks.newCall).toHaveBeenCalled());
   act(() => mocks.notification?.({ call: activeCall }));
+  fireEvent.click(screen.getByRole("button", { name: /^تشغيل$/ }));
   await waitFor(() => expect(sender.replaceTrack).toHaveBeenCalled());
   expect(sender.track).toBe(mocks.destinations[0]?.stream.getAudioTracks()[0]);
 });
@@ -202,7 +211,7 @@ it("ignores speech results arriving after the owner stopped Um Nada mode", async
 it.each(["typed", "clip"])("sends %s audio through the call mixer even when local listening volume is zero", async (entry) => {
   vi.mocked(listClips).mockResolvedValue([{ id: "clip", text: "صوت محفوظ" } as any]);
   vi.mocked(clipUrl).mockResolvedValue("data:audio/mpeg;base64,AA==");
-  vi.stubGlobal("fetch", vi.fn(async () => ({ arrayBuffer: async () => new ArrayBuffer(1) })));
+  vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(1) })));
   const raw = { kind: "audio", enabled: true };
   const sender = { track: raw as any, replaceTrack: vi.fn(async (track: any) => { sender.track = track; }) };
   const activeCall = { state: "active", peer: { instance: { getSenders: () => [sender] } }, hangup() {} };
@@ -225,4 +234,46 @@ it.each(["typed", "clip"])("sends %s audio through the call mixer even when loca
   expect(mocks.gains[0]?.gain.value).toBe(0);
   expect(mocks.gains[1]?.gain.value).toBe(0);
   expect(raw.enabled).toBe(false);
+});
+
+it("rebuilds an SDK-stopped mixer instead of permanently rejecting every saved phrase", async () => {
+  vi.mocked(listClips).mockResolvedValue([{ id: "clip", text: "صوت محفوظ" } as any]);
+  vi.mocked(clipUrl).mockResolvedValue("data:audio/mpeg;base64,AA==");
+  vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(1) })));
+  const sender = { track: null as any, replaceTrack: vi.fn(async (track: any) => { sender.track = track; }) };
+  const activeCall = { state: "active", peer: { instance: { getSenders: () => [sender], getTransceivers: () => [{ sender, direction: "sendrecv", receiver: { track: { kind: "audio", readyState: "ended" } } }] } }, hangup() {} };
+  mocks.newCall.mockReturnValue(activeCall);
+  render(<WebPhone />);
+  fireEvent.change(screen.getByPlaceholderText("رقم العميل"), { target: { value: "0500000000" } });
+  fireEvent.click(screen.getByRole("button", { name: /^اتصال$/ }));
+  await waitFor(() => expect(mocks.newCall).toHaveBeenCalled());
+  act(() => mocks.notification?.({ call: activeCall }));
+  mocks.destinations[0]?.stream.getAudioTracks()[0]?.stop();
+  fireEvent.click(screen.getByRole("button", { name: /^تشغيل$/ }));
+  fireEvent.click(await screen.findByRole("button", { name: "صوت محفوظ" }));
+  await waitFor(() => expect(mocks.sources[0]?.start).toHaveBeenCalled());
+  expect(mocks.destinations).toHaveLength(2);
+  expect(sender.track).toBe(mocks.destinations[1]?.stream.getAudioTracks()[0]);
+  expect(sender.track.readyState).toBe("live");
+});
+
+it("uses direct microphone normally, switches to saved audio, then restores the direct track", async () => {
+  vi.mocked(listClips).mockResolvedValue([{ id: "clip", text: "صوت محفوظ" } as any]);
+  vi.mocked(clipUrl).mockResolvedValue("data:audio/mpeg;base64,AA==");
+  vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(1) })));
+  const sender = { track: null as any, replaceTrack: vi.fn(async (track: any) => { sender.track = track; }) };
+  const activeCall = { state: "active", peer: { instance: { getSenders: () => [sender], getTransceivers: () => [{ sender, receiver: { track: { kind: "audio" } } }] } }, hangup() {} };
+  mocks.newCall.mockReturnValue(activeCall);
+  render(<WebPhone />);
+  fireEvent.change(screen.getByPlaceholderText("رقم العميل"), { target: { value: "0500000000" } });
+  fireEvent.click(screen.getByRole("button", { name: /^اتصال$/ }));
+  await waitFor(() => expect(mocks.newCall).toHaveBeenCalled());
+  const direct = mocks.newCall.mock.calls[0]?.[0]?.localStream.getAudioTracks()[0];
+  expect(direct).not.toBe(mocks.destinations[0]?.stream.getAudioTracks()[0]);
+  act(() => mocks.notification?.({ call: activeCall }));
+  fireEvent.click(await screen.findByRole("button", { name: "صوت محفوظ" }));
+  await waitFor(() => expect(mocks.sources[0]?.start).toHaveBeenCalled());
+  await waitFor(() => expect(sender.track).toBe(direct));
+  expect(sender.replaceTrack).toHaveBeenCalledWith(mocks.destinations[0]?.stream.getAudioTracks()[0]);
+  expect(direct.enabled).toBe(true);
 });

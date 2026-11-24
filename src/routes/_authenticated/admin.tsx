@@ -20,6 +20,7 @@ export const Route = createFileRoute("/_authenticated/admin")({
       { title: "لوحة تحكم المالك — مملكة المبيعات" },
       { name: "description", content: "إدارة متاجر التجار والمشتركين في منصة مملكة المبيعات" },
       { property: "og:title", content: "لوحة تحكم المالك" },
+      { property: "og:description", content: "إدارة متاجر التجار والمشتركين في منصة مملكة المبيعات" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],

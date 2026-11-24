@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Volume2, Mic, Square, Play } from "lucide-react";
 import { phoneVoiceProfile, type PhoneVoiceMode } from "@/lib/phone-voice-mode";
+import { bindPhoneSender } from "@/lib/phone-audio-route";
 
 // Browser phone: owner hears the customer, talks via mic, and injects Um Nada vault clips into the call.
 const COUNTRIES = [
@@ -38,6 +39,9 @@ export function WebPhone() {
   const volumeRef = useRef(0.2), monitor = useRef<GainNode | null>(null);
   const remoteSource = useRef<MediaElementAudioSourceNode | null>(null);
   const micStream = useRef<MediaStream | null>(null);
+  const directStream = useRef<MediaStream | null>(null), micSource = useRef<MediaStreamAudioSourceNode | null>(null);
+  const mixing = useRef(0), callEpoch = useRef(0);
+  const [audioError, setAudioError] = useState("");
   const [previewText, setPreviewText] = useState("");
   const [previewListening, setPreviewListening] = useState(false);
   const [previewBusy, setPreviewBusy] = useState(false);
@@ -79,33 +83,41 @@ export function WebPhone() {
   }
   function syncMic() {
     const enabled = callActive.current && micEnabled.current && !nadaRef.current;
-    if (micGain.current) micGain.current.gain.value = enabled ? 1 : 0;
-    micStream.current?.getAudioTracks().forEach(track => { track.enabled = enabled; });
-    // A recovered SDK sender must never bypass the controlled mixer.
-    const expected = dest.current?.stream.getAudioTracks()[0];
+    if (micGain.current) micGain.current.gain.value = enabled && mixing.current === 0 ? 1 : 0;
+    // Keep capture alive for recognition. Only the separate outgoing mic is muted.
+    directStream.current?.getAudioTracks().forEach(track => { track.enabled = enabled && mixing.current === 0; });
+    const expected = nadaRef.current || mixing.current > 0 ? dest.current?.stream.getAudioTracks()[0] : directStream.current?.getAudioTracks()[0];
     const senders: RTCRtpSender[] = call.current?.peer?.instance?.getSenders() ?? [];
     senders.forEach(sender => { if (sender.track?.kind === "audio" && sender.track !== expected) sender.track.enabled = false; });
   }
-  async function bindCallAudio(required = false) {
-    const currentCall = call.current, destination = dest.current;
-    const track = destination?.stream.getAudioTracks()[0];
-    const senders: RTCRtpSender[] = currentCall?.peer?.instance?.getSenders() ?? [];
-    const transceivers: RTCRtpTransceiver[] = currentCall?.peer?.instance?.getTransceivers?.() ?? [];
-    const sender = senders.find(item => item.track?.kind === "audio")
-      ?? transceivers.find(item => item.receiver.track?.kind === "audio" && item.receiver.track.readyState !== "ended")?.sender;
-    if (!destination || !track || track.readyState !== "live" || !sender) {
-      if (required) throw new Error("مسار صوت العميل مو جاهز، أعد الاتصال");
-      return;
+  function ensureDestination() {
+    const ctx = ac.current;
+    if (!ctx) throw new Error("السماعة مو جاهزة");
+    if (dest.current?.stream.getAudioTracks()[0]?.readyState !== "live") {
+      micGain.current?.disconnect();
+      dest.current = ctx.createMediaStreamDestination();
+      dest.current.channelCount = 1;
+      micGain.current?.connect(dest.current);
     }
-    if (sender.track !== track) {
-      const previous = sender.track;
-      if (previous) previous.enabled = false;
-      await sender.replaceTrack(track);
-      if (call.current !== currentCall || dest.current !== destination) return;
-      if (currentCall.options) currentCall.options.localStream = destination.stream;
+    return dest.current;
+  }
+  async function bindCallAudio(required = false, mixed = nadaRef.current || mixing.current > 0) {
+    const currentCall = call.current, epoch = callEpoch.current;
+    for (let attempt = 0; attempt < (required ? 12 : 1); attempt++) {
+      if (call.current !== currentCall || callEpoch.current !== epoch || !callActive.current) return;
+      const peer: RTCPeerConnection | undefined = currentCall?.peer?.instance;
+      const stream = mixed ? ensureDestination().stream : directStream.current;
+      if (peer && stream) {
+        try {
+          await bindPhoneSender(peer, stream);
+          if (call.current !== currentCall || callEpoch.current !== epoch) return;
+          if (currentCall.options) currentCall.options.localStream = stream;
+          syncMic(); setAudioError(""); return;
+        } catch (error) { if (attempt === 11) throw error; }
+      }
+      if (required) await new Promise(resolve => setTimeout(resolve, 100));
     }
-    track.enabled = true;
-    syncMic();
+    if (required) throw new Error("مسار صوت العميل مو جاهز، أعد الاتصال");
   }
   function stopPreview() {
     previewEpoch.current++; previewRef.current = false;
@@ -130,7 +142,9 @@ export function WebPhone() {
   function sayAsNada(text: string, mode = voiceModeRef.current, target: "call" | "preview" = "call") {
     const t = text.trim(); if (!t) return;
     const epoch = previewEpoch.current;
-    const callDestination = target === "call" ? dest.current : null;
+    const epochCall = callEpoch.current;
+    if (target === "call" && !callActive.current) { toast.error("انتظر العميل يرد أول"); return; }
+    void ac.current?.resume();
     if (target === "preview") setPreviewBusy(true);
     const v = liveVoice();
     const profile = phoneVoiceProfile(mode);
@@ -145,25 +159,36 @@ export function WebPhone() {
         const result = await generated;
         if ("error" in result) throw result.error;
         if (target === "preview" && epoch !== previewEpoch.current) return;
-        if (target === "call" && (!callActive.current || dest.current !== callDestination)) return;
+        if (target === "call" && (!callActive.current || callEpoch.current !== epochCall)) return;
         const ctx = ac.current;
         if (!ctx || (target === "call" && !dest.current)) return;
         const response = await fetch(result.url);
+        if (!response.ok) throw new Error("تعذر تحميل الملف الصوتي");
         const buf = await ctx.decodeAudioData(await response.arrayBuffer());
         if (target === "preview" && epoch !== previewEpoch.current) return;
-        if (target === "call" && (!callActive.current || dest.current !== callDestination)) return;
+        if (target === "call" && (!callActive.current || callEpoch.current !== epochCall)) return;
         await ctx.resume();
-        if (target === "call") await bindCallAudio(true);
-        if (target === "call" && (!callActive.current || dest.current !== callDestination)) return;
         const source = ctx.createBufferSource(); source.buffer = buf;
         if (target === "preview") {
           if (!monitor.current) return;
           source.connect(monitor.current); previewSource.current = source;
-        } else if (dest.current) source.connect(dest.current);
+        } else {
+          mixing.current++; syncMic();
+          try {
+            await bindCallAudio(true, true);
+            if (!callActive.current || callEpoch.current !== epochCall) return;
+            source.connect(ensureDestination());
+            await new Promise<void>(resolve => { source.onended = () => resolve(); source.start(); });
+          } finally {
+            if (callEpoch.current === epochCall) { mixing.current = Math.max(0, mixing.current - 1); syncMic(); await bindCallAudio(); }
+          }
+          return;
+        }
         await new Promise<void>((resolve) => { source.onended = () => resolve(); source.start(); });
       } catch (e) {
         const message = "ما طلع الصوت: " + (e as Error).message;
         if (target === "preview" && epoch === previewEpoch.current) setPreviewError(message);
+        if (target === "call" && callEpoch.current === epochCall) setAudioError(message);
         toast.error(message);
       }
       finally { if (target === "preview" && epoch === previewEpoch.current) { setPreviewBusy(false); previewSource.current = null; } }
@@ -173,6 +198,7 @@ export function WebPhone() {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) { toast.error("المتصفح ما يدعم التحدث، استخدم كروم"); return; }
     const preview = previewRef.current;
+    void ac.current?.resume();
     nadaRef.current = true;
     if (preview) setPreviewListening(true);
     else { setNadaMode(true); micEnabled.current = false; setMicOn(false); }
@@ -196,7 +222,7 @@ export function WebPhone() {
     r.onerror = (e: any) => { if (rec.current !== r || !nadaRef.current) return; if (["not-allowed", "service-not-allowed", "audio-capture"].includes(e.error)) { stopPreview(); toast.error("تعذر سماعك، تأكد من إذن المايك"); } };
     try { r.start(); } catch { stopPreview(); toast.error("تعذر بدء الاستماع"); }
   }
-  function stopNada() { nadaRef.current = false; previewRef.current = false; setNadaMode(false); setPreviewListening(false); setHeard(""); const previous = rec.current; rec.current = null; try { previous?.stop(); } catch { /* */ } syncMic(); }
+  function stopNada() { nadaRef.current = false; previewRef.current = false; setNadaMode(false); setPreviewListening(false); setHeard(""); const previous = rec.current; rec.current = null; try { previous?.stop(); } catch { /* */ } syncMic(); void bindCallAudio().catch(() => {}); }
   function changeVoiceMode(mode: PhoneVoiceMode) {
     if (mode === voiceModeRef.current) return;
     voiceModeRef.current = mode; setVoiceMode(mode); setHeard("");
@@ -207,6 +233,7 @@ export function WebPhone() {
     nadaRef.current = false; previewEpoch.current++; callActive.current = false;
     try { rec.current?.stop(); previewSource.current?.stop(); } catch { /* */ }
     micStream.current?.getTracks().forEach(track => track.stop());
+    directStream.current?.getTracks().forEach(track => track.stop());
     void ac.current?.close();
   }, []);
 
@@ -234,24 +261,29 @@ export function WebPhone() {
     const ctx = await prepareAudio();
     // Telnyx stops local tracks on hangup; never reuse a finished destination.
     micStream.current?.getTracks().forEach(track => track.stop());
+    directStream.current?.getTracks().forEach(track => track.stop());
+    micSource.current?.disconnect();
     micGain.current?.disconnect();
     dest.current?.stream.getTracks().forEach(track => track.stop());
     dest.current = null;
     const mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
     micStream.current = mic;
+    directStream.current = new MediaStream(mic.getAudioTracks().map(track => track.clone()));
     dest.current = ctx.createMediaStreamDestination();
+    dest.current.channelCount = 1;
     micGain.current = ctx.createGain();
     micGain.current.gain.value = 0;
-    ctx.createMediaStreamSource(mic).connect(micGain.current).connect(dest.current);
+    micSource.current = ctx.createMediaStreamSource(mic);
+    micSource.current.connect(micGain.current).connect(dest.current);
     syncMic();
-    return dest.current.stream;
+    return directStream.current;
   }
 
   async function dial() {
     const to = toE164(num, cc);
     if (to.length < 8) { toast.error("اكتب رقم صحيح"); return; }
     try {
-      stopPreview(); callActive.current = false; syncMic();
+      stopPreview(); callActive.current = false; callEpoch.current++; mixing.current = 0; setAudioError(""); syncMic();
       client.current?.disconnect(); call.current = null;
       setState("يجهز الخط…");
       const [{ token, balance: bal, from }, stream, mod] = await Promise.all([phoneToken(), mixedStream(), import("@telnyx/webrtc")]);
@@ -283,20 +315,26 @@ export function WebPhone() {
     } catch (e) { callActive.current = false; syncMic(); setState("جاهز"); toast.error((e as Error).message); }
   }
 
-  function hangup() { callActive.current = false; stopNada(); try { call.current?.hangup(); } catch { /* */ } setInCall(false); setState("انتهت المكالمة"); }
-  function toggleMic() { if (nadaRef.current) { toast("أنت في وضع صوت أم ندى — مايكك مقفول عن العميل"); return; } const v = !micOn; setMicOn(v); micEnabled.current = v; syncMic(); }
+  function hangup() { callActive.current = false; callEpoch.current++; stopNada(); try { call.current?.hangup(); } catch { /* */ } setInCall(false); setState("انتهت المكالمة"); }
+  function toggleMic() { if (nadaRef.current) { toast("أنت في وضع صوت أم ندى — مايكك مقفول عن العميل"); return; } const v = !micOn; setMicOn(v); micEnabled.current = v; syncMic(); void bindCallAudio().catch(() => {}); }
 
   async function inject(c: CallClip) {
     if (!ac.current || !dest.current || !callActive.current) { toast.error("انتظر العميل يرد أول"); return; }
-    const destination = dest.current;
+    const epoch = callEpoch.current;
+    let sending = false;
     try {
-      const buf = await ac.current.decodeAudioData(await (await fetch(await clipUrl(c))).arrayBuffer());
-      if (!callActive.current || dest.current !== destination) return;
-      await ac.current.resume(); await bindCallAudio(true);
-      if (!callActive.current || dest.current !== destination) return;
+      await ac.current.resume();
+      const response = await fetch(await clipUrl(c));
+      if (!response.ok) throw new Error("تعذر تحميل الصوت المحفوظ");
+      const buf = await ac.current.decodeAudioData(await response.arrayBuffer());
+      if (!callActive.current || callEpoch.current !== epoch) return;
+      mixing.current++; sending = true; syncMic(); await bindCallAudio(true, true);
+      if (!callActive.current || callEpoch.current !== epoch) return;
       const src = ac.current.createBufferSource(); src.buffer = buf;
-      src.connect(destination); if (monitor.current) src.connect(monitor.current); src.start();
-    } catch { toast.error("تعذر توصيل الصوت للعميل"); }
+      src.connect(ensureDestination()); if (monitor.current) src.connect(monitor.current);
+      await new Promise<void>(resolve => { src.onended = () => resolve(); src.start(); });
+    } catch (error) { const message = "تعذر تشغيل الصوت: " + (error as Error).message; setAudioError(message); toast.error(message); }
+    finally { if (sending && callEpoch.current === epoch) { mixing.current = Math.max(0, mixing.current - 1); syncMic(); await bindCallAudio(); } }
   }
 
   const shown = clips.filter((c) => !q || c.text.includes(q)).slice(0, 60);
@@ -371,11 +409,12 @@ export function WebPhone() {
         </div>
       </div>
       <audio ref={remote} autoPlay />
+      {audioError && <p role="alert" className="text-xs text-destructive">{audioError}</p>}
       <div>
         <p className="mb-2 text-sm font-bold">💾 أصوات أم ندى — اضغط يدخل الصوت للمكالمة</p>
         <Input placeholder="ابحث في الأصوات…" value={q} onChange={(e) => setQ(e.target.value)} className="mb-2" />
         <div className="grid max-h-80 grid-cols-2 gap-2 overflow-y-auto overscroll-contain">
-          {shown.map((c) => <button key={c.id} onClick={() => inject(c)} className="rounded-lg border p-2 text-right text-xs hover:bg-accent">{c.text}</button>)}
+          {shown.map((c) => <Button key={c.id} variant="outline" onClick={() => void inject(c)} className="h-auto whitespace-normal rounded-lg p-2 text-right text-xs">{c.text}</Button>)}
           {!shown.length && <p className="col-span-2 text-xs text-muted-foreground">ما فيه أصوات محفوظة بعد.</p>}
         </div>
       </div>
