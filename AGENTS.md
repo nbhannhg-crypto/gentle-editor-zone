@@ -11,6 +11,8 @@
 
 # Technical decisions
 
+- Phone voice comparison profiles live in a browser-safe helper; the legacy profile stays the default, and natural TTS uses a separate vault synthesis profile so comparison never reuses legacy audio.
+
 - Direct server-fn calls from components (not via useServerFn) must wrap the payload: `myFn({ data: payload })` — plain `myFn(payload)` reaches inputValidator as undefined and fails with "expected object, received undefined".
 
 - External AI keys (GEMINI_KEYS rotation, then OPENROUTER_KEY) live in src/lib/ai-keys.server.ts; all text/vision/transcription AI (queen brain, suggestions, reports, studio, brain factory, WhatsApp, media) never falls back to the built-in gateway (show a busy message / stay silent instead) — why: the owner forbids platform-credit spend. Only the `speak` TTS still uses the gateway.

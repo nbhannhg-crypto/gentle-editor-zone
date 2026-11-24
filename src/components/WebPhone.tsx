@@ -7,6 +7,7 @@ import { STUDIO_VOICES } from "@/lib/studio-voices";
 import { getStudioVoice } from "@/lib/voice-model";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { phoneVoiceProfile, type PhoneVoiceMode } from "@/lib/phone-voice-mode";
 
 // Browser phone: owner hears the customer, talks via mic, and injects Um Nada vault clips into the call.
 const COUNTRIES = [
@@ -40,15 +41,18 @@ export function WebPhone() {
   // 🎙️➡️👩 Voice mode: owner speaks, mic is cut from the call, each sentence is spoken to the customer in Um Nada's voice (same engine as LiveStudio).
   const [nadaMode, setNadaMode] = useState(false), [heard, setHeard] = useState(""), [typed, setTyped] = useState("");
   const nadaRef = useRef(false), rec = useRef<any>(null), sayQ = useRef<Promise<void>>(Promise.resolve());
+  const [voiceMode, setVoiceMode] = useState<PhoneVoiceMode>("previous");
+  const voiceModeRef = useRef<PhoneVoiceMode>("previous");
   function liveVoice() {
     let v: any = {}; try { v = JSON.parse(localStorage.getItem("live_studio_v1") || "{}").voice ?? {}; } catch { /* */ }
-    return { id: getStudioVoice() || v.id || STUDIO_VOICES[0]![0], model: String(v.model || "s2.1-pro"), speed: Number(v.speed || 1), gain: Number(v.gain || 0), emotion: String(v.emotion || "") };
+    return { id: getStudioVoice() || v.id || STUDIO_VOICES[0]?.[0] || "", model: String(v.model || "s2.1-pro"), speed: Number(v.speed || 1), gain: Number(v.gain || 0), emotion: String(v.emotion || "") };
   }
-  function sayAsNada(text: string) {
+  function sayAsNada(text: string, mode = voiceModeRef.current) {
     const t = text.trim(); if (!t) return;
     const v = liveVoice();
-    const src = vaultSpeak(t.slice(0, 600), { voiceId: v.id, model: v.model, speed: v.speed, emotion: v.emotion }, async () => {
-      const r = await fishSpeak({ data: { text: t.slice(0, 600), voiceId: v.id, custom: true, model: v.model, speed: v.speed, volume: v.gain, emotion: v.emotion, stable: true } as any });
+    const profile = phoneVoiceProfile(mode);
+    const src = vaultSpeak(t.slice(0, 600), { voiceId: v.id, model: v.model, speed: v.speed, emotion: v.emotion, ...("synthesisProfile" in profile ? { synthesisProfile: profile.synthesisProfile } : {}) }, async () => {
+      const r = await fishSpeak({ data: { text: t.slice(0, 600), voiceId: v.id, custom: true, model: v.model, speed: v.speed, volume: v.gain, emotion: v.emotion, stable: profile.stable } as any });
       return String((r as any).audio);
     });
     sayQ.current = sayQ.current.then(async () => {
@@ -65,17 +69,24 @@ export function WebPhone() {
     if (!SR) { toast.error("المتصفح ما يدعم التحدث، استخدم كروم"); return; }
     nadaRef.current = true; setNadaMode(true);
     if (micGain.current) micGain.current.gain.value = 0; setMicOn(false);
-    const r = new SR(); r.lang = "ar-SA"; r.continuous = true; r.interimResults = true; rec.current = r;
+    const mode = voiceModeRef.current, profile = phoneVoiceProfile(mode);
+    const r = new SR(); r.lang = "ar-SA"; r.continuous = profile.continuous; r.interimResults = profile.interimResults; r.maxAlternatives = profile.maxAlternatives; rec.current = r;
     r.onresult = (e: any) => {
       let interim = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) { const x = e.results[i]; const t = x[0]?.transcript ?? ""; if (x.isFinal) { setHeard(""); sayAsNada(t); } else interim += t; }
+      for (let i = e.resultIndex; i < e.results.length; i++) { const x = e.results[i]; const t = x[0]?.transcript ?? ""; if (x.isFinal) { setHeard(""); sayAsNada(t, mode); } else interim += t; }
       if (interim) setHeard(interim);
     };
-    r.onend = () => { if (nadaRef.current) { try { r.start(); } catch { /* */ } } };
-    r.onerror = () => {};
+    r.onend = () => { if (nadaRef.current && rec.current === r) startNada(); };
+    r.onerror = (e: any) => { if (["not-allowed", "service-not-allowed", "audio-capture"].includes(e.error)) { stopNada(); toast.error("تعذر سماعك، تأكد من إذن المايك"); } };
     try { r.start(); } catch { /* */ }
   }
   function stopNada() { nadaRef.current = false; setNadaMode(false); setHeard(""); try { rec.current?.stop(); } catch { /* */ } }
+  function changeVoiceMode(mode: PhoneVoiceMode) {
+    if (mode === voiceModeRef.current) return;
+    voiceModeRef.current = mode; setVoiceMode(mode); setHeard("");
+    // Finish the current utterance with its original settings; restart in the new mode.
+    if (nadaRef.current) { try { rec.current?.stop(); } catch { startNada(); } }
+  }
   useEffect(() => () => { nadaRef.current = false; try { rec.current?.stop(); } catch { /* */ } }, []);
 
   // Default caller ID: the owner's verified Saudi number (US numbers get blocked by Saudi/Yemeni carriers).
@@ -129,7 +140,7 @@ export function WebPhone() {
         if (remote.current && cl.remoteStream) remote.current.srcObject = cl.remoteStream;
         const s = cl.state as string;
         setState(s === "active" ? "🟢 متصل — تسمعه ويسمعك" : s === "ringing" || s === "trying" || s === "early" ? "📞 يرن…" : s === "hangup" || s === "destroy" ? "انتهت المكالمة" + (cl.cause && cl.cause !== "NORMAL_CLEARING" ? ` (${cl.cause})` : "") : s);
-        if (s === "hangup" || s === "destroy") { setInCall(false); call.current = null; }
+        if (s === "hangup" || s === "destroy") { stopNada(); setInCall(false); call.current = null; }
       });
       c.on("telnyx.ready", () => {
         call.current = c.newCall({ destinationNumber: to, callerNumber: caller, callerName: "Um Nada", localStream: stream, audio: true, video: false } as any);
@@ -190,6 +201,10 @@ export function WebPhone() {
         <Button size="sm" variant="outline" onClick={toggleMic}>{micOn ? "🎙️ مايكي شغال" : "🔇 مايكي مكتوم"}</Button>
       </div>
       <div className="space-y-2 rounded-xl border border-primary/40 p-3">
+        <div role="group" aria-label="وضع صوت الهاتف" className="grid grid-cols-2 gap-2">
+          <Button size="sm" variant={voiceMode === "previous" ? "default" : "outline"} aria-pressed={voiceMode === "previous"} onClick={() => changeVoiceMode("previous")}>السابق — ثابت</Button>
+          <Button size="sm" variant={voiceMode === "developed" ? "default" : "outline"} aria-pressed={voiceMode === "developed"} onClick={() => changeVoiceMode("developed")}>المطوّر — طبيعي</Button>
+        </div>
         <div className="flex items-center justify-between gap-2">
           <div><p className="text-sm font-bold">👩 تكلم بصوتك ويوصله صوت أم ندى</p><p className="text-xs text-muted-foreground">مايكك ما يوصل للعميل، كل جملة تقولها تنطق له بصوت أم ندى وأنت تسمعه.</p></div>
           {nadaMode ? <Button size="sm" variant="destructive" onClick={stopNada}>إيقاف</Button> : <Button size="sm" onClick={() => { if (!inCall) { toast.error("اتصل أول"); return; } startNada(); }}>تشغيل</Button>}

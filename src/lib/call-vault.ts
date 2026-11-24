@@ -3,7 +3,7 @@ import { vaultContext } from "@/lib/voice-vault-cloud";
 
 /** 💾 خزينة صوت المكالمة: كل جملة تنولد تنحفظ في خزينة متجرك، وإذا تكررت بالحرف بنفس الصوت تشتغل فوراً بدون توليد. */
 export type CallClip = { id: string; key: string; text: string; voice_id: string; model: string; speed: number; emotion: string; path: string; uses: number; pinned: boolean; created_at: string };
-export type VaultVoice = { voiceId: string; model: string; speed: number; emotion: string };
+export type VaultVoice = { voiceId: string; model: string; speed: number; emotion: string; synthesisProfile?: string };
 
 const BUCKET = "call-vault";
 const ON = "cv_on";
@@ -12,7 +12,9 @@ export const setVaultOn = (v: boolean) => { try { localStorage.setItem(ON, v ? "
 
 export const normText = (t: string) => t.replace(/\s+/g, " ").trim();
 export async function clipKey(text: string, v: VaultVoice) {
-  const raw = [normText(text), v.voiceId, v.model, Number(v.speed).toFixed(2), v.emotion].join("|");
+  const parts = [normText(text), v.voiceId, v.model, Number(v.speed).toFixed(2), v.emotion];
+  if (v.synthesisProfile) parts.push(v.synthesisProfile);
+  const raw = parts.join("|");
   const h = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(raw));
   return Array.from(new Uint8Array(h)).map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 40);
 }
