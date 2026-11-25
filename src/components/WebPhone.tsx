@@ -11,6 +11,7 @@ import { Volume2, Mic, Square, Play } from "lucide-react";
 import { phoneVoiceProfile, type PhoneVoiceMode } from "@/lib/phone-voice-mode";
 import { bindPhoneSender } from "@/lib/phone-audio-route";
 import { PhonePushToTalk } from "./PhonePushToTalk";
+import { SmsSender } from "./SmsSender";
 
 // Browser phone: owner hears the customer, talks via mic, and injects Um Nada vault clips into the call.
 const COUNTRIES = [
@@ -360,6 +361,7 @@ export function WebPhone() {
         <h2 className="font-display text-xl">📞 الهاتف المباشر</h2>
         {balance && <span className="text-xs text-muted-foreground">رصيد الخط: ${balance}</span>}
       </div>
+      <SmsSender />
       <div className="flex flex-wrap gap-2">
         <select value={cc} onChange={(e) => setCc(e.target.value)} className="rounded-md border bg-background px-2 text-sm">
           {COUNTRIES.map((x) => <option key={x.c} value={x.c}>{x.n} +{x.c}</option>)}
