@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Volume2, Mic, Square, Play } from "lucide-react";
 import { phoneVoiceProfile, type PhoneVoiceMode } from "@/lib/phone-voice-mode";
 import { bindPhoneSender } from "@/lib/phone-audio-route";
+import { PhonePushToTalk } from "./PhonePushToTalk";
 
 // Browser phone: owner hears the customer, talks via mic, and injects Um Nada vault clips into the call.
 const COUNTRIES = [
@@ -140,10 +141,10 @@ export function WebPhone() {
     catch { toast.error("تعذر تشغيل المايك"); }
   }
   function sayAsNada(text: string, mode = voiceModeRef.current, target: "call" | "preview" = "call") {
-    const t = text.trim(); if (!t) return;
+    const t = text.trim(); if (!t) return Promise.resolve();
     const epoch = previewEpoch.current;
     const epochCall = callEpoch.current;
-    if (target === "call" && !callActive.current) { toast.error("انتظر العميل يرد أول"); return; }
+    if (target === "call" && !callActive.current) { toast.error("انتظر العميل يرد أول"); return Promise.resolve(); }
     void ac.current?.resume();
     if (target === "preview") setPreviewBusy(true);
     const v = liveVoice();
@@ -153,7 +154,10 @@ export function WebPhone() {
       return String((r as any).audio);
     });
     // Handle generation rejection immediately, even while a previous sentence is playing.
-    const generated = Promise.resolve(src).then(url => ({ url }), error => ({ error }));
+    const generated = new Promise<string>((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error("تأخر توليد الصوت، جرّب مرة ثانية")), 20_000);
+      Promise.resolve(src).then(resolve, reject).finally(() => clearTimeout(timeout));
+    }).then(url => ({ url }), error => ({ error }));
     sayQ.current = sayQ.current.then(async () => {
       try {
         const result = await generated;
@@ -193,6 +197,18 @@ export function WebPhone() {
       }
       finally { if (target === "preview" && epoch === previewEpoch.current) { setPreviewBusy(false); previewSource.current = null; } }
     });
+    return sayQ.current;
+  }
+  async function acquirePushMic() {
+    stopPreview();
+    await prepareAudio();
+    if (!inCall) return navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    if (!callActive.current) throw new Error("انتظر العميل يرد أول");
+    // Leave the customer's direct microphone muted after recording too.
+    micEnabled.current = false; setMicOn(false); syncMic();
+    const track = micStream.current?.getAudioTracks().find(item => item.readyState === "live");
+    if (!track) throw new Error("المايك انقطع، أعد الاتصال");
+    return new MediaStream([track.clone()]);
   }
   function startNada() {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -403,6 +419,10 @@ export function WebPhone() {
           {nadaMode ? <Button size="sm" variant="destructive" onClick={stopNada}>إيقاف</Button> : <Button size="sm" onClick={() => { if (!inCall) { toast.error("اتصل أول"); return; } startNada(); }}>تشغيل</Button>}
         </div>
         {nadaMode && <p className="text-xs">{heard ? `🎙️ ${heard}` : "🎙️ أسمعك… تكلم"}</p>}
+        <PhonePushToTalk key={inCall ? "call" : "preview"} acquire={acquirePushMic} speak={async text => {
+          if (!inCall) setPreviewText(text);
+          await sayAsNada(text, voiceModeRef.current, inCall ? "call" : "preview");
+        }} />
         <div className="flex gap-2">
           <Input placeholder="أو اكتب جملة وتنطق فوراً" value={typed} onChange={(e) => setTyped(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && typed.trim()) { if (!inCall) { toast.error("اتصل أول"); return; } sayAsNada(typed); setTyped(""); } }} />
           <Button size="sm" variant="outline" disabled={!typed.trim()} onClick={() => { if (!inCall) { toast.error("اتصل أول"); return; } sayAsNada(typed); setTyped(""); }}>انطق</Button>

@@ -4,6 +4,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ fish: vi.fn(), vault: vi.fn(), newCall: vi.fn(), stop: vi.fn(), destinations: [] as { stream: { getAudioTracks: () => any[]; getTracks: () => any[] } }[], gains: [] as { gain: { value: number }; connect: ReturnType<typeof vi.fn> }[], sources: [] as { connect: ReturnType<typeof vi.fn>; start: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn>; onended: (() => void) | null }[], notification: null as ((event: any) => void) | null }));
 vi.mock("@/lib/phone.functions", () => ({ phoneToken: vi.fn(async () => ({ token: "test", balance: "1", from: "+12025550123" })), phoneCallerIds: vi.fn(async () => ({ owned: [], verified: [] })), phoneVerifyStart: vi.fn(), phoneVerifyConfirm: vi.fn() }));
 vi.mock("@/lib/ai.functions", () => ({ fishSpeak: mocks.fish }));
+vi.mock("@/lib/phone-listen.functions", () => ({ transcribePhone: vi.fn() }));
 vi.mock("@/lib/call-vault", () => ({ listClips: vi.fn(async () => []), clipUrl: vi.fn(), vaultSpeak: mocks.vault }));
 vi.mock("@/lib/voice-model", () => ({ getStudioVoice: () => "test-voice" }));
 vi.mock("@telnyx/webrtc", () => ({ TelnyxRTC: class {
