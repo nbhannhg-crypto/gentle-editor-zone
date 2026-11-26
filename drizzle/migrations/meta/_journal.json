@@ -183,6 +183,13 @@
       "when": 1795312466575,
       "tag": "0025_store_ui_prefs",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1795736414363,
+      "tag": "0026_sms_history_contacts",
+      "breakpoints": true
     }
   ]
 }

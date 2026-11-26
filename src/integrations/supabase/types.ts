@@ -1006,6 +1006,97 @@ export type Database = {
           },
         ]
       }
+      sms_contacts: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          phone: string
+          store_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name?: string
+          phone: string
+          store_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          phone?: string
+          store_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_contacts_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sms_messages: {
+        Row: {
+          cost_amount: string | null
+          cost_currency: string | null
+          created_at: string
+          error: string | null
+          from_number: string
+          id: string
+          parts: number
+          provider_id: string | null
+          status: string
+          store_id: string
+          text: string
+          to_number: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cost_amount?: string | null
+          cost_currency?: string | null
+          created_at?: string
+          error?: string | null
+          from_number?: string
+          id?: string
+          parts?: number
+          provider_id?: string | null
+          status?: string
+          store_id: string
+          text: string
+          to_number: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cost_amount?: string | null
+          cost_currency?: string | null
+          created_at?: string
+          error?: string | null
+          from_number?: string
+          id?: string
+          parts?: number
+          provider_id?: string | null
+          status?: string
+          store_id?: string
+          text?: string
+          to_number?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_messages_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       store_ui_prefs: {
         Row: {
           key: string

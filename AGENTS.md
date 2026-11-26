@@ -24,3 +24,6 @@
 - Phone calls use a cloned direct microphone track normally and switch the negotiated RTP sender to a mono mixer for synthesized or saved audio; keep capture separate, recreate stopped mixer destinations, and restore the direct track afterward — SDK teardown must not kill recognition or strand generated audio on an ended track.
 - Phone recognition and SDK callbacks must belong to the current recognizer/client; recover detached audio senders through their audio transceiver — late callbacks must not generate or reroute speech after stopping or reconnecting.
 - Phone push-to-talk records a clone of the existing capture track during calls and uses authenticated external-key transcription; cancellation invalidates late results and never stops the underlying call capture — avoid competing microphone recognition sessions.
+
+- SMS uses a shared browser-safe segment/number helper and an authenticated owner-only module; save store-scoped drafts before submission, atomically claim them, and use carrier idempotency keys — prevent duplicate billing and preserve uncertain outcomes without automatic retries.
+- SMS senders come from carrier messaging settings, not voice caller IDs; validate domestic/international capabilities before submission, and derive estimates only from delivered messages to the same recipient/sender — avoid unsupported routes and fabricated prices.

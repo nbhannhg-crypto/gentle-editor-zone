@@ -64,24 +64,5 @@ export const phoneVerifyConfirm = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-// Owner-only SMS through the same carrier account; sender must be a number owned on the account.
-export const smsSend = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((d: { to: string; text: string }) => {
-    const text = String(d?.text ?? "").trim().slice(0, 670);
-    if (!text) throw new Error("اكتب نص الرسالة");
-    return { to: e164(d?.to), text };
-  })
-  .handler(async ({ context, data }) => {
-    const key = await ownerKey(context);
-    const own = await tx(key, "/phone_numbers?page[size]=50").then((r) => r.json()).catch(() => null);
-    const nums = ((own?.data ?? []) as any[]).map((n) => String(n.phone_number));
-    const from = process.env["TELNYX_FROM"] ?? process.env["TELNYX_FROM_NUMBER"] ?? nums[0];
-    if (!from) throw new Error("ما فيه رقم مملوك بالحساب للإرسال منه");
-    const r = await tx(key, "/messages", { method: "POST", body: JSON.stringify({ from, to: data.to, text: data.text }) });
-    const b: any = await r.json().catch(() => null);
-    if (!r.ok) throw new Error("تعذر الإرسال: " + (b?.errors?.[0]?.detail ?? b?.errors?.[0]?.title ?? r.status));
-    const parts = Number(b?.data?.parts ?? 1);
-    const cost = b?.data?.cost?.amount ? String(b.data.cost.amount) : "";
-    return { id: String(b?.data?.id ?? ""), from, parts, cost };
-  });
+// The SMS entry point now submits saved drafts only, with sender checks and duplicate protection.
+export { smsSendDraft as smsSend } from "./sms.functions";

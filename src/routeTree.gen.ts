@@ -17,6 +17,7 @@ import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedCardEditorRouteImport } from './routes/_authenticated/card-editor'
 import { Route as AuthenticatedIdcardRouteImport } from './routes/_authenticated/idcard'
+import { Route as AuthenticatedSmsRouteImport } from './routes/_authenticated/sms'
 import { Route as AuthenticatedStudioRouteImport } from './routes/_authenticated/studio'
 import { Route as MIndexRouteImport } from './routes/m.index'
 import { Route as MStoreIdRouteImport } from './routes/m.$storeId'
@@ -69,6 +70,11 @@ const AuthenticatedCardEditorRoute = AuthenticatedCardEditorRouteImport.update({
 const AuthenticatedIdcardRoute = AuthenticatedIdcardRouteImport.update({
   id: '/idcard',
   path: '/idcard',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedSmsRoute = AuthenticatedSmsRouteImport.update({
+  id: '/sms',
+  path: '/sms',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedStudioRoute = AuthenticatedStudioRouteImport.update({
@@ -151,6 +157,7 @@ export interface FileRoutesByFullPath {
   '/app': typeof AuthenticatedAppRoute
   '/card-editor': typeof AuthenticatedCardEditorRoute
   '/idcard': typeof AuthenticatedIdcardRoute
+  '/sms': typeof AuthenticatedSmsRoute
   '/studio': typeof AuthenticatedStudioRoute
   '/m/$storeId': typeof MStoreIdRoute
   '/s/$storeId': typeof SStoreIdRoute
@@ -174,6 +181,7 @@ export interface FileRoutesByTo {
   '/app': typeof AuthenticatedAppRoute
   '/card-editor': typeof AuthenticatedCardEditorRoute
   '/idcard': typeof AuthenticatedIdcardRoute
+  '/sms': typeof AuthenticatedSmsRoute
   '/studio': typeof AuthenticatedStudioRoute
   '/m/$storeId': typeof MStoreIdRoute
   '/s/$storeId': typeof SStoreIdRoute
@@ -199,6 +207,7 @@ export interface FileRoutesById {
   '/_authenticated/app': typeof AuthenticatedAppRoute
   '/_authenticated/card-editor': typeof AuthenticatedCardEditorRoute
   '/_authenticated/idcard': typeof AuthenticatedIdcardRoute
+  '/_authenticated/sms': typeof AuthenticatedSmsRoute
   '/_authenticated/studio': typeof AuthenticatedStudioRoute
   '/m/$storeId': typeof MStoreIdRoute
   '/s/$storeId': typeof SStoreIdRoute
@@ -224,6 +233,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/card-editor'
     | '/idcard'
+    | '/sms'
     | '/studio'
     | '/m/$storeId'
     | '/s/$storeId'
@@ -247,6 +257,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/card-editor'
     | '/idcard'
+    | '/sms'
     | '/studio'
     | '/m/$storeId'
     | '/s/$storeId'
@@ -271,6 +282,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app'
     | '/_authenticated/card-editor'
     | '/_authenticated/idcard'
+    | '/_authenticated/sms'
     | '/_authenticated/studio'
     | '/m/$storeId'
     | '/s/$storeId'
@@ -362,6 +374,13 @@ declare module '@tanstack/react-router' {
       path: '/idcard'
       fullPath: '/idcard'
       preLoaderRoute: typeof AuthenticatedIdcardRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/sms': {
+      id: '/_authenticated/sms'
+      path: '/sms'
+      fullPath: '/sms'
+      preLoaderRoute: typeof AuthenticatedSmsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/studio': {
@@ -470,6 +489,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAppRoute: typeof AuthenticatedAppRoute
   AuthenticatedCardEditorRoute: typeof AuthenticatedCardEditorRoute
   AuthenticatedIdcardRoute: typeof AuthenticatedIdcardRoute
+  AuthenticatedSmsRoute: typeof AuthenticatedSmsRoute
   AuthenticatedStudioRoute: typeof AuthenticatedStudioRoute
   AuthenticatedAdminKingdomRoute: typeof AuthenticatedAdminKingdomRoute
 }
@@ -479,6 +499,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAppRoute: AuthenticatedAppRoute,
   AuthenticatedCardEditorRoute: AuthenticatedCardEditorRoute,
   AuthenticatedIdcardRoute: AuthenticatedIdcardRoute,
+  AuthenticatedSmsRoute: AuthenticatedSmsRoute,
   AuthenticatedStudioRoute: AuthenticatedStudioRoute,
   AuthenticatedAdminKingdomRoute: AuthenticatedAdminKingdomRoute,
 }
