@@ -128,7 +128,7 @@ export const smsSendDraft = createServerFn({ method: "POST" }).middleware([requi
     }
     const result = body.data;
     const { data: row, error } = await db.from("sms_messages").update({
-      provider_id: result.id, status: result.to?.[0]?.status ?? "queued", parts: result.parts ?? draft.parts,
+      provider_id: result.id ?? null, status: result.to?.[0]?.status ?? "queued", parts: result.parts ?? draft.parts,
       cost_amount: result.cost?.amount ?? null, cost_currency: result.cost?.currency ?? null, error: null, updated_at: new Date().toISOString(),
     }).eq("id", draft.id).eq("store_id", storeId).select("*").single();
     if (error || !row) throw new Error("المزود قبل الرسالة لكن تعذر تحديث السجل؛ لا تكرر الإرسال");

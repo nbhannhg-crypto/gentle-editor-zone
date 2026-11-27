@@ -16,9 +16,9 @@ type Message = Database["public"]["Tables"]["sms_messages"]["Row"];
 type ContactPicker = { select: (props: string[], options: { multiple: boolean }) => Promise<{ name?: string[]; tel?: string[] }[]> };
 
 class SmsBoundary extends Component<{ children: ReactNode }, { error: string }> {
-  state = { error: "" };
+  override state = { error: "" };
   static getDerivedStateFromError(error: Error) { return { error: error.message }; }
-  render() {
+  override render() {
     if (this.state.error) return <div className="space-y-2 border-b py-3"><p role="alert" className="text-sm text-destructive">{this.state.error}</p><Button asChild variant="outline" size="sm"><Link to="/sms">فتح الرسائل</Link></Button></div>;
     return this.props.children;
   }

@@ -13,7 +13,7 @@ export const Route = createFileRoute("/_authenticated/sms")({
     { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" },
   ] }),
   loader: ({ context }) => context.queryClient.ensureQueryData(smsQueryOptions(context.user.id)),
-  errorComponent: ({ error, reset }) => <div dir="rtl" className="mx-auto max-w-3xl space-y-4 p-4"><p role="alert">{error.message}</p><Button onClick={reset}>إعادة المحاولة</Button><Button asChild variant="outline"><Link to="/studio">العودة للهاتف</Link></Button></div>,
+  errorComponent: ({ error, reset }) => <div dir="rtl" className="mx-auto max-w-3xl space-y-4 p-4"><p role="alert">{error instanceof Error ? error.message : "تعذر تحميل الرسائل"}</p><Button onClick={reset}>إعادة المحاولة</Button><Button asChild variant="outline"><Link to="/studio">العودة للهاتف</Link></Button></div>,
   component: SmsPage,
 });
 
